@@ -684,7 +684,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		const cartItemsEl = $('cartItems'), cartEmptyEl = $('cartEmpty');
 		const cartTotalEl = $('cartTotal'), cartCountEl = $('cartCount'), cartCount2El = $('cartCount2');
 		const checkoutEl = $<HTMLButtonElement>('checkout');
-		gsap.set(cartEl, { xPercent: 100 });
+		gsap.set(cartEl, { xPercent: 100, visibility: 'visible' });
 		gsap.set(scrim, { autoAlpha: 0 });
 
 		function renderCart() {
@@ -1195,7 +1195,11 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	   scrim all sitting open over a half-built page. Now a JS failure costs
 	   interactivity, never a broken-looking screen. */
 	.drawer {
-		transform: translateX(100%);
+		/* ponytail: visibility, NOT transform. GSAP reads the computed matrix when it
+		   first touches an element, so a CSS translateX(100%) is parsed as x:400px and
+		   xPercent:100 then stacks on top of it — the drawer never slides back in.
+		   GSAP owns the transform; CSS only owns the pre-JS hidden state. */
+		visibility: hidden;
 		position: fixed; top: 0; right: 0; height: 100%; z-index: 30;
 		width: 400px; max-width: 92vw;
 		display: flex; flex-direction: column;

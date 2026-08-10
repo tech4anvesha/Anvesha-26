@@ -3067,7 +3067,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/merch.astro",
-      "source_location": "L1331",
+      "source_location": "L1335",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_merch",
@@ -3643,5 +3643,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "c16e0560dd5e5bcfbca33ea514ef279c5bc7a6a4"
+  "built_at_commit": "02572b70f22369c6539efb708230a3e5a2b9c7c1"
 }

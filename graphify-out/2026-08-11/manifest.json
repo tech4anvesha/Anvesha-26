@@ -1,7 +1,7 @@
 {
   ".claude/settings.local.json": {
-    "mtime": 1786391218.9008753,
-    "ast_hash": "64c24c3ab8306b95794beb5ace32d288",
+    "mtime": 1786391660.3415647,
+    "ast_hash": "baf8b9a9d3b9a2b17700bb79d3ac0377",
     "semantic_hash": ""
   },
   ".vscode/extensions.json": {
@@ -45,8 +45,8 @@
     "semantic_hash": "1d3613ac08bdda17e2b82251613dbc21"
   },
   "src/pages/merch.astro": {
-    "mtime": 1786391375.801126,
-    "ast_hash": "97f410f7f95a12c5ab873aa077b25785",
+    "mtime": 1786391586.6297529,
+    "ast_hash": "115ebaba4997f6e0f10134482c5dd599",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -80,7 +80,7 @@
     "semantic_hash": ""
   },
   "src/layouts/SiteLayout.astro": {
-    "mtime": 1786391196.6385443,
+    "mtime": 1786391500.520647,
     "ast_hash": "f4b0e9cef3733d4b7d47775e7831388f",
     "semantic_hash": ""
   },
