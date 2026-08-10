@@ -1,0 +1,113 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+import iSchool from 'lucide-static/icons/school.svg?raw';
+import iBus from 'lucide-static/icons/bus.svg?raw';
+import iGradCap from 'lucide-static/icons/graduation-cap.svg?raw';
+import iBookOpen from 'lucide-static/icons/book-open.svg?raw';
+import iRadio from 'lucide-static/icons/radio.svg?raw';
+import iRecycle from 'lucide-static/icons/recycle.svg?raw';
+import iHandHeart from 'lucide-static/icons/hand-heart.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+
+const STATS = [
+	{ value: '148', label: 'Schools reached' },
+	{ value: '11,200', label: 'Students, last cycle' },
+	{ value: '340', label: 'Student volunteers' },
+	{ value: '9', label: 'Districts covered' },
+];
+
+const PROGRAMMES = [
+	{ name: 'School Lab Days', when: 'Year-round', icon: iSchool,
+	  text: 'We take a full day of experiments into a school that has no lab of its own. Everything is done with equipment the school can afford to keep.' },
+	{ name: 'The Mobile Lab', when: 'Monthly', icon: iBus,
+	  text: 'A converted bus carrying microscopes, a small optics bench and a portable planetarium. It parks wherever the roads allow.' },
+	{ name: 'Mentorship Circles', when: 'Aug — Mar', icon: iGradCap,
+	  text: 'Undergraduates mentor Class 9—12 students through one research question across a full academic year, start to write-up.' },
+	{ name: 'Open Lecture Series', when: 'Fortnightly', icon: iBookOpen,
+	  text: 'Free public lectures in plain language, held in town halls rather than on campus. No prior background assumed, ever.' },
+	{ name: 'Science on Air', when: 'Weekly', icon: iRadio,
+	  text: 'A fifteen-minute segment with the community radio station, answering questions that listeners send in during the week.' },
+	{ name: 'Repair & Reuse', when: 'Quarterly', icon: iRecycle,
+	  text: 'Retired campus equipment is refurbished by student teams and donated to schools, with training so it actually gets used.' },
+];
+---
+
+<SiteLayout title="Outreach · Anvesha '26">
+	<div class="page">
+		<header class="page-head" data-reveal>
+			<p class="eyebrow">Beyond the campus gates</p>
+			<h1 class="page-title">Outreach</h1>
+			<p class="lede">
+				A fest that runs for three days is a poor excuse for a year of nothing. Outreach is
+				the part of Anvesha that keeps going after the halls are packed up — mostly in
+				schools that have never had a working lab.
+			</p>
+		</header>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Last cycle</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">2025—26</span>
+			</div>
+
+			<div class="tiles stats">
+				{STATS.map((s) => (
+					<div class="tile stat">
+						<div class="stat-value">{s.value}</div>
+						<div class="tile-meta">{s.label}</div>
+					</div>
+				))}
+			</div>
+		</section>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Programmes</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{PROGRAMMES.length}</b> running</span>
+			</div>
+
+			<div class="tiles">
+				{PROGRAMMES.map((p, i) => (
+					<article class="tile">
+						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
+						<span class="tile-icon" set:html={p.icon} />
+						<div class="tile-title">{p.name}</div>
+						<div class="tile-meta"><b>{p.when}</b></div>
+						<p class="tile-text">{p.text}</p>
+					</article>
+				))}
+			</div>
+		</section>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Volunteering</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">Rolling intake</span>
+			</div>
+			<p class="lede" style="margin-top:0">
+				You do not need to be a science student, and you do not need to be good at
+				explaining things yet — that is most of what the training is for. One weekend a
+				month is enough to be useful.
+			</p>
+			<a class="cta" href="mailto:outreach@anvesha26.in" style="margin-top:22px">
+				<span set:html={iHandHeart} />
+				<span>JOIN THE PROGRAMME</span>
+				<span set:html={iArrowRight} />
+			</a>
+		</section>
+	</div>
+</SiteLayout>
+
+<style is:global>
+	.stats { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+	.stat { gap: 6px; }
+	.stat-value {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(30px, 3.6vw, 46px);
+		line-height: 1; letter-spacing: -0.02em;
+	}
+</style>

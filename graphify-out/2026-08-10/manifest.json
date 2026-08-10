@@ -1,0 +1,87 @@
+{
+  ".claude/settings.local.json": {
+    "mtime": 1786384379.251814,
+    "ast_hash": "fb97897ae8f7ededd551976d6d38fb6c",
+    "semantic_hash": ""
+  },
+  ".vscode/extensions.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "3adedb22d082dbd1ebb00b75d21403aa",
+    "semantic_hash": "3adedb22d082dbd1ebb00b75d21403aa"
+  },
+  ".vscode/launch.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "60493763dcbc2d109e57da86d997602a",
+    "semantic_hash": "60493763dcbc2d109e57da86d997602a"
+  },
+  "astro.config.mjs": {
+    "mtime": 1786342441.723946,
+    "ast_hash": "587a294a5ddda08529949ecb2763e9cd",
+    "semantic_hash": "587a294a5ddda08529949ecb2763e9cd"
+  },
+  "package.json": {
+    "mtime": 1786379590.427313,
+    "ast_hash": "e59a4cf6dee9d7e9bf408b52d06b25ca",
+    "semantic_hash": ""
+  },
+  "src/components/Welcome.astro": {
+    "mtime": 1786012897.0,
+    "ast_hash": "7274ef144fc0554f96f977626b0b96d4",
+    "semantic_hash": "7274ef144fc0554f96f977626b0b96d4"
+  },
+  "src/layouts/Layout.astro": {
+    "mtime": 1786344389.4247298,
+    "ast_hash": "4429664d1994c4bc8e5054750cf7d2b7",
+    "semantic_hash": ""
+  },
+  "src/pages/index.astro": {
+    "mtime": 1786384543.7096376,
+    "ast_hash": "55bb2a9aaea629584208ac4d0905fee9",
+    "semantic_hash": ""
+  },
+  "tsconfig.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "1d3613ac08bdda17e2b82251613dbc21",
+    "semantic_hash": "1d3613ac08bdda17e2b82251613dbc21"
+  },
+  "src/pages/merch.astro": {
+    "mtime": 1786384657.125406,
+    "ast_hash": "21d2761578b90e98449845c57f3a546f",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1786342382.4664476,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1786342382.4664476,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1786342262.969102,
+    "ast_hash": "de76967202948d4f70d11f4b3d9e7674",
+    "semantic_hash": ""
+  },
+  "public/favicon.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "8c13f40658976ea1dfb8ba37a8be0e8d",
+    "semantic_hash": ""
+  },
+  "src/assets/astro.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "d26c3520f1f016bad745392df8b5fae5",
+    "semantic_hash": ""
+  },
+  "src/assets/background.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "c2eaad48507ad1ea41f586bd5c21858a",
+    "semantic_hash": ""
+  },
+  "src/layouts/SiteLayout.astro": {
+    "mtime": 1786384442.36738,
+    "ast_hash": "5c697613666eb2a58a8527afbb5c131f",
+    "semantic_hash": ""
+  }
+}

@@ -1,0 +1,1437 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import chevronLeft from 'lucide-static/icons/chevron-left.svg?raw';
+import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
+import shoppingCart from 'lucide-static/icons/shopping-cart.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
+---
+
+<SiteLayout title="Merch · Anvesha '26">
+	<button slot="tools" id="cartToggle" class="btn bagbtn" aria-label="Open bag">
+		<span class="bagicon" set:html={shoppingCart}></span>
+		<span class="bagword">BAG</span>
+		<b id="cartCount">0</b>
+	</button>
+
+	<main class="hero scroll-y">
+				<!-- ============ LEFT: items in selected type + product info ============ -->
+				<section class="col-left">
+					<div class="crumb" data-reveal>
+						<span class="crumb-tick" aria-hidden="true"></span>
+						<span class="crumb-label">Catalog</span>
+						<span class="crumb-rule" aria-hidden="true"></span>
+						<span class="crumb-count"><b id="crumbCount">0</b> items</span>
+					</div>
+
+					<div id="tree" class="tree" data-reveal role="tree" aria-label="Merch catalogue"></div>
+					<div class="divider" data-reveal aria-hidden="true">
+						<span class="dv-line"></span>
+						<span class="dv-cross"></span>
+						<span class="dv-line"></span>
+					</div>
+
+					<div class="product" data-reveal>
+						<div class="copy">
+							<h1 id="pName" class="title">SELECT<br />AN ITEM</h1>
+							<p id="pDesc" class="desc"></p>
+							<p id="pDesigner" class="designer"></p>
+						</div>
+
+						<div class="opt">
+							<button id="sizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
+							<div id="sizes" class="sizes"></div>
+						</div>
+
+						<button id="addBtn" class="btn buy" disabled>
+							<!-- ponytail: drawn, not the ↗ glyph — that falls back to a hairline symbol font -->
+							<svg class="arrow" viewBox="0 0 24 24" aria-hidden="true">
+								<path d="M6 18 L18 6 M8.5 6 H18 V15.5" />
+							</svg>
+							<span class="buy-label">ADD TO BAG</span>
+							<span class="buy-dot" aria-hidden="true"></span>
+							<b id="pPrice" class="buy-price">—</b>
+						</button>
+					</div>
+				</section>
+
+				<!-- ============ CENTER: magnified view + view carousel ============ -->
+				<section class="col-stage">
+					<div class="stage-frame" data-reveal>
+						<!-- camera viewfinder furniture: decorative only, hidden from AT -->
+						<div class="viewfinder" aria-hidden="true">
+							<span class="vf-c tl"></span><span class="vf-c tr"></span>
+							<span class="vf-c bl"></span><span class="vf-c br"></span>
+							<span class="vf-grid"></span>
+							<span class="vf-hud hud-tl"><i class="vf-rec"></i>REC</span>
+							<span class="vf-hud hud-tr">ANV·26</span>
+							<span class="vf-hud hud-bl">f/2.8 · 1/125 · ISO400</span>
+							<span class="vf-hud hud-br" id="vfFrame">FRM 00/00</span>
+						</div>
+						<div id="stageView" class="stage-view" aria-live="polite"></div>
+					</div>
+					<span id="stageLabel" class="stage-label" data-reveal></span>
+
+					<div class="carousel" data-reveal>
+						<button id="prevView" class="btn cbtn" aria-label="Previous view" set:html={chevronLeft}></button>
+						<div id="viewport" class="cviewport">
+							<div id="viewList" class="ctrack" role="tablist" aria-label="Product views"></div>
+						</div>
+						<button id="nextView" class="btn cbtn" aria-label="Next view" set:html={chevronRight}></button>
+					</div>
+
+					<div class="pager" data-reveal>
+						<span id="pgCur">00</span>
+						<input
+							id="pgSlider" class="pgslider" type="range"
+							min="1" max="1" step="1" value="1" aria-label="Jump to view"
+						/>
+						<span id="pgTot">00</span>
+					</div>
+				</section>
+	</main>
+
+	<!-- ============ MOBILE: category tabs -> product grid ============ -->
+	<div class="m-shop scroll-y">
+		<div class="m-cats" id="mCats" role="tablist" aria-label="Merch categories"></div>
+		<div class="m-grid" id="mGrid"></div>
+	</div>
+
+	<Fragment slot="overlays">
+		<!-- ============ CART DRAWER ============ -->
+<aside id="cart" class="drawer" aria-label="Your bag" aria-hidden="true">
+	<div class="drawer-head">
+		<span class="drawer-title">YOUR BAG <i id="cartCount2">0</i></span>
+		<button id="cartClose" class="btn x" aria-label="Close bag" set:html={iX}></button>
+	</div>
+
+	<ul id="cartItems" class="cart-items scroll-y"></ul>
+
+	<div id="cartEmpty" class="empty">
+		<span class="empty-mark" set:html={iBagEmpty} />
+		<p>Bag's empty.<br />Go pick something good.</p>
+	</div>
+
+	<div class="drawer-foot">
+		<div class="row"><span>Subtotal</span><span id="cartTotal">₹0</span></div>
+		<div class="row muted"><span>Pickup at fest desk</span><span>FREE</span></div>
+		<button id="checkout" class="btn checkout" disabled>
+			<span>CHECKOUT</span><span class="chk-arrow" set:html={iArrowRight} />
+		</button>
+	</div>
+</aside>
+<!-- ============ SIZE CHART ============ -->
+<div id="sizeModal" class="modal-wrap" aria-hidden="true">
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="sizeTitle">
+		<div class="modal-head">
+			<span id="sizeTitle" class="modal-title">SIZE CHART</span>
+			<button id="sizeClose" class="btn x" aria-label="Close size chart" set:html={iX}></button>
+		</div>
+		<table class="sizetable">
+			<thead>
+				<tr><th>Size</th><th>Chest</th><th>Length</th><th>Sleeve</th></tr>
+			</thead>
+			<tbody>
+				<tr data-size="XS"><td>XS</td><td>34</td><td>26</td><td>7.5</td></tr>
+				<tr data-size="S"><td>S</td><td>36</td><td>27</td><td>8</td></tr>
+				<tr data-size="M"><td>M</td><td>38</td><td>28</td><td>8.5</td></tr>
+				<tr data-size="L"><td>L</td><td>40</td><td>29</td><td>9</td></tr>
+				<tr data-size="XL"><td>XL</td><td>42</td><td>30</td><td>9.5</td></tr>
+			</tbody>
+		</table>
+		<p class="modal-note">Inches, garment laid flat. Allow &plusmn;0.5in. Between sizes? Take the larger.</p>
+	</div>
+</div>
+<!-- ============ MOBILE: product sheet ============ -->
+<div id="mSheet" class="m-sheet" aria-hidden="true">
+	<div class="m-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="mName">
+		<div class="m-sheet-bar">
+			<span class="m-grab" aria-hidden="true"></span>
+			<button id="mSheetClose" class="btn x" aria-label="Close" set:html={iX}></button>
+		</div>
+
+		<div class="m-stage"><div id="mStage" class="m-stage-icon"></div></div>
+		<div id="mViewport" class="m-viewport">
+			<div id="mViews" class="m-views" role="tablist" aria-label="Product views"></div>
+		</div>
+
+		<h2 id="mName" class="m-name"></h2>
+		<p id="mDesc" class="m-desc"></p>
+		<p id="mDesigner" class="designer m-designer"></p>
+
+		<div class="m-opt">
+			<button id="mSizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
+			<div id="mSizes" class="sizes"></div>
+		</div>
+
+		<button id="mAdd" class="btn buy">
+			<svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18 L18 6 M8.5 6 H18 V15.5" /></svg>
+			<span class="buy-label">ADD TO BAG</span>
+			<span class="buy-dot" aria-hidden="true"></span>
+			<b id="mPrice" class="buy-price">—</b>
+		</button>
+	</div>
+</div>
+<div id="scrim" class="scrim"></div>
+	</Fragment>
+</SiteLayout>
+
+<script>
+	import { gsap } from 'gsap';
+
+	// lucide-static ships each icon as a standalone SVG; ?raw hands us the markup to inject.
+	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
+	import iMinus from 'lucide-static/icons/minus.svg?raw';
+	import iPlus from 'lucide-static/icons/plus.svg?raw';
+	import shirt from 'lucide-static/icons/shirt.svg?raw';
+	import flip from 'lucide-static/icons/flip-horizontal.svg?raw';
+	import microscope from 'lucide-static/icons/microscope.svg?raw';
+	import scissors from 'lucide-static/icons/scissors.svg?raw';
+	import hardHat from 'lucide-static/icons/hard-hat.svg?raw';
+	import shoppingBag from 'lucide-static/icons/shopping-bag.svg?raw';
+	import pkg from 'lucide-static/icons/package.svg?raw';
+	import coffee from 'lucide-static/icons/coffee.svg?raw';
+	import sparkles from 'lucide-static/icons/sparkles.svg?raw';
+	import award from 'lucide-static/icons/award.svg?raw';
+	import mapPin from 'lucide-static/icons/map-pin.svg?raw';
+	import notebook from 'lucide-static/icons/notebook.svg?raw';
+	import fileText from 'lucide-static/icons/file-text.svg?raw';
+	import sticker from 'lucide-static/icons/sticker.svg?raw';
+	import scanSearch from 'lucide-static/icons/scan-search.svg?raw';
+	import layers from 'lucide-static/icons/layers.svg?raw';
+	import palette from 'lucide-static/icons/palette.svg?raw';
+	import tag from 'lucide-static/icons/tag.svg?raw';
+	import ruler from 'lucide-static/icons/ruler.svg?raw';
+	import droplets from 'lucide-static/icons/droplets.svg?raw';
+	import printer from 'lucide-static/icons/printer.svg?raw';
+	import penTool from 'lucide-static/icons/pen-tool.svg?raw';
+	import bookOpen from 'lucide-static/icons/book-open.svg?raw';
+	import qrCode from 'lucide-static/icons/qr-code.svg?raw';
+	import box from 'lucide-static/icons/box.svg?raw';
+	import grid2x2 from 'lucide-static/icons/grid-2x2.svg?raw';
+	import rotateCw from 'lucide-static/icons/rotate-cw.svg?raw';
+	import spool from 'lucide-static/icons/spool.svg?raw';
+	import bookmark from 'lucide-static/icons/bookmark.svg?raw';
+	import highlighter from 'lucide-static/icons/highlighter.svg?raw';
+	import circleDot from 'lucide-static/icons/circle-dot.svg?raw';
+	import sun from 'lucide-static/icons/sun.svg?raw';
+	import move3d from 'lucide-static/icons/move-3d.svg?raw';
+	import footprints from 'lucide-static/icons/footprints.svg?raw';
+	import flask from 'lucide-static/icons/flask-conical.svg?raw';
+	import wind from 'lucide-static/icons/wind.svg?raw';
+	import glassWater from 'lucide-static/icons/glass-water.svg?raw';
+	import ribbon from 'lucide-static/icons/ribbon.svg?raw';
+	import image from 'lucide-static/icons/image.svg?raw';
+	import pencil from 'lucide-static/icons/pencil.svg?raw';
+	import presentation from 'lucide-static/icons/presentation.svg?raw';
+
+	type View = { label: string; icon: string };
+	type Item = { id: string; name: string; price: number; desc: string; designer: string; sizes?: string[]; views: View[] };
+	type Cat = { id: string; name: string; items: Item[] };
+
+	// ponytail: hardcoded catalog. Icons stand in for photography — swap View.icon for an
+	// <img src> when real art exists; nothing else has to change.
+	const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+	const catalog: Cat[] = [
+		{ id: 'apparel', name: 'Apparel', items: [
+			{ id: 'tee', name: 'Anvesha Tee', price: 499,
+				desc: "Mid-weight combed cotton, boxy cut. Screen-printed lab schematic across the chest, the one that started the whole fest.",
+				designer: 'Ananya Rao', views: [
+				{ label: 'Front', icon: shirt }, { label: 'Back', icon: flip },
+				{ label: 'Detail', icon: scanSearch }, { label: 'Fabric', icon: layers },
+				{ label: 'Print', icon: palette }, { label: 'Label', icon: tag },
+				{ label: 'Sizing', icon: ruler },
+			]},
+			{ id: 'hoodie', name: 'Retro Hoodie', price: 999,
+				desc: "Heavyweight brushed fleece with a double-lined hood and ribbed cuffs. Cut a little roomy, entirely on purpose.",
+				designer: 'Kabir Menon', views: [
+				{ label: 'Front', icon: shirt }, { label: 'Back', icon: flip },
+				{ label: 'Hood', icon: circleDot }, { label: 'Cuff', icon: scissors },
+				{ label: 'Fabric', icon: layers }, { label: 'Drawcord', icon: spool },
+				{ label: 'Care', icon: droplets },
+			]},
+			{ id: 'cap', name: 'Field Cap', price: 399,
+				desc: "Six-panel cotton twill, curved brim, brass adjuster at the back. Arrives already feeling broken in.",
+				designer: 'Ishaan Dutta', views: [
+				{ label: 'Front', icon: hardHat }, { label: 'Side', icon: flip },
+				{ label: 'Crown', icon: rotateCw }, { label: 'Stitch', icon: spool },
+				{ label: 'Strap', icon: ruler }, { label: 'Label', icon: tag },
+			]},
+			{ id: 'windbreaker', name: 'Windbreaker', price: 1499,
+				desc: "Featherweight ripstop shell that packs into its own chest pocket. Taped seams and a storm hood for open-ground days.",
+				designer: 'Meera Krishnan', views: [
+				{ label: 'Front', icon: wind }, { label: 'Back', icon: flip },
+				{ label: 'Hood', icon: circleDot }, { label: 'Zip', icon: scissors },
+				{ label: 'Fabric', icon: layers }, { label: 'Care', icon: droplets },
+			]},
+			{ id: 'labcoat', name: 'Lab Coat', price: 1299,
+				desc: "Full-length poplin with three deep pockets and a vented back. Sized to layer cleanly over a hoodie.",
+				designer: 'Rhea Bhatt', views: [
+				{ label: 'Front', icon: flask }, { label: 'Back', icon: flip },
+				{ label: 'Pocket', icon: box }, { label: 'Fabric', icon: layers },
+				{ label: 'Stitch', icon: spool }, { label: 'Label', icon: tag },
+			]},
+			{ id: 'socks', name: 'Crew Socks', price: 199,
+				desc: "Ribbed combed-cotton crew with a cushioned sole and the mark woven into the ankle, never printed on.",
+				designer: 'Arjun Nair', views: [
+				{ label: 'Front', icon: footprints }, { label: 'Pair', icon: flip },
+				{ label: 'Cuff', icon: spool }, { label: 'Fabric', icon: layers },
+				{ label: 'Sizing', icon: ruler }, { label: 'Label', icon: tag },
+			]},
+		]},
+		{ id: 'accessories', name: 'Accessories', items: [
+			{ id: 'tote', name: 'Canvas Tote', price: 349,
+				desc: "12oz natural canvas, boxed corners, webbing handles cut long enough to clear a shoulder. Takes a laptop and a lab file.",
+				designer: 'Sanya Kulkarni', views: [
+				{ label: 'Front', icon: shoppingBag }, { label: 'Back', icon: flip },
+				{ label: 'Inside', icon: pkg }, { label: 'Handle', icon: spool },
+				{ label: 'Print', icon: palette }, { label: 'Fabric', icon: layers },
+			]},
+			{ id: 'mug', name: 'Cosmos Mug', price: 299,
+				desc: "Glazed stoneware, 350ml, full-wrap starfield that runs under the handle. Dishwasher-safe and microwave-brave.",
+				designer: 'Dev Chatterjee', views: [
+				{ label: 'Front', icon: coffee }, { label: 'Wrap', icon: rotateCw },
+				{ label: 'Print', icon: sparkles }, { label: 'Handle', icon: move3d },
+				{ label: 'Base', icon: circleDot }, { label: 'Care', icon: droplets },
+			]},
+			{ id: 'badges', name: 'Badge Set', price: 199,
+				desc: "Five hard-enamel pins on a printed backing card. Butterfly clutches throughout, no cheap rubber studs.",
+				designer: 'Tara Iyer', views: [
+				{ label: 'Set', icon: award }, { label: 'Pin', icon: mapPin },
+				{ label: 'Face', icon: circleDot }, { label: 'Back', icon: flip },
+				{ label: 'Finish', icon: sun }, { label: 'Pack', icon: box },
+			]},
+			{ id: 'bottle', name: 'Steel Bottle', price: 599,
+				desc: "Double-walled 18/8 steel, 750ml. Twelve hours cold, six hot, and no condensation ring on your notes.",
+				designer: 'Nikhil Shah', views: [
+				{ label: 'Front', icon: glassWater }, { label: 'Cap', icon: rotateCw },
+				{ label: 'Print', icon: palette }, { label: 'Base', icon: circleDot },
+				{ label: 'Care', icon: droplets }, { label: 'Pack', icon: box },
+			]},
+			{ id: 'pouch', name: 'Tech Pouch', price: 449,
+				desc: "Padded shell with a ripstop lining and a chunky metal zip. Swallows a charger, three cables and a mouse.",
+				designer: 'Priya Ramesh', views: [
+				{ label: 'Front', icon: shoppingBag }, { label: 'Inside', icon: pkg },
+				{ label: 'Zip', icon: scissors }, { label: 'Fabric', icon: layers },
+				{ label: 'Print', icon: palette }, { label: 'Label', icon: tag },
+			]},
+			{ id: 'lanyard', name: 'Lanyard', price: 149,
+				desc: "Woven polyester with a metal swivel clip and a breakaway at the nape, because a lanyard should always let go.",
+				designer: 'Aditya Bose', views: [
+				{ label: 'Front', icon: ribbon }, { label: 'Clip', icon: circleDot },
+				{ label: 'Print', icon: palette }, { label: 'Length', icon: ruler },
+				{ label: 'Pack', icon: box },
+			]},
+		]},
+		{ id: 'stationery', name: 'Stationery', items: [
+			{ id: 'notebook', name: 'Lab Notebook', price: 249,
+				desc: "A5 dot-grid on 160gsm stock that lies flat at any page. Numbered throughout with an index left blank for you.",
+				designer: 'Naina Verma', views: [
+				{ label: 'Cover', icon: notebook }, { label: 'Open', icon: bookOpen },
+				{ label: 'Pages', icon: fileText }, { label: 'Grid', icon: grid2x2 },
+				{ label: 'Spine', icon: bookmark }, { label: 'Print', icon: printer },
+				{ label: 'Detail', icon: microscope },
+			]},
+			{ id: 'stickers', name: 'Sticker Pack', price: 149,
+				desc: "Twelve die-cut vinyl stickers, laminated and genuinely weatherproof. Will outlive the laptop you put them on.",
+				designer: 'Rohan Pillai', views: [
+				{ label: 'Sheet', icon: sticker }, { label: 'Peel', icon: scissors },
+				{ label: 'Artwork', icon: penTool }, { label: 'Finish', icon: highlighter },
+				{ label: 'Pack', icon: box }, { label: 'Scan', icon: qrCode },
+			]},
+			{ id: 'poster', name: 'Poster Set', price: 299,
+				desc: "Three A2 prints on 200gsm uncoated stock, shipped rolled in a rigid tube rather than folded flat.",
+				designer: 'Zoya Ahmed', views: [
+				{ label: 'Front', icon: image }, { label: 'Detail', icon: scanSearch },
+				{ label: 'Paper', icon: layers }, { label: 'Print', icon: printer },
+				{ label: 'Size', icon: ruler }, { label: 'Pack', icon: box },
+			]},
+			{ id: 'deskmat', name: 'Desk Mat', price: 699,
+				desc: "900 by 400mm with stitched edges, a micro-textured surface and a base that refuses to travel.",
+				designer: 'Vikram Sethi', views: [
+				{ label: 'Front', icon: presentation }, { label: 'Surface', icon: grid2x2 },
+				{ label: 'Edge', icon: spool }, { label: 'Print', icon: palette },
+				{ label: 'Size', icon: ruler }, { label: 'Pack', icon: box },
+			]},
+			{ id: 'pens', name: 'Pen Pack', price: 99,
+				desc: "Four 0.5mm gel pens loaded with archival ink. Dries fast enough for left-handers, never bleeds through.",
+				designer: 'Ira Mukherjee', views: [
+				{ label: 'Front', icon: pencil }, { label: 'Nib', icon: penTool },
+				{ label: 'Ink', icon: droplets }, { label: 'Grip', icon: circleDot },
+				{ label: 'Pack', icon: box },
+			]},
+		]},
+	];
+
+	// ponytail: Astro-processed module scripts run ONCE per browser session. With the
+	// client router that means a second visit to /merch would render markup with no
+	// behaviour at all — dead tree, dead cart. Everything below re-runs on
+	// astro:page-load against the freshly swapped DOM.
+	// The catalogue above stays at module scope: it is pure data and never changes.
+	let ac: AbortController | null = null;
+	let inited: HTMLElement | null = null;
+
+	function initMerch() {
+		const tree = document.getElementById('tree');
+		// not the merch page, or this exact DOM is already wired
+		if (!tree || tree === inited) return;
+		inited = tree;
+		ac?.abort();          // drop the previous visit's window-level listeners
+		ac = new AbortController();
+		const { signal } = ac;
+
+		const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+		const rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const pad = (n: number) => String(n).padStart(2, '0');
+
+		// ---- mobile elements (same state, second presentation) ----
+		const mCats = $('mCats'), mGrid = $('mGrid');
+		const mSheet = $('mSheet'), mSheetPanel = mSheet.querySelector('.m-sheet-panel') as HTMLElement;
+		const mStage = $('mStage'), mViews = $('mViews'), mViewport = $('mViewport'), mSizes = $('mSizes');
+		const mName = $('mName'), mDesc = $('mDesc'), mDesigner = $('mDesigner'), mPrice = $('mPrice');
+		const mAdd = $<HTMLButtonElement>('mAdd'), mSizeBtn = $<HTMLButtonElement>('mSizeBtn');
+
+		// ---- cart ----
+		type CartLine = { name: string; price: number; qty: number };
+
+		// ponytail: derive the thumbnail from the cart key instead of persisting SVG markup —
+		// keys are `itemId:size`, so the icon is already recoverable. Keeps localStorage small
+		// and means an icon swap in the catalog reaches carts saved before the change.
+		const iconFor = (key: string) =>
+			catalog.flatMap((c) => c.items).find((i) => i.id === key.split(':')[0])?.views[0].icon ?? pkg;
+		const KEY = 'anvesha-cart';
+		let cart: Record<string, CartLine> = (() => {
+			try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+		})();
+		const saveCart = () => localStorage.setItem(KEY, JSON.stringify(cart));
+
+		// ---- state ----
+		let catId = catalog[0].id;
+		let item: Item | null = null;
+		let viewIdx = 0;
+		let size: string | null = null;
+
+		// ---- catalogue tree ----
+		const treeEl = $('tree'), crumbCount = $('crumbCount');
+		let openCat: string | null = catalog[0].id; // accordion — one branch open at a time
+
+		// ponytail: the catalogue is static, so the tree is built ONCE and every branch keeps
+		// its rows in the DOM. Rebuilding on each toggle is what made collapsing impossible
+		// to animate — the rows were gone before they could move.
+		const folderOf = new Map<string, HTMLElement>();
+		const kidsOf = new Map<string, HTMLElement>();
+
+		function buildTree() {
+			treeEl.innerHTML = '';
+			crumbCount.textContent = String(catalog.reduce((n, c) => n + c.items.length, 0));
+
+			catalog.forEach((c) => {
+				const folder = document.createElement('button');
+				folder.className = 'tnode tcat';
+				folder.setAttribute('role', 'treeitem');
+				folder.innerHTML =
+					`<span class="tcaret">${caretRight}</span>` +
+					`<span class="tname">${c.name}</span>` +
+					`<span class="tmeta">${c.items.length} items</span>`;
+				folder.onclick = () => {
+					openCat = openCat === c.id ? null : c.id;
+					syncTree();
+				};
+				treeEl.appendChild(folder);
+				folderOf.set(c.id, folder);
+
+				const kids = document.createElement('div');
+				kids.className = 'tkids';
+				c.items.forEach((it, ii) => {
+					const b = document.createElement('button');
+					// .last stops the vertical stem at the elbow, closing the run
+					b.className = 'tnode titem' + (ii === c.items.length - 1 ? ' last' : '');
+					b.setAttribute('role', 'treeitem');
+					b.innerHTML =
+						`<i class="tnum">${pad(ii + 1)}</i>` +
+						`<span class="tname">${it.name}</span>` +
+						`<b class="tmeta tprice">₹${it.price}</b>`;
+					b.onclick = () => selectItem(it);
+					kids.appendChild(b);
+				});
+				treeEl.appendChild(kids);
+				kidsOf.set(c.id, kids);
+			});
+
+			syncTree(false);
+		}
+
+		function setBranch(c: Cat, animate: boolean) {
+			const open = openCat === c.id;
+			const folder = folderOf.get(c.id)!, kids = kidsOf.get(c.id)!;
+			const changed = kids.dataset.open !== String(open);
+			kids.dataset.open = String(open);
+			folder.classList.toggle('open', open);
+			folder.setAttribute('aria-expanded', String(open));
+
+			// a collapsed branch must leave the tab order, not just shrink out of sight
+			if (open) kids.removeAttribute('inert');
+			const settle = () => { if (!open) kids.setAttribute('inert', ''); };
+
+			if (!animate || rm || !changed) {
+				gsap.set(kids, { height: open ? 'auto' : 0 });
+				settle();
+				return;
+			}
+			gsap.to(kids, {
+				height: open ? 'auto' : 0,
+				duration: 0.34, ease: 'power2.inOut', overwrite: true, onComplete: settle,
+			});
+			// displacement only — a stalled tween must never leave a row invisible
+			if (open) gsap.fromTo(kids.children,
+				{ y: -7 },
+				{ y: 0, stagger: 0.035, duration: 0.3, ease: 'power2.out', clearProps: 'transform' });
+		}
+
+		function syncTree(animate = true) {
+			catalog.forEach((c) => {
+				setBranch(c, animate);
+				c.items.forEach((it, ii) => {
+					const row = kidsOf.get(c.id)!.children[ii];
+					const on = item?.id === it.id;
+					row.classList.toggle('active', on);
+					row.setAttribute('aria-selected', String(on));
+				});
+			});
+
+			revealActiveItem();
+		}
+
+		// ponytail: rect deltas, not offsetTop — offsetTop is measured from the nearest
+		// positioned ancestor, which isn't the scroll container here, so the maths would
+		// silently drift the moment anything above gains `position`.
+		function scrollCentre(box: HTMLElement, el: HTMLElement, axis: 'top' | 'left') {
+			const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+			const size = axis === 'top' ? 'height' : 'width';
+			const delta = (r[axis] + r[size] / 2) - (b[axis] + b[size] / 2);
+			box.scrollBy({ [axis]: delta, behavior: rm ? 'auto' : 'smooth' });
+		}
+
+		function revealActiveItem() {
+			const el = treeEl.querySelector('.titem.active') as HTMLElement | null;
+			if (el) scrollCentre(treeEl, el, 'top');
+		}
+
+		// ---- selection ----
+		const stageViewEl = $('stageView'), stageLabelEl = $('stageLabel');
+		const pNameEl = $('pName'), pDescEl = $('pDesc'), pPriceEl = $('pPrice');
+		const pDesignerEl = $('pDesigner');
+		const addBtn = $<HTMLButtonElement>('addBtn'), sizesEl = $('sizes');
+
+		function selectItem(it: Item) {
+			item = it; viewIdx = 0;
+			catId = catalog.find((c) => c.items.some((x) => x.id === it.id))!.id;
+			openCat = catId; // selecting inside a closed branch opens it, closing the others
+			size = (it.sizes ?? SIZES)[0];
+			syncTree(); renderHero(); renderSizes(); renderViews();
+			animateSelect();
+		}
+
+		function renderHero() {
+			if (!item) return;
+			const v = item.views[viewIdx];
+			stageViewEl.innerHTML = `<span class="big">${v.icon}</span>`;
+			stageLabelEl.textContent = `${pad(viewIdx + 1)} / ${v.label}`;
+			// ponytail: two-line split so long names break like the reference. One word = one line.
+			const parts = item.name.split(' ');
+			pNameEl.innerHTML = parts.length > 1
+				? `${parts.slice(0, -1).join(' ')}<br />${parts.at(-1)}`
+				: item.name;
+			pDescEl.textContent = item.desc;
+			pDesignerEl.innerHTML = `Design <b>${item.designer}</b>`;
+			pPriceEl.textContent = '₹' + item.price;
+			addBtn.disabled = false;
+
+			// mirror into the mobile sheet — one state, two presentations
+			mStage.innerHTML = `<span class="big">${v.icon}</span>`;
+			mName.textContent = item.name;
+			mDesc.textContent = item.desc;
+			mDesigner.innerHTML = `Design <b>${item.designer}</b>`;
+			mPrice.textContent = '₹' + item.price;
+			// ponytail: scale only, never opacity — see animateSelect().
+			// overwrite so dragging the slider restarts the pop instead of stacking tweens
+			if (!rm) gsap.fromTo(stageViewEl.querySelector('.big'),
+				{ scale: 0.92 },
+				{ scale: 1, duration: 0.45, ease: 'back.out(1.4)', overwrite: 'auto', clearProps: 'transform' });
+		}
+
+		// ponytail: desktop and mobile are two views of ONE state. Rendering into both
+		// hosts costs a loop; keeping two parallel state machines in sync would cost far
+		// more, and would drift the moment either side changed.
+		const sizeHosts = [sizesEl, mSizes];
+		function renderSizes() {
+			const list = item?.sizes ?? SIZES; // ponytail: every item is sizeable
+			for (const host of sizeHosts) {
+				host.innerHTML = '';
+				for (const s of list) {
+					const b = document.createElement('button');
+					b.className = 'btn size' + (s === size ? ' active' : '');
+					b.textContent = s;
+					b.setAttribute('aria-pressed', String(s === size));
+					b.onclick = () => { size = s; renderSizes(); };
+					host.appendChild(b);
+				}
+			}
+		}
+
+		const viewListEl = $('viewList'), viewportEl = $('viewport');
+		const pgCur = $('pgCur'), pgTot = $('pgTot'), pgSlider = $<HTMLInputElement>('pgSlider');
+		const vfFrame = $('vfFrame');
+		const prevBtn = $<HTMLButtonElement>('prevView'), nextBtn = $<HTMLButtonElement>('nextView');
+
+		// full rebuild — only when the item changes
+		const viewHosts = [
+			{ track: viewListEl, box: viewportEl },
+			{ track: mViews, box: mViewport },
+		];
+		function renderViews() {
+			if (!item) return;
+			for (const { track } of viewHosts) {
+				track.innerHTML = '';
+				item.views.forEach((v, i) => {
+					const b = document.createElement('button');
+					b.className = 'btn vbox';
+					b.setAttribute('role', 'tab');
+					b.innerHTML = `<span class="vicon">${v.icon}</span><small class="vlabel">${v.label}</small><i class="vnum">${pad(i + 1)}</i>`;
+					b.onclick = () => goView(i);
+					track.appendChild(b);
+				});
+			}
+			pgTot.textContent = pad(item.views.length);
+			pgSlider.max = String(item.views.length);
+			// arrows wrap, so they only go dead when there's nothing to move between
+			const single = item.views.length < 2;
+			prevBtn.disabled = nextBtn.disabled = pgSlider.disabled = single;
+			syncViews();
+		}
+
+		// ponytail: a view change only re-marks the existing boxes. Rebuilding the strip on
+		// every slider tick would thrash the DOM and restart the smooth scroll mid-drag.
+		function syncViews() {
+			for (const { track, box } of viewHosts) {
+				Array.from(track.children).forEach((el, i) => {
+					el.classList.toggle('active', i === viewIdx);
+					el.setAttribute('aria-selected', String(i === viewIdx));
+				});
+				const el = track.children[viewIdx] as HTMLElement | undefined;
+				if (el) scrollCentre(box, el, 'left');
+			}
+			pgCur.textContent = pad(viewIdx + 1);
+			pgSlider.value = String(viewIdx + 1);
+			vfFrame.textContent = `FRM ${pad(viewIdx + 1)}/${pad(item!.views.length)}`;
+		}
+
+		function goView(i: number) {
+			if (!item) return;
+			const n = item.views.length;
+			viewIdx = ((i % n) + n) % n; // wrap both directions
+			renderHero(); syncViews();
+		}
+
+		prevBtn.onclick = () => goView(viewIdx - 1);
+		nextBtn.onclick = () => goView(viewIdx + 1);
+		pgSlider.oninput = () => goView(Number(pgSlider.value) - 1);
+
+		// arrow keys drive the carousel while focus is inside it
+		viewListEl.addEventListener('keydown', (e) => {
+			if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+			e.preventDefault();
+			goView(viewIdx + (e.key === 'ArrowRight' ? 1 : -1));
+			(viewListEl.children[viewIdx] as HTMLElement)?.focus();
+		});
+
+		// ---- GSAP reveal ----
+		// ponytail: displacement only — never animate opacity here, and always fromTo + clearProps.
+		// gsap.from() paints the START state immediately and only reaches the end state if the
+		// tween actually runs; a stalled ticker (backgrounded tab, throttled rAF) left the title
+		// grey and the whole buy block at opacity 0 — the buy button vanished. Worst case now is
+		// an element sitting a few px off its mark, still fully visible and clickable.
+		function animateSelect() {
+			if (rm) return;
+			const active = treeEl.querySelector('.titem.active');
+			const tl = gsap.timeline();
+			const slide = { duration: 0.4, ease: 'power3.out', clearProps: 'transform' };
+			if (active) tl.fromTo(active, { x: -12 }, { x: 0, ...slide }, 0);
+			tl.fromTo([pNameEl, pDescEl, pDesignerEl], { y: 18 }, { y: 0, stagger: 0.05, ...slide }, 0.05)
+				.fromTo(sizesEl.children, { y: 8 }, { y: 0, stagger: 0.04, ...slide }, '-=0.2')
+				.fromTo(addBtn, { y: 12 }, { y: 0, ...slide }, '-=0.2')
+				.fromTo(viewListEl.children, { x: 16 }, { x: 0, stagger: 0.06, ...slide }, '-=0.3');
+		}
+
+		function addToBag() {
+			if (!item) return;
+			const key = item.id + (size ? ':' + size : '');
+			cart[key] ??= {
+				name: item.name + (size ? ' · ' + size : ''),
+				price: item.price,
+				qty: 0,
+			};
+			cart[key].qty++;
+			saveCart(); renderCart(); openCart(true);
+			if (!rm) gsap.fromTo('#cartCount, #cartCount2', { scale: 1.8 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' });
+		}
+		addBtn.onclick = addToBag;
+		mAdd.onclick = () => { addToBag(); openSheet(false); };
+
+		// ---- cart drawer ----
+		const cartEl = $('cart'), scrim = $('scrim');
+		const cartItemsEl = $('cartItems'), cartEmptyEl = $('cartEmpty');
+		const cartTotalEl = $('cartTotal'), cartCountEl = $('cartCount'), cartCount2El = $('cartCount2');
+		const checkoutEl = $<HTMLButtonElement>('checkout');
+		gsap.set(cartEl, { xPercent: 100 });
+		gsap.set(scrim, { autoAlpha: 0 });
+
+		function renderCart() {
+			const ids = Object.keys(cart);
+			cartItemsEl.innerHTML = '';
+			let total = 0, count = 0;
+			for (const id of ids) {
+				const it = cart[id];
+				total += it.price * it.qty; count += it.qty;
+				const li = document.createElement('li');
+				li.innerHTML = `
+					<span class="cthumb">${iconFor(id)}</span>
+					<span class="cmeta">
+						<span class="cn">${it.name}</span>
+						<span class="cu">₹${it.price} each</span>
+					</span>
+					<span class="cq">
+						<button class="btn" data-act="dec" data-id="${id}" aria-label="Decrease quantity">${iMinus}</button>
+						<b>${it.qty}</b>
+						<button class="btn" data-act="inc" data-id="${id}" aria-label="Increase quantity">${iPlus}</button>
+					</span>
+					<span class="cl">₹${it.price * it.qty}</span>`;
+				cartItemsEl.appendChild(li);
+			}
+			cartEmptyEl.style.display = ids.length ? 'none' : 'flex';
+			cartItemsEl.style.display = ids.length ? 'flex' : 'none';
+			cartTotalEl.textContent = '₹' + total;
+			cartCountEl.textContent = String(count);
+			cartCount2El.textContent = String(count);
+			checkoutEl.disabled = ids.length === 0;
+		}
+
+		cartItemsEl.addEventListener('click', (e) => {
+			const t = (e.target as HTMLElement).closest('button');
+			if (!t) return;
+			const id = t.dataset.id!;
+			if (t.dataset.act === 'inc') cart[id].qty++;
+			else if (--cart[id].qty <= 0) delete cart[id];
+			saveCart(); renderCart();
+		});
+
+		let cartOpen = false;
+		function openCart(on: boolean) {
+			cartOpen = on;
+			cartEl.setAttribute('aria-hidden', String(!on));
+			gsap.to(cartEl, { xPercent: on ? 0 : 100, duration: rm ? 0 : 0.4, ease: 'power3.out' });
+			gsap.to(scrim, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.3 });
+		}
+		$('cartToggle').onclick = () => openCart(!cartOpen);
+		$('cartClose').onclick = () => openCart(false);
+
+		// ---- size chart ----
+		// ponytail: one scrim serves both overlays — a second identical layer would only
+		// create a z-order to get wrong.
+		const sizeModal = $('sizeModal'), sizePanel = sizeModal.querySelector('.modal') as HTMLElement;
+		const sizeBtn = $<HTMLButtonElement>('sizeBtn');
+		let sizeOpen = false;
+		gsap.set(sizeModal, { autoAlpha: 0 });
+		gsap.set(sizePanel, { scale: 0.96 });
+
+		function openSize(on: boolean) {
+			sizeOpen = on;
+			sizeModal.setAttribute('aria-hidden', String(!on));
+			// mark the row for the size already chosen, so the chart lands in context
+			if (on) sizeModal.querySelectorAll<HTMLElement>('[data-size]')
+				.forEach((r) => r.classList.toggle('on', r.dataset.size === size));
+
+			gsap.to(sizeModal, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
+			gsap.to(sizePanel, { scale: on ? 1 : 0.96, duration: rm ? 0 : 0.26, ease: 'power2.out' });
+			gsap.to(scrim, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
+			(on ? $<HTMLButtonElement>('sizeClose') : sizeBtn).focus();
+		}
+		sizeBtn.onclick = () => openSize(true);
+		$('sizeClose').onclick = () => openSize(false);
+
+		scrim.onclick = () => (sizeOpen ? openSize(false) : openCart(false));
+		addEventListener('keydown', (e) => {
+			if (e.key !== 'Escape') return;
+			if (sizeOpen) openSize(false);
+			else if (sheetOpen) openSheet(false);
+			else if (cartOpen) openCart(false);
+		}, { signal });
+
+		checkoutEl.onclick = () => {
+			// ponytail: no gateway yet — confirm + clear. Wire Razorpay when live.
+			alert(`Order total ${cartTotalEl.textContent}. Payment coming soon.`);
+			cart = {}; saveCart(); renderCart(); openCart(false);
+		};
+
+		// ---- mobile shop ----
+		function renderMCats() {
+			mCats.innerHTML = '';
+			for (const c of catalog) {
+				const b = document.createElement('button');
+				b.className = 'btn m-cat' + (c.id === catId ? ' active' : '');
+				b.setAttribute('role', 'tab');
+				b.setAttribute('aria-selected', String(c.id === catId));
+				b.textContent = c.name;
+				b.onclick = () => { catId = c.id; renderMCats(); renderMGrid(); };
+				mCats.appendChild(b);
+			}
+		}
+
+		function renderMGrid() {
+			const cat = catalog.find((c) => c.id === catId)!;
+			mGrid.innerHTML = '';
+			for (const it of cat.items) {
+				const b = document.createElement('button');
+				b.className = 'btn m-card';
+				b.innerHTML =
+					`<span class="m-card-icon">${it.views[0].icon}</span>` +
+					`<span class="m-card-name">${it.name}</span>` +
+					`<span class="m-card-price">₹${it.price}</span>`;
+				b.onclick = () => { selectItem(it); openSheet(true); };
+				mGrid.appendChild(b);
+			}
+		}
+
+		let sheetOpen = false;
+		gsap.set(mSheet, { autoAlpha: 0 });
+		gsap.set(mSheetPanel, { yPercent: 14 });
+		function openSheet(on: boolean) {
+			sheetOpen = on;
+			mSheet.setAttribute('aria-hidden', String(!on));
+			gsap.to(mSheet, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
+			gsap.to(mSheetPanel, { yPercent: on ? 0 : 14, duration: rm ? 0 : 0.32, ease: 'power3.out' });
+			// selecting a category on the grid should follow the item you just opened
+			if (!on) { renderMCats(); renderMGrid(); }
+		}
+		$('mSheetClose').onclick = () => openSheet(false);
+		mSheet.addEventListener('click', (e) => { if (e.target === mSheet) openSheet(false); });
+		mSizeBtn.onclick = () => openSize(true);
+
+		buildTree(); renderCart(); renderMCats(); renderMGrid();
+		selectItem(catalog[0].items[0]);
+	}
+
+	document.addEventListener('astro:page-load', initMerch);
+	// ...and run now, in case this module was inserted mid-navigation and page-load
+	// has already fired. The `inited` guard makes the duplicate call a no-op.
+	initMerch();
+
+</script>
+
+<style is:global>
+	/* ponytail: is:global because renderTree/renderSizes/renderViews build .tnode/.size/
+	   .vbox with createElement — those never receive Astro's data-astro-cid-* attribute,
+	   so scoped rules silently skip them. Tokens, .btn and the shell live in SiteLayout. */
+
+	/* page-local micro-type. SiteLayout only ships the generic .mono helper. */
+	.crumb, .opt-label, .stage-label, .vlabel, .vnum, .pager {
+		font-family: 'DM Mono', ui-monospace, monospace;
+	}
+
+	/* ---- bag button (passed into the layout's `tools` slot) ---- */
+	.bagbtn {
+		display: inline-flex; align-items: center; gap: 9px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .1em;
+		padding: 10px 15px;
+	}
+	/* ponytail: no hover colour rule on purpose — the chassis supplies the blue shadow
+	   on hover and nothing else, so the button never changes fill. */
+	.bagicon { display: grid; place-items: center; }
+	.bagicon svg { width: 15px; height: 15px; stroke-width: 2; }
+	.bagbtn b {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; font-weight: 500; color: var(--accent);
+	}
+
+	/* ============ HERO GRID ============ */
+	.hero {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: grid;
+		grid-template-columns: clamp(280px, 27vw, 360px) minmax(0, 1fr);
+		min-height: 0;
+	}
+
+	/* ---- LEFT: items in type + product ---- */
+	.col-left {
+		min-height: 0;
+		display: flex; flex-direction: column;
+		padding: 26px clamp(18px, 2.4vw, 34px) 30px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	/* blue tick borrowed from .designer, flexible hairline from .pager — the header
+	   is built from motifs the page already uses rather than a new one */
+	.crumb {
+		display: flex; align-items: center; gap: 11px;
+		font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--ink-40); margin-bottom: 20px;
+	}
+	.crumb-tick { flex: none; width: 16px; height: 1.5px; background: var(--accent); }
+	.crumb-label { color: var(--secondary); font-weight: 500; }
+	.crumb-rule { flex: 1; height: 1.5px; background: var(--hair); }
+	.crumb-count { flex: none; }
+	.crumb-count b { color: var(--accent); font-weight: 500; }
+
+	/* ---- catalogue tree ---- */
+	.tree {
+		flex: 1; min-height: 140px;
+		display: flex; flex-direction: column;
+		overflow-y: auto; overscroll-behavior: contain;
+		padding: 2px 6px 2px 2px; margin: 0 -6px 0 -2px;
+		scrollbar-width: none;
+	}
+	.tree::-webkit-scrollbar { display: none; }
+
+	.divider { display: flex; align-items: center; gap: 12px; margin: 14px 0 22px; }
+	.divider .dv-line { flex: 1; height: 1.5px; background: var(--hair); }
+	/* registration cross, drawn not typed. ponytail: add transform: rotate(45deg)
+	   here to turn the + into an ✕ — that is the whole switch. */
+	.dv-cross { position: relative; flex: none; width: 11px; height: 11px; }
+	.dv-cross::before, .dv-cross::after { content: ''; position: absolute; background: var(--accent); }
+	.dv-cross::before { left: 50%; top: 0; bottom: 0; width: 1.5px; transform: translateX(-50%); }
+	.dv-cross::after { top: 50%; left: 0; right: 0; height: 1.5px; transform: translateY(-50%); }
+	.tnode {
+		display: grid; align-items: center; gap: 10px;
+		width: 100%; text-align: left; border-radius: var(--r);
+		color: var(--secondary);
+	}
+	button.tnode {
+		appearance: none; -webkit-appearance: none;
+		background: transparent; border: 0; cursor: pointer;
+		font-family: 'Archivo', sans-serif; font-size: 13px;
+		transition: background .12s ease, color .12s ease;
+	}
+
+	/* ---- folder row ---- */
+	.tcat {
+		grid-template-columns: 16px 1fr auto;
+		padding: 11px 10px 11px 4px;
+	}
+	.tkids { overflow: hidden; }
+	.tkids + .tcat { border-top: 1.5px solid var(--hair); }
+	.tcaret { display: grid; place-items: center; width: 16px; color: var(--ink-40); }
+	.tcaret svg {
+		width: 15px; height: 15px; stroke-width: 2.2;
+		transition: transform .18s ease;
+	}
+	.tcat.open .tcaret svg { transform: rotate(90deg); }
+	.tcat.open .tcaret { color: var(--accent); }
+	.tcat .tname {
+		font-size: 11.5px; font-weight: 800;
+		letter-spacing: .12em; text-transform: uppercase;
+	}
+	.tcat:hover .tcaret { color: var(--accent); }
+
+	/* ---- item row ----
+	   ponytail: connectors are CSS rules, not box-drawing characters. Glyphs cannot
+	   span a row taller than their line box, so '│' rendered as disconnected ticks
+	   with gaps at every row seam. Borders join up regardless of font or row height. */
+	.titem {
+		position: relative;
+		grid-template-columns: auto 1fr auto;
+		padding: 7px 10px 7px 44px;
+	}
+	.titem::before {
+		content: ''; position: absolute; left: 20px; top: 0; bottom: 0;
+		width: 1.5px; background: var(--hair);
+	}
+	.titem.last::before { bottom: 50%; }
+	.titem::after {
+		content: ''; position: absolute; left: 20px; top: 50%;
+		width: 13px; height: 1.5px; background: var(--hair);
+	}
+
+	.tname { font-weight: 700; letter-spacing: .01em; }
+	.tmeta {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; font-weight: 500; color: var(--ink-40);
+	}
+	.tnum {
+		display: grid; place-items: center; min-width: 20px; height: 15px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	button.tnode:hover { background: color-mix(in srgb, var(--secondary) 6%, transparent); }
+	.titem.active { background: var(--secondary); color: var(--primary); }
+	.titem.active .tprice { color: var(--primary); }
+	/* the fill would otherwise swallow this row's own connector */
+	.titem.active::before, .titem.active::after {
+		background: color-mix(in srgb, var(--primary) 40%, transparent);
+	}
+
+	/* Hovering the selected row inverts it cleanly instead of washing the black fill
+	   out with the generic 6% tint, which left white text on pale grey.
+	   ponytail: inset shadow, not border — .tnode carries no border at rest, so a real
+	   one would resize the row on hover and shove the whole tree down 4px. */
+	.titem.active:hover {
+		background: var(--primary); color: var(--secondary);
+		box-shadow: inset 0 0 0 var(--stroke) var(--secondary);
+	}
+	.titem.active:hover .tprice { color: var(--secondary); }
+	.titem.active:hover::before, .titem.active:hover::after { background: var(--hair); }
+
+	/* margin-top:auto puts the slack ABOVE the copy, so name/description/credit sit
+	   low in the column and read as one block with the size and buy rows */
+	.product { margin-top: auto; display: flex; flex-direction: column; gap: 22px; }
+	.copy { display: flex; flex-direction: column; gap: 14px; }
+	.desc {
+		margin: 0; max-width: 44ch;
+		font-style: italic; font-size: 13.5px; line-height: 1.62;
+		color: var(--ink-60);
+	}
+	.designer {
+		align-self: flex-end;
+		display: flex; align-items: center; gap: 9px; margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+		color: var(--ink-40);
+	}
+	.designer::before { content: ''; width: 18px; height: 1.5px; background: var(--accent); }
+	.designer b { font-weight: 500; color: var(--secondary); }
+	.title {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(30px, 3.1vw, 46px);
+		line-height: 0.92; letter-spacing: -0.02em;
+		text-transform: uppercase; margin: 0;
+	}
+
+	.opt { display: flex; align-items: center; gap: 20px; margin-top: 10px; }
+	/* dotted underline is the affordance — conventional for "more info", and quiet
+	   enough that the label still reads as a label */
+	.opt-label {
+		appearance: none; -webkit-appearance: none;
+		padding: 0 0 2px; background: transparent; border: 0;
+		border-bottom: 1.5px dotted var(--ink-40); cursor: pointer;
+		font-size: 11px; letter-spacing: .06em; color: var(--ink-60); text-transform: uppercase;
+		transition: color .15s ease, border-color .15s ease;
+	}
+	.opt-label:hover { color: var(--accent); border-bottom-color: var(--accent); }
+	.sizes { display: flex; gap: 8px; }
+	.size {
+		font-size: 11.5px; font-weight: 800; letter-spacing: .06em;
+		padding: 7px 9px; min-width: 36px;
+	}
+	.size.active { background: var(--secondary); color: var(--primary); }
+
+	/* arrow · label · dot · price, centred on one black bar.
+	   ponytail: no resting shadow and no hover fill — the chassis supplies the shadow on
+	   hover only, and .buy deliberately declares NO hover background so the bar stays
+	   black. Motion is the whole feedback. */
+	.buy {
+		display: flex; align-items: center; justify-content: center; gap: 13px;
+		width: 100%; padding: 19px 22px;
+		color: var(--primary); background: var(--secondary);
+	}
+	.buy .arrow {
+		flex: none; width: 22px; height: 22px;
+		fill: none; stroke: currentColor; stroke-width: 2.4;
+		stroke-linecap: square; stroke-linejoin: miter;
+		transition: transform .18s ease;
+	}
+	.buy:hover:not(:disabled) .arrow { transform: translate(2px, -2px); }
+	.buy-label {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 13.5px;
+		line-height: 1; letter-spacing: .14em; text-transform: uppercase;
+	}
+	.buy-dot { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+	.buy-price {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 21px; line-height: 1; letter-spacing: -0.02em;
+	}
+	.buy:disabled { opacity: .25; cursor: not-allowed; box-shadow: none; }
+
+	/* ---- CENTRE: magnified view, no container ---- */
+	.col-stage {
+		/* one length drives both the bracket box and the icon, so they scale together */
+		--vf: clamp(240px, 42vh, 450px);
+		display: flex; flex-direction: column; align-items: center;
+		gap: 18px; padding: 34px clamp(20px, 3.5vw, 52px) 30px; position: relative;
+		background:
+			radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 62%);
+	}
+	/* flex:1 hands the stage every pixel the carousel below doesn't claim */
+	.stage-frame { flex: 1; width: 100%; display: grid; place-items: center; min-height: 0; }
+	/* ponytail: both children occupy the SAME grid cell, so they share one centring
+	   pass. Centring them independently (grid item vs. absolute + translate) left the
+	   icon off-axis from the brackets. */
+	.stage-frame > * { grid-area: 1 / 1; }
+	.stage-view { display: grid; place-items: center; }
+	.stage-view .big { display: block; line-height: 0; }
+
+	/* ---- camera viewfinder ---- */
+	.viewfinder {
+		position: relative;
+		width: min(var(--vf), 86%); aspect-ratio: 1;
+		pointer-events: none;
+	}
+	.vf-c { position: absolute; width: 26px; height: 26px; border: 0 solid var(--secondary); }
+	.vf-c.tl { top: 0; left: 0; border-top-width: var(--stroke); border-left-width: var(--stroke); }
+	.vf-c.tr { top: 0; right: 0; border-top-width: var(--stroke); border-right-width: var(--stroke); }
+	.vf-c.bl { bottom: 0; left: 0; border-bottom-width: var(--stroke); border-left-width: var(--stroke); }
+	.vf-c.br { bottom: 0; right: 0; border-bottom-width: var(--stroke); border-right-width: var(--stroke); }
+	/* rule-of-thirds guides, four 1px lines from one background shorthand */
+	.vf-grid {
+		position: absolute; inset: 0;
+		background:
+			linear-gradient(var(--hair), var(--hair)) 33.33% 0 / 1px 100% no-repeat,
+			linear-gradient(var(--hair), var(--hair)) 66.66% 0 / 1px 100% no-repeat,
+			linear-gradient(var(--hair), var(--hair)) 0 33.33% / 100% 1px no-repeat,
+			linear-gradient(var(--hair), var(--hair)) 0 66.66% / 100% 1px no-repeat;
+	}
+	.vf-hud {
+		position: absolute; display: flex; align-items: center; white-space: nowrap;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .14em; color: var(--ink-40);
+	}
+	.hud-tl { top: -21px; left: 0; }
+	.hud-tr { top: -21px; right: 0; }
+	.hud-bl { bottom: -21px; left: 0; }
+	.hud-br { bottom: -21px; right: 0; }
+	.vf-rec {
+		width: 7px; height: 7px; margin-right: 7px; border-radius: 50%;
+		background: var(--accent); animation: vf-blink 1.6s steps(1, end) infinite;
+	}
+	@keyframes vf-blink { 50% { opacity: .15; } }
+	@media (prefers-reduced-motion: reduce) { .vf-rec { animation: none; } }
+	/* ponytail: explicit height, not max-height:100% — a percentage height here would
+	   resolve against an auto-height chain and collapse. Derived from --vf so the icon
+	   keeps a fixed margin inside the brackets at every viewport size. */
+	.stage-view svg {
+		width: auto; height: calc(var(--vf) * 0.58); max-width: 100%;
+		stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round;
+	}
+	.stage-label { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-60); }
+
+	/* ---- view carousel ---- */
+	.carousel { display: flex; align-items: center; gap: 16px; width: 100%; }
+	.cbtn {
+		flex: none; display: grid; place-items: center;
+		width: 44px; height: 44px; padding: 0; border-radius: 50%;
+	}
+	.cbtn svg { width: 20px; height: 20px; stroke-width: 2.2; }
+	.cbtn:disabled { opacity: .25; cursor: not-allowed; transform: none; box-shadow: none; }
+	.cviewport { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+	.cviewport::-webkit-scrollbar { display: none; }
+	/* boxes share the full width when there are few views; once they'd go under
+	   min-width the track overflows and the viewport scrolls instead. */
+	/* safe center: plain `center` clips the leading box out of reach once the track
+	   overflows, and with 6-7 views it now overflows routinely. */
+	.ctrack { display: flex; gap: 14px; padding: 4px; justify-content: safe center; min-width: 100%; width: max-content; }
+
+	.vbox {
+		position: relative; overflow: hidden;
+		flex: 1 1 auto; min-width: 200px; max-width: 320px;
+		height: clamp(150px, 19vh, 200px);
+		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+		padding: 16px 8px 10px;
+	}
+	.vbox .vicon { display: block; line-height: 0; }
+	.vbox .vicon svg { width: 46px; height: 46px; stroke-width: 1.5; }
+	.vbox .vlabel {
+		font-family: 'DM Mono', monospace;
+		font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.vbox .vnum {
+		position: absolute; top: 0; left: 0; padding: 2px 6px;
+		font-family: 'DM Mono', monospace; font-size: 9px; font-style: normal;
+		color: var(--primary); background: var(--secondary);
+		border-right: var(--stroke) solid var(--secondary);
+		border-bottom: var(--stroke) solid var(--secondary);
+		border-bottom-right-radius: var(--r);
+	}
+	.vbox.active { background: var(--secondary); color: var(--primary); }
+	.vbox.active .vlabel { color: var(--primary); }
+	.vbox.active .vnum { background: transparent; color: var(--primary); border-color: var(--primary); }
+
+	.pager {
+		display: flex; align-items: center; gap: 14px; width: 100%;
+		font-size: 11px; letter-spacing: .06em; color: var(--ink-40);
+	}
+	#pgCur { color: var(--secondary); }
+
+	/* native range — drag, keyboard and a11y for free; only the skin is ours */
+	.pgslider {
+		flex: 1; appearance: none; -webkit-appearance: none;
+		background: transparent; cursor: pointer; height: 20px; margin: 0;
+	}
+	.pgslider::-webkit-slider-runnable-track {
+		height: 2px; border-radius: 0;
+		background: color-mix(in srgb, var(--secondary) 30%, transparent);
+	}
+	.pgslider::-webkit-slider-thumb {
+		appearance: none; -webkit-appearance: none;
+		width: 16px; height: 16px; margin-top: -7px;
+		background: var(--accent); border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: transform .12s ease, box-shadow .12s ease;
+	}
+	.pgslider::-moz-range-track {
+		height: 2px; background: color-mix(in srgb, var(--secondary) 30%, transparent);
+	}
+	.pgslider::-moz-range-thumb {
+		width: 16px; height: 16px; box-sizing: border-box;
+		background: var(--accent); border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: transform .12s ease, box-shadow .12s ease;
+	}
+	.pgslider:hover::-webkit-slider-thumb { box-shadow: 2px 2px 0 var(--secondary); }
+	.pgslider:hover::-moz-range-thumb { box-shadow: 2px 2px 0 var(--secondary); }
+	.pgslider:active::-webkit-slider-thumb { transform: scale(1.15); box-shadow: none; }
+	.pgslider:active::-moz-range-thumb { transform: scale(1.15); box-shadow: none; }
+	.pgslider:disabled { opacity: .35; cursor: not-allowed; }
+
+	/* ============ CART DRAWER ============ */
+	/* ponytail: overlays hide themselves in CSS, not only via gsap.set() at init.
+	   A single init-time exception used to leave the drawer, the size chart and the
+	   scrim all sitting open over a half-built page. Now a JS failure costs
+	   interactivity, never a broken-looking screen. */
+	.drawer {
+		transform: translateX(100%);
+		position: fixed; top: 0; right: 0; height: 100%; z-index: 30;
+		width: 400px; max-width: 92vw;
+		display: flex; flex-direction: column;
+		background: var(--primary);
+		border-left: var(--stroke) solid var(--secondary);
+		box-shadow: -14px 0 34px color-mix(in srgb, var(--accent) 14%, transparent);
+	}
+	.drawer-head {
+		display: flex; justify-content: space-between; align-items: center;
+		padding: 22px 24px; border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.drawer-title {
+		display: flex; align-items: center; gap: 10px;
+		font-family: 'Archivo Expanded', sans-serif;
+		font-weight: 800; font-size: 14px; letter-spacing: .08em;
+	}
+	.drawer-title i {
+		font-style: normal; display: inline-grid; place-items: center;
+		min-width: 22px; height: 20px; padding: 0 6px;
+		font-family: 'DM Mono', monospace; font-size: 11px;
+		background: var(--accent); color: var(--primary);
+		border: var(--stroke) solid var(--accent); border-radius: var(--r);
+	}
+	/* ponytail: no hover colour rule, same as .bagbtn and .buy — the chassis gives the
+	   blue shadow on hover and nothing else. */
+	.x { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; }
+	.x svg { width: 14px; height: 14px; stroke-width: 2.2; }
+
+	.cart-items {
+		list-style: none; margin: 0; padding: 8px 24px;
+		display: flex; flex-direction: column; overflow-y: auto; flex: 1;
+	}
+	.cart-items li {
+		display: grid; grid-template-columns: 52px 1fr auto; grid-template-areas: 'thumb meta price' 'thumb qty price';
+		align-items: center; column-gap: 14px; row-gap: 8px;
+		padding: 16px 0; border-bottom: 1.5px solid var(--hair);
+	}
+	.cthumb {
+		grid-area: thumb; display: grid; place-items: center;
+		width: 52px; height: 52px;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.cthumb svg { width: 24px; height: 24px; stroke-width: 1.8; }
+	.cmeta { grid-area: meta; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+	.cn { font-size: 13.5px; font-weight: 600; }
+	.cu { font-family: 'DM Mono', monospace; font-size: 10.5px; color: var(--ink-40); }
+	.cq { grid-area: qty; display: flex; align-items: center; gap: 4px; justify-self: start; }
+	.cq button {
+		display: grid; place-items: center;
+		width: 22px; height: 22px; padding: 0;
+	}
+	.cq button svg { width: 12px; height: 12px; stroke-width: 2.6; }
+	
+	.cq b { min-width: 22px; text-align: center; font-family: 'DM Mono', monospace; font-size: 12px; }
+	.cl { grid-area: price; align-self: center; font-weight: 700; font-size: 14px; }
+
+	.empty {
+		flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+		gap: 14px; text-align: center; color: var(--ink-40);
+	}
+	.empty-mark { display: block; line-height: 0; color: var(--accent); }
+	.empty-mark svg { width: 34px; height: 34px; stroke-width: 1.5; }
+	.empty p { margin: 0; font-size: 13px; line-height: 1.6; }
+
+	.drawer-foot { padding: 20px 24px 24px; border-top: var(--stroke) solid var(--secondary); }
+	.drawer-foot .row {
+		display: flex; justify-content: space-between; align-items: baseline;
+		font-weight: 700; font-size: 17px; margin-bottom: 6px;
+	}
+	.drawer-foot .row.muted {
+		font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 400;
+		color: var(--ink-40); margin-bottom: 18px;
+	}
+	.checkout {
+		width: 100%;
+		display: flex; align-items: center; justify-content: space-between;
+		font-size: 12.5px; font-weight: 800; letter-spacing: .14em;
+		padding: 16px 20px;
+		color: var(--primary); background: var(--secondary);
+		box-shadow: var(--pop);
+	}
+	.checkout:hover:not(:disabled) { background: var(--accent); color: var(--primary); border-color: var(--accent); }
+	.checkout:hover:not(:disabled) .chk-arrow { transform: translateX(4px); }
+	.chk-arrow { display: grid; place-items: center; transition: transform .18s ease; }
+	.chk-arrow svg { width: 16px; height: 16px; stroke-width: 2.2; }
+	.checkout:disabled { opacity: .25; cursor: not-allowed; box-shadow: none; }
+
+	/* ---- size chart modal ---- */
+	/* the wrapper centres and fades; the panel scales. Keeping them separate avoids
+	   GSAP's scale fighting a translate(-50%,-50%) on the same element. */
+	.modal-wrap {
+		opacity: 0; visibility: hidden;
+		position: fixed; inset: 0; z-index: 40;
+		display: grid; place-items: center; padding: 20px;
+		pointer-events: none;
+	}
+	.modal {
+		pointer-events: auto;
+		width: min(430px, 100%);
+		padding: 24px;
+		background: var(--primary); color: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.modal-head {
+		display: flex; justify-content: space-between; align-items: center;
+		margin-bottom: 18px;
+	}
+	.modal-title {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; letter-spacing: .1em;
+	}
+	.sizetable {
+		width: 100%; border-collapse: collapse;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px;
+	}
+	.sizetable th, .sizetable td {
+		padding: 9px 6px; text-align: right; border-bottom: 1.5px solid var(--hair);
+	}
+	.sizetable th:first-child, .sizetable td:first-child { text-align: left; }
+	.sizetable th {
+		font-size: 9.5px; font-weight: 500; letter-spacing: .12em;
+		text-transform: uppercase; color: var(--ink-40);
+	}
+	.sizetable tbody tr:last-child td { border-bottom: 0; }
+	.sizetable tbody tr.on td { background: var(--secondary); color: var(--primary); }
+	.sizetable tbody tr.on td:first-child { font-weight: 500; }
+	.modal-note {
+		margin: 16px 0 0; font-size: 11.5px; font-style: italic; line-height: 1.55;
+		color: var(--ink-40);
+	}
+
+	.scrim { opacity: 0; visibility: hidden; position: fixed; inset: 0; z-index: 25; background: color-mix(in srgb, var(--secondary) 45%, transparent); }
+
+	:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+	/* ============ MOBILE SHOP ============
+	   Desktop and mobile are two presentations of one state; exactly one is displayed,
+	   so there is never a duplicate control competing for the same click. */
+	.m-shop, .m-sheet { display: none; }
+
+	@media (max-width: 720px) {
+		.hero { display: none; }
+
+		.m-shop {
+			display: block; flex: 1; min-height: 0;
+			overflow-y: auto; overscroll-behavior: contain;
+		}
+
+		/* category tabs stay put while the grid scrolls under them */
+		.m-cats {
+			position: sticky; top: 0; z-index: 2;
+			display: flex; gap: 8px;
+			padding: 15px 16px;
+			background: var(--primary);
+			border-bottom: var(--stroke) solid var(--secondary);
+			overflow-x: auto; scrollbar-width: none;
+		}
+		.m-cats::-webkit-scrollbar { display: none; }
+		.m-cat {
+			flex: none; padding: 10px 15px;
+			font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+		}
+		.m-cat.active { background: var(--secondary); color: var(--primary); }
+
+		.m-grid {
+			display: grid; grid-template-columns: repeat(2, 1fr);
+			gap: 12px; padding: 16px;
+		}
+		.m-card {
+			display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+			padding: 14px 14px 16px; text-align: left;
+		}
+		.m-card-icon { display: grid; place-items: center; width: 100%; height: 82px; }
+		.m-card-icon svg { width: 58px; height: 58px; stroke-width: 1.4; }
+		.m-card-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
+		.m-card-price {
+			font-family: 'DM Mono', ui-monospace, monospace;
+			font-size: 12px; color: var(--accent);
+		}
+
+		/* ---- product sheet ---- */
+		.m-sheet {
+			opacity: 0; visibility: hidden;
+			display: block; position: fixed; inset: 0; z-index: 45;
+			background: color-mix(in srgb, var(--secondary) 45%, transparent);
+		}
+		.m-sheet-panel {
+			position: absolute; left: 0; right: 0; bottom: 0;
+			max-height: 94%; overflow-y: auto; overscroll-behavior: contain;
+			display: flex; flex-direction: column; gap: 13px;
+			padding: 0 18px 22px;
+			background: var(--primary);
+			border-top: var(--stroke) solid var(--secondary);
+			border-radius: 18px 18px 0 0;
+		}
+		.m-sheet-bar {
+			position: sticky; top: 0; z-index: 1;
+			display: flex; align-items: center; justify-content: space-between;
+			padding: 12px 0 10px; background: var(--primary);
+		}
+		.m-grab { width: 42px; height: 4px; border-radius: 999px; background: var(--hair); }
+
+		.m-stage { display: grid; place-items: center; padding: 6px 0 2px; }
+		.m-stage-icon svg { width: clamp(120px, 42vw, 190px); height: auto; stroke-width: 1.1; }
+
+		.m-viewport { overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 0 18px; }
+		.m-viewport::-webkit-scrollbar { display: none; }
+		.m-views { display: flex; gap: 9px; width: max-content; padding: 3px; }
+		/* flex:none — .vbox is `flex: 1 1 auto` for the desktop carousel and would stretch here */
+		.m-views .vbox { flex: none; width: 78px; height: 84px; min-width: 0; max-width: none; gap: 7px; padding: 12px 5px 7px; }
+		.m-views .vicon svg { width: 26px; height: 26px; }
+
+		.m-name {
+			margin: 4px 0 0;
+			font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+			font-weight: 900; font-size: 25px; line-height: 1; text-transform: uppercase;
+		}
+		.m-desc { margin: 0; font-style: italic; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+		.m-designer { align-self: flex-start; }
+		.m-opt { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+		.m-sheet .buy { margin-top: 4px; }
+
+		/* the drawer is full-width on a phone */
+		.drawer { width: 100%; max-width: none; }
+	}
+
+	/* ============ RESPONSIVE ============ */
+	/* shell breakpoints (nav, menu, card) live in SiteLayout — these are page-local only */
+	@media (max-width: 1080px) {
+		.hero { grid-template-columns: 1fr; }
+		.col-left { border-right: 0; border-bottom: var(--stroke) solid var(--secondary); }
+		.product { margin-top: 30px; }
+	}
+	@media (max-width: 720px) {
+		.bagword { display: none; }
+		.stage-view { width: min(88%, 340px); }
+	}
+</style>

@@ -1,0 +1,107 @@
+{
+  ".claude/settings.local.json": {
+    "mtime": 1786391218.9008753,
+    "ast_hash": "64c24c3ab8306b95794beb5ace32d288",
+    "semantic_hash": ""
+  },
+  ".vscode/extensions.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "3adedb22d082dbd1ebb00b75d21403aa",
+    "semantic_hash": "3adedb22d082dbd1ebb00b75d21403aa"
+  },
+  ".vscode/launch.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "60493763dcbc2d109e57da86d997602a",
+    "semantic_hash": "60493763dcbc2d109e57da86d997602a"
+  },
+  "astro.config.mjs": {
+    "mtime": 1786342441.723946,
+    "ast_hash": "587a294a5ddda08529949ecb2763e9cd",
+    "semantic_hash": "587a294a5ddda08529949ecb2763e9cd"
+  },
+  "package.json": {
+    "mtime": 1786379590.427313,
+    "ast_hash": "e59a4cf6dee9d7e9bf408b52d06b25ca",
+    "semantic_hash": ""
+  },
+  "src/components/Welcome.astro": {
+    "mtime": 1786012897.0,
+    "ast_hash": "7274ef144fc0554f96f977626b0b96d4",
+    "semantic_hash": "7274ef144fc0554f96f977626b0b96d4"
+  },
+  "src/layouts/Layout.astro": {
+    "mtime": 1786390554.3993466,
+    "ast_hash": "1e3bec47c3b95a82656404c2acd0b53a",
+    "semantic_hash": ""
+  },
+  "src/pages/index.astro": {
+    "mtime": 1786389869.1149104,
+    "ast_hash": "3ab78e46ae90673087403db64697ffcc",
+    "semantic_hash": ""
+  },
+  "tsconfig.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "1d3613ac08bdda17e2b82251613dbc21",
+    "semantic_hash": "1d3613ac08bdda17e2b82251613dbc21"
+  },
+  "src/pages/merch.astro": {
+    "mtime": 1786391375.801126,
+    "ast_hash": "97f410f7f95a12c5ab873aa077b25785",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1786342382.4664476,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1786342382.4664476,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1786342262.969102,
+    "ast_hash": "de76967202948d4f70d11f4b3d9e7674",
+    "semantic_hash": ""
+  },
+  "public/favicon.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "8c13f40658976ea1dfb8ba37a8be0e8d",
+    "semantic_hash": ""
+  },
+  "src/assets/astro.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "d26c3520f1f016bad745392df8b5fae5",
+    "semantic_hash": ""
+  },
+  "src/assets/background.svg": {
+    "mtime": 1786012897.0,
+    "ast_hash": "c2eaad48507ad1ea41f586bd5c21858a",
+    "semantic_hash": ""
+  },
+  "src/layouts/SiteLayout.astro": {
+    "mtime": 1786391196.6385443,
+    "ast_hash": "f4b0e9cef3733d4b7d47775e7831388f",
+    "semantic_hash": ""
+  },
+  "src/pages/events.astro": {
+    "mtime": 1786389595.6653275,
+    "ast_hash": "4a8335a25dcbfaf6ec45bdc357ec8558",
+    "semantic_hash": ""
+  },
+  "src/pages/expo.astro": {
+    "mtime": 1786389622.7476254,
+    "ast_hash": "d26b1cf7006c5620afe9c5009b14c2a4",
+    "semantic_hash": ""
+  },
+  "src/pages/outreach.astro": {
+    "mtime": 1786389649.8202944,
+    "ast_hash": "7380f6a3295fb64fa7860f89b95fac95",
+    "semantic_hash": ""
+  },
+  "src/pages/sponsorships.astro": {
+    "mtime": 1786389680.3939898,
+    "ast_hash": "33b5793403208895f05802e65b798b3c",
+    "semantic_hash": ""
+  }
+}

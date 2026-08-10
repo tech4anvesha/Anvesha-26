@@ -1,0 +1,13 @@
+{
+  "0": "tsconfig.json",
+  "1": "dependencies",
+  "2": "package.json",
+  "3": "Welcome.astro",
+  "4": "selectItem",
+  "5": "astro.config.mjs",
+  "6": "merch.astro",
+  "7": "Astro Starter Kit: Basics",
+  "8": "CLAUDE.md",
+  "9": "gsap",
+  "10": "../layouts/SiteLayout.astro"
+}

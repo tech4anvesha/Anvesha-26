@@ -1,11 +1,88 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
+import iMegaphone from 'lucide-static/icons/megaphone.svg?raw';
+import iHandshake from 'lucide-static/icons/handshake.svg?raw';
+import iBag from 'lucide-static/icons/shopping-bag.svg?raw';
+
+const CARDS = [
+	{ name: 'Events', href: '/events', icon: iCalendar,
+	  text: 'Twelve talks, workshops and competitions across three days. Most need nothing but showing up.' },
+	{ name: 'Expo', href: '/expo', icon: iFlask,
+	  text: 'The science fair floor — 120 student projects across six halls, explained by the people who built them.' },
+	{ name: 'Outreach', href: '/outreach', icon: iMegaphone,
+	  text: 'What we do the rest of the year, mostly in schools that have never had a working lab.' },
+	{ name: 'Sponsorships', href: '/sponsorships', icon: iHandshake,
+	  text: 'Four partnership tiers, and the reach figures behind them. Custom packages on request.' },
+	{ name: 'Merch', href: '/merch', icon: iBag,
+	  text: 'Seventeen pieces designed by the team. Pick up at the fest desk, no shipping to worry about.' },
+];
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<SiteLayout title="Anvesha '26">
+	<div class="page">
+		<header class="page-head home-head" data-reveal>
+			<p class="eyebrow">Science fest · 06—08 February 2026</p>
+			<h1 class="page-title home-title">Anvesha<span>'26</span></h1>
+			<p class="lede">
+				Three days of talks, workshops and competitions, wrapped around an expo floor of
+				student research you can walk up to and ask about. Free to attend, open to everyone.
+			</p>
+			<div class="home-actions">
+				<a class="cta" href="/expo">
+					<span set:html={iFlask} />
+					<span>SEE THE EXPO</span>
+					<span set:html={iArrowRight} />
+				</a>
+				<a class="btn home-alt" href="/events">BROWSE EVENTS</a>
+			</div>
+		</header>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Where to start</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{CARDS.length}</b> sections</span>
+			</div>
+
+			<div class="tiles">
+				{CARDS.map((c, i) => (
+					<a class="tile home-card" href={c.href}>
+						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
+						<span class="tile-icon" set:html={c.icon} />
+						<div class="tile-title">{c.name}</div>
+						<p class="tile-text">{c.text}</p>
+						<span class="home-card-go" set:html={iArrowRight} />
+					</a>
+				))}
+			</div>
+		</section>
+	</div>
+</SiteLayout>
+
+<style is:global>
+	.home-head { padding-bottom: clamp(34px, 4.5vw, 60px); }
+	.home-title { font-size: clamp(46px, 9vw, 132px); }
+	.home-title span { color: var(--accent); font-size: .28em; vertical-align: super; margin-left: 8px; }
+
+	.home-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+	.home-alt {
+		display: inline-flex; align-items: center;
+		padding: 17px 24px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
+	}
+
+	.home-card { position: relative; padding-bottom: 46px; color: var(--secondary); text-decoration: none; }
+	.home-card-go {
+		position: absolute; left: 20px; bottom: 18px; display: block; line-height: 0;
+		color: var(--accent); transition: transform .18s ease;
+	}
+	.home-card-go svg { width: 18px; height: 18px; stroke-width: 2.2; }
+	.home-card:hover { box-shadow: var(--pop); transform: translate(-2px, -2px); }
+	.home-card:hover .home-card-go { transform: translateX(5px); }
+	.home-card { transition: transform .12s ease, box-shadow .12s ease; }
+</style>

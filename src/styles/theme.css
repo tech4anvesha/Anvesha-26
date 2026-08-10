@@ -1,0 +1,29 @@
+/* ============================================================
+   ANVESHA '26 — colour scheme
+   Imported once by SiteLayout, so every page inherits it.
+
+   Three colours only: white, black, electric blue.
+   Everything else is a color-mix() of those, so there are no
+   loose hex values to drift out of step.
+   ============================================================ */
+
+:root {
+	--primary: #ffffff;   /* paper  — page + control ground */
+	--secondary: #0b0b0f; /* ink    — borders, type, selected fills */
+	--accent: #0047ff;    /* electric blue — shadows + highlights */
+
+	/* derived ink steps */
+	--ink-40: color-mix(in srgb, var(--secondary) 40%, var(--primary));
+	--ink-60: color-mix(in srgb, var(--secondary) 60%, var(--primary));
+	--hair: color-mix(in srgb, var(--secondary) 14%, transparent);
+	--sink: color-mix(in srgb, var(--secondary) 4%, var(--primary));
+	--dot: color-mix(in srgb, var(--secondary) 20%, transparent);
+
+	/* retro hardware: square corners, thick stroke.
+	   ponytail: shadows are electric blue and earn their place — hover and selected
+	   states only, never at rest, or every control on the page shouts at once. */
+	--stroke: 2px;
+	--r: 2px;
+	--pop: 3px 3px 0 var(--accent);
+	--pop-lg: 5px 5px 0 var(--accent);
+}

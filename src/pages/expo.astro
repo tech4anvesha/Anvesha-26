@@ -1,0 +1,110 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+import iBot from 'lucide-static/icons/bot.svg?raw';
+import iSatellite from 'lucide-static/icons/satellite.svg?raw';
+import iDna from 'lucide-static/icons/dna.svg?raw';
+import iBattery from 'lucide-static/icons/battery-charging.svg?raw';
+import iAtom from 'lucide-static/icons/atom.svg?raw';
+import iCpu from 'lucide-static/icons/cpu.svg?raw';
+import iClock from 'lucide-static/icons/clock.svg?raw';
+import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
+import iTicket from 'lucide-static/icons/ticket.svg?raw';
+import iUsers from 'lucide-static/icons/users.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+
+// Six halls, each one a research area. Counts are the exhibits accepted so far.
+const ZONES = [
+	{ name: 'Robotics & Automation', hall: 'Hall A', count: 24, icon: iBot,
+	  text: 'Walking rigs, pick-and-place arms and a swarm demo that mostly behaves. Most exhibits here are hands-on.' },
+	{ name: 'Space & Astronomy', hall: 'Hall A', count: 16, icon: iSatellite,
+	  text: 'CubeSat mockups, a working ground station, and telescope time on the roof after dark if the sky cooperates.' },
+	{ name: 'Life Sciences', hall: 'Hall B', count: 21, icon: iDna,
+	  text: 'Microscopy benches, a tissue-culture walkthrough and a genome browser you can drive yourself.' },
+	{ name: 'Energy & Environment', hall: 'Hall B', count: 18, icon: iBattery,
+	  text: 'Grid-scale storage models, a solar tracker built from scrap, and live air-quality mapping of the campus.' },
+	{ name: 'Materials & Physics', hall: 'Hall C', count: 15, icon: iAtom,
+	  text: 'Superconductor levitation on the hour, plus a shear-thickening fluid pit that swallows a fair few phones.' },
+	{ name: 'Computing & AI', hall: 'Hall C', count: 26, icon: iCpu,
+	  text: 'Vision models running on hardware you can hold, a quantum simulator, and a raytracer written over one weekend.' },
+];
+
+const VISIT = [
+	{ label: 'When', value: '06—08 Feb, 10:00—18:00', icon: iClock },
+	{ label: 'Where', value: 'Halls A, B & C · Main Campus', icon: iMapPin },
+	{ label: 'Entry', value: 'Free · no ticket needed', icon: iTicket },
+	{ label: 'Guided walks', value: 'Every hour, from the Hall A desk', icon: iUsers },
+];
+
+const total = ZONES.reduce((n, z) => n + z.count, 0);
+---
+
+<SiteLayout title="Expo · Anvesha '26">
+	<div class="page">
+		<header class="page-head" data-reveal>
+			<p class="eyebrow">The science fair · Halls A, B & C</p>
+			<h1 class="page-title">Expo</h1>
+			<p class="lede">
+				{total} student projects on the floor for three days, arranged by field and staffed by
+				the people who built them. Walk in, ask anything — every exhibit is meant to be
+				explained out loud, not read off a poster.
+			</p>
+		</header>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Zones</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{ZONES.length}</b> halls · <b>{total}</b> exhibits</span>
+			</div>
+
+			<div class="tiles">
+				{ZONES.map((z, i) => (
+					<article class="tile">
+						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
+						<span class="tile-icon" set:html={z.icon} />
+						<div class="tile-title">{z.name}</div>
+						<div class="tile-meta">{z.hall} · <b>{z.count}</b> exhibits</div>
+						<p class="tile-text">{z.text}</p>
+					</article>
+				))}
+			</div>
+		</section>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Visiting</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">Open to everyone</span>
+			</div>
+
+			<div class="rows">
+				{VISIT.map((v, i) => (
+					<div class="row-item">
+						<i class="row-index">{String(i + 1).padStart(2, '0')}</i>
+						<span class="row-icon" set:html={v.icon} />
+						<div class="row-name">{v.label}</div>
+						<div class="row-meta"><b>{v.value}</b></div>
+					</div>
+				))}
+			</div>
+		</section>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Exhibiting</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">Entries close <b>20 Jan</b></span>
+			</div>
+			<p class="lede" style="margin-top:0">
+				Any student team can apply, from any institution. You get a table, power, a board
+				and a slot in the guided walk. Bring the thing itself if it moves — a working
+				prototype beats a poster of a working prototype every time.
+			</p>
+			<a class="cta" href="mailto:expo@anvesha26.in" style="margin-top:22px">
+				<span>SUBMIT A PROJECT</span>
+				<span set:html={iArrowRight} />
+			</a>
+		</section>
+	</div>
+</SiteLayout>

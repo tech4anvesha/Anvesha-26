@@ -1,0 +1,108 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+import iMic from 'lucide-static/icons/mic-vocal.svg?raw';
+import iTelescope from 'lucide-static/icons/telescope.svg?raw';
+import iGlobe from 'lucide-static/icons/globe.svg?raw';
+import iBrain from 'lucide-static/icons/brain.svg?raw';
+import iCpu from 'lucide-static/icons/cpu.svg?raw';
+import iCamera from 'lucide-static/icons/camera.svg?raw';
+import iDna from 'lucide-static/icons/dna.svg?raw';
+import iWrench from 'lucide-static/icons/wrench.svg?raw';
+import iBot from 'lucide-static/icons/bot.svg?raw';
+import iCode from 'lucide-static/icons/code.svg?raw';
+import iTrophy from 'lucide-static/icons/trophy.svg?raw';
+import iRocket from 'lucide-static/icons/rocket.svg?raw';
+
+// ponytail: one array per track, rendered by one template. Adding an event is a line
+// of data, never a block of markup.
+const TRACKS = [
+	{
+		id: 'talks',
+		name: 'Talks',
+		note: 'Open to all — no registration',
+		items: [
+			{ name: 'Frontiers Lecture', sub: 'Opening keynote on where the next decade of research actually goes.', day: 'Fri 06', time: '10:00', venue: 'Main Auditorium', icon: iMic },
+			{ name: 'What the Telescope Saw', sub: 'Deep-field imaging, and reading light that left before Earth existed.', day: 'Fri 06', time: '14:30', venue: 'Main Auditorium', icon: iTelescope },
+			{ name: 'Panel: Climate Futures', sub: 'Four researchers disagree productively about the next fifty years.', day: 'Sat 07', time: '11:00', venue: 'Seminar Hall B', icon: iGlobe },
+			{ name: 'Minds and Machines', sub: 'What cognition research still knows that machine learning does not.', day: 'Sat 07', time: '16:00', venue: 'Main Auditorium', icon: iBrain },
+		],
+	},
+	{
+		id: 'workshops',
+		name: 'Workshops',
+		note: 'Limited seats — register at the desk',
+		items: [
+			{ name: 'Arduino from Scratch', sub: 'Build and flash a working sensor rig. Boards provided, keep your code.', day: 'Fri 06', time: '11:30', venue: 'Lab 204', icon: iCpu },
+			{ name: 'Astrophotography Basics', sub: 'Stacking, tracking and noise. Bring a camera if you have one.', day: 'Fri 06', time: '18:00', venue: 'Rooftop, Block C', icon: iCamera },
+			{ name: 'Reading a Genome', sub: 'Hands-on sequence analysis with real annotated data.', day: 'Sat 07', time: '10:00', venue: 'Bio Lab 1', icon: iDna },
+			{ name: 'Fabrication Clinic', sub: 'Laser cutter, 3D printer and the mistakes everyone makes first.', day: 'Sat 07', time: '13:00', venue: 'Makerspace', icon: iWrench },
+		],
+	},
+	{
+		id: 'competitions',
+		name: 'Competitions',
+		note: 'Prize pool ₹2,40,000',
+		items: [
+			{ name: 'Robowars', sub: ' 8kg class, single elimination. Pit access opens an hour before.', day: 'Fri 06', time: '15:00', venue: 'Arena, Ground 2', icon: iBot },
+			{ name: 'Code Sprint', sub: 'Six hours, five problems, no internet. Teams of three.', day: 'Sat 07', time: '09:00', venue: 'Computer Centre', icon: iCode },
+			{ name: 'Quiz Bowl', sub: 'Four rounds across physics, bio, chem and history of science.', day: 'Sat 07', time: '17:30', venue: 'Seminar Hall A', icon: iTrophy },
+			{ name: 'Water Rocketry', sub: 'Distance and payload. Build on site from the standard kit.', day: 'Sun 08', time: '10:30', venue: 'Ground 1', icon: iRocket },
+		],
+	},
+];
+
+const total = TRACKS.reduce((n, t) => n + t.items.length, 0);
+---
+
+<SiteLayout title="Events · Anvesha '26">
+	<div class="page">
+		<header class="page-head" data-reveal>
+			<p class="eyebrow">Three days · 06—08 February</p>
+			<h1 class="page-title">Events</h1>
+			<p class="lede">
+				Talks you can walk into, workshops you have to sign up for, and competitions
+				worth staying the whole weekend for. Everything runs across three days on one campus.
+			</p>
+		</header>
+
+		{TRACKS.map((track) => (
+			<section class="section" data-reveal>
+				<div class="sechead">
+					<span class="sechead-label">{track.name}</span>
+					<span class="sechead-rule"></span>
+					<span class="sechead-meta"><b>{track.items.length}</b> · {track.note}</span>
+				</div>
+
+				<div class="rows">
+					{track.items.map((e, i) => (
+						<article class="row-item">
+							<i class="row-index">{String(i + 1).padStart(2, '0')}</i>
+							<span class="row-icon" set:html={e.icon} />
+							<div>
+								<div class="row-name">{e.name}</div>
+								<p class="row-sub">{e.sub}</p>
+							</div>
+							<div class="row-meta">
+								<b>{e.day} · {e.time}</b>
+								{e.venue}
+							</div>
+						</article>
+					))}
+				</div>
+			</section>
+		))}
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">At a glance</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{total}</b> events</span>
+			</div>
+			<p class="lede" style="margin-top:0">
+				Schedules shift. The desk in the main quad has the live version, and every venue
+				posts its own board an hour before the first session.
+			</p>
+		</section>
+	</div>
+</SiteLayout>

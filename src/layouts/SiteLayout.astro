@@ -1,0 +1,447 @@
+---
+/**
+ * Site shell: dotted background, bordered card, and the top nav.
+ * Every page renders inside this — pass page content as the default slot.
+ *
+ * Slots:
+ *   default    — goes inside .card, below the nav
+ *   tools      — right-hand side of the nav (e.g. the bag button on /merch)
+ *   overlays   — drawers, modals, scrims: inside #app but OUTSIDE .card, so
+ *                .card's overflow:hidden cannot clip them
+ */
+import Layout from './Layout.astro';
+import '../styles/theme.css';
+
+import iHome from 'lucide-static/icons/house.svg?raw';
+import iEvents from 'lucide-static/icons/calendar-days.svg?raw';
+import iMerch from 'lucide-static/icons/shopping-bag.svg?raw';
+import iOutreach from 'lucide-static/icons/megaphone.svg?raw';
+import iExpo from 'lucide-static/icons/flask-conical.svg?raw';
+import iSponsors from 'lucide-static/icons/handshake.svg?raw';
+
+interface Props {
+	title?: string;
+}
+const { title = "Anvesha '26" } = Astro.props;
+
+// ponytail: one array, not six copies of the same anchor. Every route here exists.
+const NAV = [
+	{ href: '/', label: 'Home', icon: iHome },
+	{ href: '/events', label: 'Events', icon: iEvents },
+	{ href: '/merch', label: 'Merch', icon: iMerch },
+	{ href: '/outreach', label: 'Outreach', icon: iOutreach },
+	{ href: '/expo', label: 'Expo', icon: iExpo },
+	{ href: '/sponsorships', label: 'Sponsorships', icon: iSponsors },
+];
+// trailing slash stripped so '/merch/' and '/merch' both match
+const here = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+// The menu sits right unless a page fills the `tools` slot (the bag button on /merch),
+// in which case it moves to the middle so tools can own the right edge.
+const hasTools = Astro.slots.has('tools');
+---
+
+<Layout title={title}>
+	<Fragment slot="head">
+		{/* ponytail: this flag is what lets the CSS hide anything at all. It is set by
+		    inline JS before first paint, so a browser with JS off (or a bundle that never
+		    arrives) simply never hides the page — the reveal degrades to no animation
+		    instead of to a blank screen. */}
+		<script is:inline>document.documentElement.dataset.anim = 'on';</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Expanded:wght@700;800;900&family=DM+Mono:wght@400;500&display=swap"
+		/>
+	</Fragment>
+
+	<div id="app">
+		<div class="card">
+			<header class:list={['nav', hasTools && 'has-tools']}>
+				<a class="brand" href="/" transition:name="brand">ANVESHA<sup>'26</sup></a>
+
+				<nav class="menu" aria-label="Site">
+					{NAV.map((n) => (
+						<a
+							href={n.href}
+							class="btn menu-link"
+							aria-current={n.href === here ? 'page' : undefined}
+							transition:name={`nav-${n.label.toLowerCase()}`}
+						>
+							<span class="menu-icon" set:html={n.icon} />
+							<span class="menu-label">{n.label}</span>
+						</a>
+					))}
+				</nav>
+
+				{hasTools && <div class="tools" transition:name="tools"><slot name="tools" /></div>}
+			</header>
+
+			<slot />
+		</div>
+
+		<slot name="overlays" />
+
+		{/* mobile only — replaces the top menu below 720px */}
+		<nav class="botnav" aria-label="Site">
+			{NAV.map((n) => (
+				<a
+					href={n.href}
+					class="botnav-link"
+					aria-current={n.href === here ? 'page' : undefined}
+					transition:name={`bot-${n.label.toLowerCase()}`}
+				>
+					<span class="botnav-icon" set:html={n.icon} />
+					<span class="botnav-label">{n.label}</span>
+				</a>
+			))}
+		</nav>
+	</div>
+</Layout>
+
+<script>
+	import { gsap } from 'gsap';
+
+	// ---- page entrance ----
+	// Every [data-reveal] block fades up in document order. The nav is deliberately NOT
+	// tagged — it morphs across navigations instead of re-revealing each time.
+	const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	// re-arm the hide gate before the incoming page paints; `settle` clears it again
+	document.addEventListener('astro:after-swap', () => {
+		if (!reduced) document.documentElement.dataset.anim = 'on';
+	});
+
+	// ponytail: `settle` is the ONLY thing that makes content visible, so it is wired to
+	// three independent triggers — normal completion, a watchdog, and reduced motion.
+	// Belt and braces is right here: a stalled ticker must never leave a blank page.
+	function reveal() {
+		const root = document.documentElement;
+		const parts = gsap.utils.toArray<HTMLElement>('[data-reveal]');
+		let settled = false;
+		const settle = () => {
+			if (settled) return;
+			settled = true;
+			gsap.set(parts, { clearProps: 'all' });
+			root.removeAttribute('data-anim');
+		};
+
+		if (reduced || !parts.length) return settle();
+		gsap.set(parts, { y: 16 });
+		gsap.to(parts, {
+			opacity: 1, y: 0,
+			duration: 0.5, stagger: 0.06, ease: 'power3.out',
+			onComplete: settle,
+		});
+		// watchdog: far longer than the timeline, so it only fires if the ticker died
+		setTimeout(settle, 2500);
+	}
+
+	// fires on first load and after every client-side navigation
+	document.addEventListener('astro:page-load', reveal);
+</script>
+
+<style is:global>
+	/* ponytail: is:global is load-bearing, not laziness. Pages build controls with
+	   createElement, so those elements never receive Astro's data-astro-cid-* attribute
+	   and scoped rules silently skip them.
+	   Ceiling: names here are global — keep them shell-specific (.card, .nav, .btn) and
+	   prefix anything page-local. */
+
+	/* ============ VIEW TRANSITIONS ============
+	   Named nav elements are matched across pages, so the browser tweens them between
+	   their old and new positions — the tabs slide to the centre when /merch adds its
+	   bag button, rather than vanishing and popping back. */
+	::view-transition-group(*) { animation-duration: .34s; }
+	@media (prefers-reduced-motion: reduce) {
+		::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+			animation: none !important;
+		}
+	}
+
+	/* ============ PAGE ENTRANCE ============
+	   Hiding is gated on [data-anim], which only exists once the inline head script has
+	   run. No JS, no hiding. The attribute is removed the moment the reveal settles. */
+	html[data-anim] [data-reveal] { opacity: 0; }
+	@media (prefers-reduced-motion: reduce) {
+		html[data-anim] [data-reveal] { opacity: 1; }
+	}
+
+	/* ============ BUTTON PRIMITIVE ============
+	   One chassis for every control on the site. Add `class="btn"` to any button or
+	   link and it inherits the border, the hover lift into a blue shadow, and the press.
+	   ponytail: no resting shadow and no hover colour change anywhere — motion is the
+	   whole feedback. A control that wants a fill declares it itself. */
+	.btn {
+		appearance: none; -webkit-appearance: none; margin: 0;
+		font-family: 'Archivo', sans-serif;
+		border: var(--stroke) solid var(--secondary);
+		border-radius: var(--r);
+		background: var(--primary);
+		color: var(--secondary);
+		cursor: pointer;
+		text-decoration: none;
+		transition: transform .1s ease, box-shadow .1s ease, background .12s ease, color .12s ease;
+	}
+	.btn:hover:not(:disabled) {
+		transform: translate(-2px, -2px);
+		box-shadow: var(--pop);
+	}
+	.btn:active:not(:disabled) {
+		transform: translate(0, 0);
+		box-shadow: 0 0 0 var(--accent);
+	}
+
+	/* ============ SHELL ============ */
+	#app {
+		min-height: 100%;
+		background: var(--sink);
+		/* dot matrix. ponytail: `circle` is load-bearing — the default radial-gradient
+		   shape is an ellipse sized to the corners, which smears the dots into ovals. */
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+		color: var(--secondary);
+		font-family: 'Archivo', system-ui, sans-serif;
+		/* one source of truth — .card's min-height reads the same token */
+		--pad: clamp(22px, 3.2vw, 52px);
+		--botnav: 0px; /* mobile bottom bar reserves its own space, see @media below */
+		padding: var(--pad);
+	}
+
+	.card {
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary);
+		/* the sink ring is painted BEHIND the blue shadow and clears a dot-free margin
+		   all the way round, so nothing in the matrix ever meets the card edge */
+		box-shadow: 7px 7px 0 var(--accent), 0 0 0 16px var(--sink);
+		/* fixed to the viewport, not min-height: the card never grows, content scrolls
+		   inside it. max() keeps it usable on very short windows — below that floor the
+		   page itself scrolls rather than squeezing the card into nothing. */
+		height: max(560px, calc(100vh - 2 * var(--pad) - var(--botnav)));
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.mono { font-family: 'DM Mono', ui-monospace, monospace; }
+
+	/* ============ TOP NAV ============ */
+	.nav {
+		/* flex:none — the card has a fixed height now, so without this the nav would be
+		   allowed to compress when the content below it is tall */
+		flex: none;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		align-items: center;
+		gap: 20px;
+		padding: 20px clamp(18px, 3vw, 40px);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.nav.has-tools { grid-template-columns: 1fr auto 1fr; }
+	.brand {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 19px; letter-spacing: 1px;
+		color: var(--secondary); text-decoration: none;
+	}
+	.brand sup { color: var(--accent); font-size: 10px; margin-left: 3px; vertical-align: super; }
+
+	.menu { display: flex; align-items: center; gap: 6px; justify-self: end; }
+	.nav.has-tools .menu { justify-self: center; }
+	.menu-link {
+		display: inline-flex; align-items: center; gap: 8px;
+		padding: 9px 13px;
+		font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+	}
+	.menu-icon { display: grid; place-items: center; }
+	.menu-icon svg { width: 15px; height: 15px; stroke-width: 2; }
+	/* current page uses the same black-fill selection language as the rest of the site */
+	.menu-link[aria-current='page'] { background: var(--secondary); color: var(--primary); }
+
+	.tools { justify-self: end; }
+
+	/* ============ PAGE FURNITURE ============
+	   Shared building blocks so a new page is content + data, not a new stylesheet.
+	   .page-head / .section / .sechead / .tiles / .rows cover every page but /merch,
+	   which predates these and keeps its own bespoke two-column layout. */
+	.page {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: flex; flex-direction: column;
+	}
+	/* ---- scrollbar ----
+	   ponytail: opt-in via .scroll-y rather than a blanket `.card *` rule — .tree and
+	   .cviewport deliberately hide their scrollbars, and a catch-all at equal
+	   specificity would fight them. */
+	.page, .scroll-y {
+		scrollbar-width: thin;
+		scrollbar-color: var(--secondary) transparent;
+	}
+	.page::-webkit-scrollbar, .scroll-y::-webkit-scrollbar { width: 11px; height: 11px; }
+	.page::-webkit-scrollbar-track, .scroll-y::-webkit-scrollbar-track { background: transparent; }
+	.page::-webkit-scrollbar-thumb, .scroll-y::-webkit-scrollbar-thumb {
+		background: var(--secondary);
+		border-radius: 6px;
+		/* the border is the same colour as the page, so it reads as breathing room
+		   around the thumb rather than a fatter bar */
+		border: 3px solid var(--primary);
+	}
+	.page::-webkit-scrollbar-thumb:hover, .scroll-y::-webkit-scrollbar-thumb:hover {
+		border-width: 2px;
+	}
+	.page::-webkit-scrollbar-corner, .scroll-y::-webkit-scrollbar-corner { background: transparent; }
+
+	/* the last section shouldn't butt against the card edge once it scrolls */
+	.page > .section:last-child { padding-bottom: clamp(34px, 4vw, 56px); }
+
+	.page-head {
+		padding: clamp(30px, 4.5vw, 64px) clamp(20px, 3.5vw, 52px);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.eyebrow {
+		display: flex; align-items: center; gap: 11px; margin: 0 0 18px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--ink-40);
+	}
+	.eyebrow::before { content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent); }
+	.page-title {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(34px, 5.2vw, 72px);
+		line-height: .92; letter-spacing: -0.02em; text-transform: uppercase;
+	}
+	.lede {
+		margin: 20px 0 0; max-width: 64ch;
+		font-style: italic; font-size: 14.5px; line-height: 1.62; color: var(--ink-60);
+	}
+
+	.section {
+		padding: clamp(26px, 3.4vw, 46px) clamp(20px, 3.5vw, 52px);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.section:last-child { border-bottom: 0; }
+	/* same tick · label · rule · value construction the merch catalogue header uses */
+	.sechead {
+		display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--ink-40);
+	}
+	.sechead::before { content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent); }
+	.sechead-label { color: var(--secondary); font-weight: 500; }
+	.sechead-rule { flex: 1; height: 1.5px; background: var(--hair); }
+	.sechead-meta b { color: var(--accent); font-weight: 500; }
+
+	.tiles { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+	.tile {
+		position: relative; display: flex; flex-direction: column; gap: 11px;
+		padding: 20px;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.tile-icon { display: block; line-height: 0; color: var(--secondary); }
+	.tile-icon svg { width: 26px; height: 26px; stroke-width: 1.6; }
+	.tile-title { font-weight: 800; font-size: 15px; letter-spacing: .01em; }
+	.tile-meta {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.tile-meta b { color: var(--accent); font-weight: 500; }
+	.tile-text { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.tile-num {
+		position: absolute; top: 0; right: 0; padding: 2px 7px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
+		color: var(--primary); background: var(--secondary);
+		border-bottom-left-radius: var(--r);
+	}
+
+	.rows { display: flex; flex-direction: column; gap: 10px; }
+	.row-item {
+		display: grid; grid-template-columns: auto auto 1fr auto; gap: 16px; align-items: center;
+		padding: 15px 17px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.row-icon { display: block; line-height: 0; }
+	.row-icon svg { width: 19px; height: 19px; stroke-width: 1.8; }
+	.row-index {
+		display: grid; place-items: center; min-width: 22px; height: 17px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9.5px; font-style: normal;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	.row-name { font-weight: 700; font-size: 13.5px; }
+	.row-sub { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-60); }
+	.row-meta {
+		text-align: right; white-space: nowrap;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.row-meta b { display: block; color: var(--secondary); font-weight: 500; }
+
+	.cta {
+		display: inline-flex; align-items: center; gap: 12px;
+		padding: 17px 24px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--primary); background: var(--secondary);
+	}
+	.cta svg { width: 17px; height: 17px; stroke-width: 2.2; }
+
+	@media (max-width: 720px) {
+		.row-item { grid-template-columns: auto 1fr; row-gap: 10px; }
+		.row-icon { display: none; }
+		.row-meta { grid-column: 1 / -1; text-align: left; }
+	}
+
+	:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+	@media (max-width: 1260px) {
+		.menu-label { display: none; }
+		.menu-link { padding: 9px 10px; }
+	}
+	@media (max-width: 1080px) {
+		.card { box-shadow: 4px 4px 0 var(--accent), 0 0 0 11px var(--sink); }
+	}
+	/* ============ BOTTOM NAV (mobile) ============ */
+	.botnav { display: none; }
+
+	@media (max-width: 720px) {
+		#app { --botnav: 84px; }
+
+		/* the top bar keeps brand + tools; navigation moves to the bottom bar */
+		.menu { display: none; }
+		.nav, .nav.has-tools { grid-template-columns: 1fr auto; }
+
+		.botnav {
+			position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 35;
+			display: flex; align-items: center; justify-content: space-between; gap: 2px;
+			padding: 7px;
+			background: var(--primary);
+			border: var(--stroke) solid var(--secondary);
+			border-radius: 999px;
+			box-shadow: 0 8px 24px color-mix(in srgb, var(--secondary) 20%, transparent);
+			/* six items on a 360px screen is tight; let it scroll rather than squash */
+			overflow-x: auto; scrollbar-width: none;
+		}
+		.botnav::-webkit-scrollbar { display: none; }
+
+		.botnav-link {
+			flex: none;
+			display: inline-flex; align-items: center; gap: 7px;
+			padding: 10px 11px; border-radius: 999px;
+			color: var(--ink-60); text-decoration: none;
+			transition: background .2s ease, color .2s ease;
+		}
+		.botnav-icon { display: grid; place-items: center; }
+		.botnav-icon svg { width: 19px; height: 19px; stroke-width: 2; }
+		/* only the current page spells its name out — same idea as the reference bar */
+		.botnav-label {
+			display: none;
+			font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+		}
+		.botnav-link[aria-current='page'] {
+			background: var(--secondary); color: var(--primary);
+			padding-right: 15px;
+		}
+		.botnav-link[aria-current='page'] .botnav-label { display: inline; }
+	}
+</style>

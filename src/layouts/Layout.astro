@@ -1,3 +1,7 @@
+---
+import { ClientRouter } from 'astro:transitions';
+const { title = 'Astro Basics' } = Astro.props;
+---
 <!doctype html>
 <html lang="en">
 	<head>
@@ -6,7 +10,10 @@
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<title>{title}</title>
+		{/* client-side routing: only the page body is swapped, so the shell never reloads */}
+		<ClientRouter />
+		<slot name="head" />
 	</head>
 	<body>
 		<slot />
