@@ -13,96 +13,897 @@ import iBot from 'lucide-static/icons/bot.svg?raw';
 import iCode from 'lucide-static/icons/code.svg?raw';
 import iTrophy from 'lucide-static/icons/trophy.svg?raw';
 import iRocket from 'lucide-static/icons/rocket.svg?raw';
+import iAtom from 'lucide-static/icons/atom.svg?raw';
+import iSatellite from 'lucide-static/icons/satellite.svg?raw';
+import iLeaf from 'lucide-static/icons/leaf.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iChevL from 'lucide-static/icons/chevron-left.svg?raw';
+import iChevR from 'lucide-static/icons/chevron-right.svg?raw';
+import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
+import iUsers from 'lucide-static/icons/users.svg?raw';
+import iPresentation from 'lucide-static/icons/presentation.svg?raw';
+import iRadio from 'lucide-static/icons/radio.svg?raw';
+import iWind from 'lucide-static/icons/wind.svg?raw';
+import iGlassWater from 'lucide-static/icons/glass-water.svg?raw';
+import iMicroscope from 'lucide-static/icons/microscope.svg?raw';
+import iPenTool from 'lucide-static/icons/pen-tool.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 
-// ponytail: one array per track, rendered by one template. Adding an event is a line
-// of data, never a block of markup.
-const TRACKS = [
+type Ev = {
+	id: string; name: string; track: string; time: string; venue: string;
+	cap: string; short: string; full: string; icon: string;
+	year?: string; summary?: string;
+};
+
+// ponytail: ONE record per event. The timeline, the clock and the file popup are three
+// readings of this same array — nothing is written twice, so nothing can disagree.
+const DAYS: { id: string; label: string; date: string; iso: string; note: string; items: Ev[] }[] = [
 	{
-		id: 'talks',
-		name: 'Talks',
-		note: 'Open to all — no registration',
+		id: 'fri', label: 'Friday', date: '06 Feb', iso: '2026-02-06', note: 'Opening day',
 		items: [
-			{ name: 'Frontiers Lecture', sub: 'Opening keynote on where the next decade of research actually goes.', day: 'Fri 06', time: '10:00', venue: 'Main Auditorium', icon: iMic },
-			{ name: 'What the Telescope Saw', sub: 'Deep-field imaging, and reading light that left before Earth existed.', day: 'Fri 06', time: '14:30', venue: 'Main Auditorium', icon: iTelescope },
-			{ name: 'Panel: Climate Futures', sub: 'Four researchers disagree productively about the next fifty years.', day: 'Sat 07', time: '11:00', venue: 'Seminar Hall B', icon: iGlobe },
-			{ name: 'Minds and Machines', sub: 'What cognition research still knows that machine learning does not.', day: 'Sat 07', time: '16:00', venue: 'Main Auditorium', icon: iBrain },
+			{ id: 'e01', name: 'Frontiers Lecture', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iMic,
+			  short: 'Opening keynote on where the next decade of research actually goes.',
+			  full: 'The fest opens with a survey of the problems that will still be open in 2036 — and the handful that almost certainly will not be. Expect an argument rather than a summary: the speaker has spent twenty years being publicly wrong about timelines and is unusually candid about why. Doors open thirty minutes early; the first two rows are held for visiting school groups.' },
+			{ id: 'e02', name: 'Arduino from Scratch', track: 'Workshop', time: '11:30', venue: 'Lab 204', cap: '40 seats', icon: iCpu,
+			  short: 'Build and flash a working sensor rig. Boards provided, keep your code.',
+			  full: 'Three hours from an empty breadboard to a device that logs temperature and humidity to an SD card. Boards, sensors and jumpers are provided and stay with the lab, but the firmware you write is yours to take. No prior electronics experience assumed — the first forty minutes are spent on why a pull-up resistor exists at all. Bring a laptop with a USB-A port or an adapter.' },
+			{ id: 'e03', name: 'What the Telescope Saw', track: 'Talk', time: '14:30', venue: 'Main Auditorium', cap: '600 seats', icon: iTelescope,
+			  short: 'Deep-field imaging, and reading light that left before Earth existed.',
+			  full: 'A working tour of how a deep-field image is actually assembled: the stacking, the calibration frames, the artefacts that get mistaken for discoveries every few years. The second half looks at three images in detail and asks what each one is genuinely evidence of. Slides are shared afterwards; the raw frames are available on request for anyone who wants to reduce them independently.' },
+			{ id: 'e04', name: 'Robowars', track: 'Competition', time: '15:00', venue: 'Arena, Ground 2', cap: '32 teams', icon: iBot,
+			  short: '8kg class, single elimination. Pit access opens an hour before.',
+			  full: 'Single-elimination brackets in the 8kg class, three minutes a bout, judged on damage and control if no knockout. Standard safety rules apply: link removal within five seconds, no untethered projectiles, no fire. The pits open at 14:00 and a scrutineer signs off every machine before it enters the arena. Spare parts trading in the pit lane is a tradition and not officially discouraged.' },
+			{ id: 'e05', name: 'Astrophotography Basics', track: 'Workshop', time: '18:00', venue: 'Rooftop, Block C', cap: '25 seats', icon: iCamera,
+			  short: 'Stacking, tracking and noise. Bring a camera if you have one.',
+			  full: 'Starts indoors with the theory of why a single long exposure loses to fifty short ones, then moves to the roof once it is properly dark. Two tracking mounts and a pair of DSLRs are shared between the group; bring your own body if you have one, any mount is fine. Runs late and is entirely weather-dependent — the fallback is a processing session on last year’s data, which is honestly not a bad outcome.' },
 		],
 	},
 	{
-		id: 'workshops',
-		name: 'Workshops',
-		note: 'Limited seats — register at the desk',
+		id: 'sat', label: 'Saturday', date: '07 Feb', iso: '2026-02-07', note: 'Busiest day',
 		items: [
-			{ name: 'Arduino from Scratch', sub: 'Build and flash a working sensor rig. Boards provided, keep your code.', day: 'Fri 06', time: '11:30', venue: 'Lab 204', icon: iCpu },
-			{ name: 'Astrophotography Basics', sub: 'Stacking, tracking and noise. Bring a camera if you have one.', day: 'Fri 06', time: '18:00', venue: 'Rooftop, Block C', icon: iCamera },
-			{ name: 'Reading a Genome', sub: 'Hands-on sequence analysis with real annotated data.', day: 'Sat 07', time: '10:00', venue: 'Bio Lab 1', icon: iDna },
-			{ name: 'Fabrication Clinic', sub: 'Laser cutter, 3D printer and the mistakes everyone makes first.', day: 'Sat 07', time: '13:00', venue: 'Makerspace', icon: iWrench },
+			{ id: 'e06', name: 'Code Sprint', track: 'Competition', time: '09:00', venue: 'Computer Centre', cap: '60 teams', icon: iCode,
+			  short: 'Six hours, five problems, no internet. Teams of three.',
+			  full: 'Five problems, increasing in difficulty, scored on correctness first and runtime second. Machines are provided and locked down; language support covers C++, Python, Java and Rust. No internet, no phones, offline documentation available on every desk. Teams of exactly three from any institution. The last problem has gone unsolved for two consecutive years and the setters seem pleased about it.' },
+			{ id: 'e07', name: 'Reading a Genome', track: 'Workshop', time: '10:00', venue: 'Bio Lab 1', cap: '30 seats', icon: iDna,
+			  short: 'Hands-on sequence analysis with real annotated data.',
+			  full: 'Work through a real annotated bacterial genome from raw reads to a called variant, using the same open tooling a research group would. The dataset is small enough to run on a laptop and large enough to be genuinely messy. Half the session is spent on the parts papers tend to skip: quality trimming, coverage gaps, and how to tell a sequencing artefact from a finding.' },
+			{ id: 'e08', name: 'Panel: Climate Futures', track: 'Talk', time: '11:00', venue: 'Seminar Hall B', cap: '250 seats', icon: iGlobe,
+			  short: 'Four researchers disagree productively about the next fifty years.',
+			  full: 'An atmospheric physicist, an agricultural economist, a materials chemist and a policy researcher, none of whom fully agree with the others. The format is deliberately adversarial: each opens with the strongest version of a position the other three doubt. Audience questions take the second half and are taken unfiltered — submit them at the door or from your seat.' },
+			{ id: 'e09', name: 'Fabrication Clinic', track: 'Workshop', time: '13:00', venue: 'Makerspace', cap: '20 seats', icon: iWrench,
+			  short: 'Laser cutter, 3D printer and the mistakes everyone makes first.',
+			  full: 'A clinic rather than a class: bring a part you want made, or use one of the sample briefs. Covers kerf compensation, tolerance stacking, when a printed part should have been cut instead, and the specific ways a first design fails on each machine. You leave with the part, assuming it survives. Closed-toe shoes required, no exceptions.' },
+			{ id: 'e10', name: 'Minds and Machines', track: 'Talk', time: '16:00', venue: 'Main Auditorium', cap: '600 seats', icon: iBrain,
+			  short: 'What cognition research still knows that machine learning does not.',
+			  full: 'A careful look at the places where human cognition remains stubbornly better understood than its artificial analogues — and at the borrowed vocabulary that causes most of the confusion between the two fields. Includes a live demonstration involving the audience that reliably fails in an instructive way.' },
+			{ id: 'e11', name: 'Quiz Bowl', track: 'Competition', time: '17:30', venue: 'Seminar Hall A', cap: '48 teams', icon: iTrophy,
+			  short: 'Four rounds across physics, bio, chem and history of science.',
+			  full: 'Four themed rounds, buzzer format, escalating point values, with a written tiebreak held in reserve. Teams of four. The history-of-science round is the one that decides it most years, and the one teams prepare for least. Open to school and university teams in separate brackets running simultaneously.' },
 		],
 	},
 	{
-		id: 'competitions',
-		name: 'Competitions',
-		note: 'Prize pool ₹2,40,000',
+		id: 'sun', label: 'Sunday', date: '08 Feb', iso: '2026-02-08', note: 'Closing day',
 		items: [
-			{ name: 'Robowars', sub: ' 8kg class, single elimination. Pit access opens an hour before.', day: 'Fri 06', time: '15:00', venue: 'Arena, Ground 2', icon: iBot },
-			{ name: 'Code Sprint', sub: 'Six hours, five problems, no internet. Teams of three.', day: 'Sat 07', time: '09:00', venue: 'Computer Centre', icon: iCode },
-			{ name: 'Quiz Bowl', sub: 'Four rounds across physics, bio, chem and history of science.', day: 'Sat 07', time: '17:30', venue: 'Seminar Hall A', icon: iTrophy },
-			{ name: 'Water Rocketry', sub: 'Distance and payload. Build on site from the standard kit.', day: 'Sun 08', time: '10:30', venue: 'Ground 1', icon: iRocket },
+			{ id: 'e12', name: 'Water Rocketry', track: 'Competition', time: '10:30', venue: 'Ground 1', cap: '40 teams', icon: iRocket,
+			  short: 'Distance and payload. Build on site from the standard kit.',
+			  full: 'Everything is built on the day from an identical kit — two-litre bottles, fixed nozzle, a fin sheet and tape. Two categories: maximum distance, and maximum payload returned intact. Pressure is capped and checked at the launcher. Weather rarely stops this one; it has run in light rain twice and the results were better, which nobody has satisfactorily explained.' },
+			{ id: 'e13', name: 'Closing & Prizes', track: 'Talk', time: '16:00', venue: 'Main Auditorium', cap: '600 seats', icon: iAtom,
+			  short: 'Results across every competition, then the expo awards.',
+			  full: 'Results read out for all four competitions, followed by the expo jury awards across the six halls. Runs about ninety minutes. Teams should send at least one member; unclaimed prizes are held at the fest desk for a week and then quietly absorbed into next year’s budget.' },
 		],
 	},
 ];
 
-const total = TRACKS.reduce((n, t) => n + t.items.length, 0);
+// Past editions. ponytail: the dial carries DATES, not events — nine fixed positions
+// that never reflow. Events hang off the selected date, so a busy day costs a longer
+// list rather than an unreadable ring.
+const HISTORY: { id: string; day: string; date: string; edition: string; items: Ev[] }[] = [
+	{ id: 'h25c', day: '09', date: '09 Feb 2025', edition: "Anvesha '25", items: [
+		{ id: 'a01', name: 'Fusion, Honestly', track: 'Talk', time: '11:00', venue: 'Main Auditorium', cap: '600 seats', icon: iAtom,
+		  short: 'A plasma physicist on why the thirty-year joke is finally shifting.',
+		  full: 'A deliberately unhyped account of where magnetic confinement actually stands, delivered by someone who has spent a career inside the field and is visibly tired of the press cycle around it.',
+		  summary: 'Ran forty minutes over because the audience would not stop asking questions, and nobody left. The recording became the most-watched thing the fest has ever published.' },
+		{ id: 'a12', name: 'Fermentation Lab', track: 'Workshop', time: '13:30', venue: 'Bio Lab 1', cap: '30 seats', icon: iFlask,
+		  short: 'Yeast, bacteria and the chemistry that turns one into the other.',
+		  full: 'A hands-on look at controlled fermentation, from pH curves to why a batch goes wrong, ending with everyone taking a starter culture home in a jar.',
+		  summary: 'Eleven of thirty starter cultures were reported alive and in use a month later, which the lab now treats as an actual success metric.' },
+		{ id: 'a13', name: 'Closing Panel: What Held Up', track: 'Talk', time: '17:00', venue: 'Seminar Hall A', cap: '250 seats', icon: iUsers,
+		  short: 'Three past speakers revisit their own predictions from years back.',
+		  full: 'Three researchers who spoke at earlier editions returned to grade their own five-year-old predictions in public, on stage, without having seen the questions in advance.',
+		  summary: 'Every speaker scored themselves lower than the audience did. The transcript is now assigned reading for the outreach mentorship programme.' },
+	]},
+	{ id: 'h25b', day: '08', date: '08 Feb 2025', edition: "Anvesha '25", items: [
+		{ id: 'a02', name: 'Swarm Robotics Trials', track: 'Competition', time: '14:00', venue: 'Arena', cap: '24 teams', icon: iBot,
+		  short: 'Twenty-four teams, one arena, no central controller allowed.',
+		  full: 'Teams fielded fleets of six identical units that had to map and clear an arena with no shared coordinator and no human input after the start signal.',
+		  summary: 'Won by a team whose units simply refused to move for the first ninety seconds, which turned out to be a deliberate and extremely effective strategy.' },
+		{ id: 'a20', name: 'Water You Drinking', track: 'Workshop', time: '11:00', venue: 'Bio Lab 2', cap: '25 seats', icon: iGlassWater,
+		  short: 'Testing campus water fountains for hardness, chlorine and pH.',
+		  full: 'A campus-wide water quality survey run entirely by attendees, testing every public fountain for hardness, residual chlorine and pH with a shared field kit.',
+		  summary: 'One fountain outside the old gym tested well outside normal hardness range and was flagged to facilities, which traced it to a corroded section of pipe.' },
+		{ id: 'a09', name: 'Night Sky Walk', track: 'Workshop', time: '19:30', venue: 'Ground 1', cap: '80 seats', icon: iTelescope,
+		  short: 'No instruments. Just a laser pointer and two hours of naked-eye sky.',
+		  full: 'A guided tour of everything visible without equipment, built around the argument that learning the sky by eye first makes every telescope afterwards more useful.',
+		  summary: 'Cloud cover rolled in at the halfway mark and the session continued anyway, as a talk about navigation. Attendance did not drop.' },
+	]},
+	{ id: 'h25a', day: '07', date: '07 Feb 2025', edition: "Anvesha '25", items: [
+		{ id: 'a10', name: 'Opening: Ten Years On', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iMic,
+		  short: 'The tenth edition opened by reading out the first edition\u2019s programme.',
+		  full: 'The tenth Anvesha opened by projecting the 2015 programme — six events, one room, forty attendees — and walking through what each of those six became.',
+		  summary: 'Four of the six original organisers attended. The programme sheet is now framed in the fest office.' },
+		{ id: 'a14', name: 'Radio Astronomy for Beginners', track: 'Workshop', time: '14:00', venue: 'Rooftop, Block C', cap: '20 seats', icon: iRadio,
+		  short: 'A coffee-can antenna, pointed at the sun, on the roof at noon.',
+		  full: 'Building the simplest possible radio telescope from a coffee can and a USB dongle, aimed at the sun to pick up the loudest thing in the sky before attempting anything fainter.',
+		  summary: 'Detected the sun on the first attempt in nine of ten builds. The tenth was traced to a cable fault and fixed live to enthusiastic applause.' },
+	]},
+	{ id: 'h24c', day: '11', date: '11 Feb 2024', edition: "Anvesha '24", items: [
+		{ id: 'a05', name: 'Adversarial Inputs', track: 'Talk', time: '16:30', venue: 'Seminar Hall A', cap: '250 seats', icon: iCode,
+		  short: 'Breaking vision models live, on stage, with a printed sticker.',
+		  full: 'A demonstration-heavy session on why image classifiers fail in ways that look absurd to humans, ending with a live attack on a model the audience chose.',
+		  summary: 'The live attack failed twice before working on the third attempt, which the speaker described afterwards as the most honest possible outcome.' },
+		{ id: 'a15', name: 'Closing Ceremony', track: 'Talk', time: '18:30', venue: 'Main Auditorium', cap: '600 seats', icon: iPresentation,
+		  short: 'Results, thanks, and the traditional argument over next year\u2019s theme.',
+		  full: 'Prizes read out across all four competitions and the expo jury awards, followed by an open floor where next year\u2019s theme is debated more loudly than strictly necessary.',
+		  summary: 'The theme vote ended in an exact tie and was settled by a coin toss on stage, which is now apparently a tradition too.' },
+	]},
+	{ id: 'h24b', day: '10', date: '10 Feb 2024', edition: "Anvesha '24", items: [
+		{ id: 'a04', name: 'CubeSat Ground Station', track: 'Workshop', time: '15:30', venue: 'Rooftop, Block C', cap: '20 seats', icon: iSatellite,
+		  short: 'Built an antenna, then caught an actual satellite pass.',
+		  full: 'A turnstile antenna assembled from hardware-store parts, wired to a software-defined radio, aimed at a published pass schedule.',
+		  summary: 'Decoded weather imagery from three consecutive passes. The antenna is still on the roof and still works, which was not the original plan.' },
+		{ id: 'a11', name: 'Materials Teardown', track: 'Workshop', time: '11:00', venue: 'Makerspace', cap: '25 seats', icon: iWrench,
+		  short: 'Six consumer objects, cut in half, explained layer by layer.',
+		  full: 'A lithium cell, a running shoe, a smartphone screen, a food pouch, a helmet liner and a bank card, sectioned on a bandsaw and read as engineering documents.',
+		  summary: 'The food pouch turned out to be the most complex object on the table at seven distinct layers, which surprised everyone including the presenter.' },
+	]},
+	{ id: 'h24a', day: '09', date: '09 Feb 2024', edition: "Anvesha '24", items: [
+		{ id: 'a03', name: 'The Soil Project', track: 'Workshop', time: '10:00', venue: 'Bio Lab 2', cap: '35 seats', icon: iLeaf,
+		  short: 'Testing campus soil, and what the results said about the campus.',
+		  full: 'Participants sampled eleven sites across campus and ran a full nutrient and contamination panel over a single day, then mapped the results.',
+		  summary: 'Found lead above threshold at two sites near the old workshop. The findings were passed to the estates office and both areas were remediated over that summer.' },
+		{ id: 'a16', name: 'Opening: Wind and Weather', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iWind,
+		  short: 'A meteorologist opens the fest by explaining the week\u2019s forecast.',
+		  full: 'An unusually literal opening talk: the visiting meteorologist walked through exactly how the week\u2019s forecast was produced, using the fest itself as the worked example.',
+		  summary: 'The forecast for the outdoor water rocketry session was wrong by six hours, which the speaker admitted on stage the following day.' },
+	]},
+	{ id: 'h23c', day: '12', date: '12 Feb 2023', edition: "Anvesha '23", items: [
+		{ id: 'a08', name: 'First Light', track: 'Talk', time: '18:00', venue: 'Rooftop, Block C', cap: '120 seats', icon: iRocket,
+		  short: 'The talk that started the outreach programme, given outdoors.',
+		  full: 'An informal evening talk on why access to a telescope changes what a child believes is possible, given standing on a roof to whoever turned up.',
+		  summary: 'Two attendees volunteered on the spot to take equipment into schools. That became the Mobile Lab, which has now reached 148 schools.' },
+		{ id: 'a17', name: 'Closing: Prize Giving', track: 'Talk', time: '15:00', venue: 'Main Auditorium', cap: '600 seats', icon: iTrophy,
+		  short: 'Every competition\u2019s results, read out in reverse order.',
+		  full: 'The full results of the weekend, deliberately read from last place to first in every category, on the theory that it keeps the room listening longer.',
+		  summary: 'It worked — attendance for the closing session was higher than any single competition final that year.' },
+	]},
+	{ id: 'h23b', day: '11', date: '11 Feb 2023', edition: "Anvesha '23", items: [
+		{ id: 'a07', name: 'Bridge Collapse Trials', track: 'Competition', time: '13:00', venue: 'Ground 2', cap: '30 teams', icon: iWrench,
+		  short: 'Balsa bridges, one loading rig, and a very loud afternoon.',
+		  full: 'Fixed span, fixed material budget, loaded to destruction on a hydraulic rig with the load-to-mass ratio decided on the spot.',
+		  summary: 'The winning bridge held 214 times its own mass. Second place held more but weighed enough to lose on ratio, and the protest that followed lasted longer than the event.' },
+		{ id: 'a18', name: 'Under the Microscope', track: 'Workshop', time: '10:30', venue: 'Bio Lab 1', cap: '25 seats', icon: iMicroscope,
+		  short: 'Pond water, cheek cells and whatever else people brought in jars.',
+		  full: 'An open microscopy session where attendees were encouraged to bring their own samples — pond water, garden soil, tap water left standing — and see what turned up.',
+		  summary: 'Someone brought in aquarium water that turned out to host a rotifer nobody in the room could immediately identify, which became the most-photographed slide of the day.' },
+	]},
+	{ id: 'h23a', day: '10', date: '10 Feb 2023', edition: "Anvesha '23", items: [
+		{ id: 'a06', name: 'Zero to Telescope', track: 'Workshop', time: '09:30', venue: 'Makerspace', cap: '15 seats', icon: iTelescope,
+		  short: 'Grind a mirror by hand. It takes far longer than anyone expects.',
+		  full: 'A full day of hand-grinding and figuring a six-inch primary mirror, then testing it with a Foucault rig built in the same session.',
+		  summary: 'Nine of fifteen mirrors reached a usable figure by close. The other six were taken home unfinished and at least three were eventually completed.' },
+		{ id: 'a19', name: 'Ink, Paper, Circuit', track: 'Workshop', time: '14:00', venue: 'Makerspace', cap: '20 seats', icon: iPenTool,
+		  short: 'Conductive ink pens, drawn circuits, and a paper piano that worked.',
+		  full: 'A crossover session between printmaking and electronics: attendees drew working circuits with conductive ink pens on plain paper, ending with a playable paper piano.',
+		  summary: 'The paper piano survived exactly one day before conductive ink cracked along a fold, which sparked an entirely unplanned discussion on material fatigue.' },
+	]},
+];
+
+const ALL = [
+	...DAYS.flatMap((d) => d.items.map((e) => ({ ...e, when: `${d.label} ${d.date}` }))),
+	...HISTORY.flatMap((h) => h.items.map((e) => ({ ...e, when: `${h.edition} \u00b7 ${h.date}` }))),
+];
+const pastTotal = HISTORY.reduce((n, h) => n + h.items.length, 0);
+
+// handed to the client once, as JSON — no second copy of the copy
+const PAYLOAD = {
+	events: Object.fromEntries(ALL.map((e: any) => [e.id, {
+		name: e.name, track: e.track, time: e.time, venue: e.venue, cap: e.cap,
+		short: e.short, full: e.full, when: e.when,
+		summary: e.summary ?? null,
+	}])),
+	ring: HISTORY.map((h) => ({ day: h.day, date: h.date, edition: h.edition, ids: h.items.map((i) => i.id) })),
+};
 ---
 
 <SiteLayout title="Events · Anvesha '26">
 	<div class="page">
-		<header class="page-head" data-reveal>
-			<p class="eyebrow">Three days · 06—08 February</p>
-			<h1 class="page-title">Events</h1>
-			<p class="lede">
-				Talks you can walk into, workshops you have to sign up for, and competitions
-				worth staying the whole weekend for. Everything runs across three days on one campus.
-			</p>
-		</header>
+		<!-- ============ HISTORY DIAL ============ -->
+		<section class="section history" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">History</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{pastTotal}</b> sessions · <b>{HISTORY.length}</b> dates</span>
+			</div>
 
-		{TRACKS.map((track) => (
-			<section class="section" data-reveal>
-				<div class="sechead">
-					<span class="sechead-label">{track.name}</span>
-					<span class="sechead-rule"></span>
-					<span class="sechead-meta"><b>{track.items.length}</b> · {track.note}</span>
+			<div class="dial">
+				<div class="dial-face" id="dialFace">
+					<span class="dial-pointer" aria-hidden="true"></span>
+					<span class="dial-ring-line" aria-hidden="true"></span>
+					<div class="dial-ring" id="dialRing">
+						{HISTORY.map((h, i) => (
+							<button
+								class="dial-tick"
+								style={`--a:${(i * 360) / HISTORY.length}deg`}
+								data-i={i}
+								aria-label={`${h.date}, ${h.edition}`}
+							>
+								<span class="dial-tick-in">
+									<b>{h.day}</b>
+									<small>{h.edition.slice(-3)}</small>
+								</span>
+							</button>
+						))}
+					</div>
+					<span class="dial-hub" aria-hidden="true"></span>
 				</div>
 
-				<div class="rows">
-					{track.items.map((e, i) => (
-						<article class="row-item">
-							<i class="row-index">{String(i + 1).padStart(2, '0')}</i>
-							<span class="row-icon" set:html={e.icon} />
-							<div>
-								<div class="row-name">{e.name}</div>
-								<p class="row-sub">{e.sub}</p>
-							</div>
-							<div class="row-meta">
-								<b>{e.day} · {e.time}</b>
-								{e.venue}
-							</div>
-						</article>
-					))}
+				<div class="dial-read">
+					<p class="eyebrow" id="dlEdition">Anvesha '25</p>
+					<h3 class="dial-date" id="dlDate">09 Feb 2025</h3>
+
+					<ol class="dial-list" id="dlList"></ol>
+
+					<div class="dial-ctl">
+						<button class="btn cbtn" id="dlPrev" aria-label="Earlier date" set:html={iChevL}></button>
+						<span class="dial-ctl-mid">
+							<span class="dial-pos" id="dlPos">01 / 09</span>
+							<span class="dial-hint">Drag the dial to travel back</span>
+						</span>
+						<button class="btn cbtn" id="dlNext" aria-label="Later date" set:html={iChevR}></button>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- separator between what happened and what is coming -->
+		<div class="band" data-reveal>
+			<span class="band-label">Upcoming</span>
+		</div>
+
+
+		<!-- ============ TIMELINE ============ -->
+		{DAYS.map((day) => (
+			<section class="section tl-day" data-reveal>
+				<div class="sechead">
+					<span class="sechead-label">{day.label} {day.date}</span>
+					<span class="sechead-rule"></span>
+					<span class="sechead-meta"><b>{day.items.length}</b> · {day.note}</span>
+				</div>
+
+				<div class="tl-scroll scroll-y">
+					<ol class="tl">
+						{day.items.map((e) => (
+							<li class="tl-item" data-at={`${day.iso}T${e.time}`}>
+								<time class="tl-time">{e.time}</time>
+								<span class="tl-rail" aria-hidden="true"><span class="tl-dot"></span></span>
+
+								<button class="tl-card" data-ev={e.id} aria-label={`Open ${e.name}`}>
+									<span class="tl-top">
+										<span class="tl-track">{e.track}</span>
+										<span class="tl-next" hidden>Next up</span>
+										<span class="tl-venue">{e.venue}</span>
+									</span>
+									<span class="tl-head">
+										<span class="tl-icon" set:html={e.icon} />
+										<span class="tl-name">{e.name}</span>
+									</span>
+									<span class="tl-short">{e.short}</span>
+								</button>
+							</li>
+						))}
+					</ol>
 				</div>
 			</section>
 		))}
 
-		<section class="section" data-reveal>
-			<div class="sechead">
-				<span class="sechead-label">At a glance</span>
-				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{total}</b> events</span>
-			</div>
-			<p class="lede" style="margin-top:0">
-				Schedules shift. The desk in the main quad has the live version, and every venue
-				posts its own board an hour before the first session.
-			</p>
-		</section>
 	</div>
+
+	<Fragment slot="overlays">
+		<!-- ============ FILE POPUP ============ -->
+		<div id="fileWrap" class="file-wrap" aria-hidden="true">
+			<div class="file" role="dialog" aria-modal="true" aria-labelledby="fName">
+				<!-- ink header band, like the top of a records form -->
+				<div class="file-bar">
+					<span class="file-kind">Event File</span>
+					<span class="file-ref" id="fRef">ANV / E-00</span>
+					<button class="btn x file-x" id="fClose" aria-label="Close file" set:html={iX}></button>
+				</div>
+
+				<div class="file-inner">
+					<!-- punched margin: the strongest single cue that this is a file -->
+					<div class="file-margin" aria-hidden="true">
+						<span></span><span></span><span></span>
+					</div>
+
+					<div class="file-content">
+						<span class="file-chip" id="fTrack">TALK</span>
+						<h2 class="file-title" id="fName"></h2>
+
+						<dl class="file-rows" id="fRows"></dl>
+
+						<p class="file-full" id="fFull"></p>
+
+						<div class="file-sum" id="fSum" hidden>
+							<span class="file-sum-label">Summary</span>
+							<p id="fSumText"></p>
+						</div>
+					</div>
+				</div>
+
+				<div class="file-foot">
+					<span class="file-stamp" id="fStamp" hidden>ARCHIVED</span>
+					<a class="cta file-reg" id="fReg" href="mailto:register@anvesha26.in">
+						<span id="fRegLabel">REGISTER</span>
+						<span set:html={iArrowRight} />
+					</a>
+				</div>
+			</div>
+		</div>
+
+		<script type="application/json" id="evData" set:html={JSON.stringify(PAYLOAD)} is:inline></script>
+	</Fragment>
 </SiteLayout>
+
+<script>
+	import { gsap } from 'gsap';
+
+	type Rec = {
+		name: string; track: string; time: string; venue: string; cap: string;
+		short: string; full: string; when: string;
+		summary: string | null;
+	};
+	type Ring = { day: string; date: string; edition: string; ids: string[] };
+
+	// ponytail: same shape as /merch — Astro module scripts run once per session, so with
+	// the client router this must re-init against each freshly swapped DOM.
+	let ac: AbortController | null = null;
+	let inited: HTMLElement | null = null;
+
+	function initEvents() {
+		const wrap = document.getElementById('fileWrap');
+		if (!wrap || wrap === inited) return;
+		inited = wrap;
+		ac?.abort();
+		ac = new AbortController();
+		const { signal } = ac;
+
+		const $ = <T extends HTMLElement>(id: string): T => {
+			const el = document.getElementById(id);
+			if (!el) console.error(`[events] missing #${id}`); // fail loudly, not three calls deep
+			return el as T;
+		};
+		const rm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const pad = (n: number) => String(n).padStart(2, '0');
+
+		const payload: { events: Record<string, Rec>; ring: Ring[] } =
+			JSON.parse($('evData').textContent || '{"events":{},"ring":[]}');
+		const data = payload.events, ring = payload.ring;
+
+		// ---- file popup ----
+		const fileEl = wrap.querySelector('.file') as HTMLElement;
+		const fTrack = $('fTrack'), fRef = $('fRef'), fName = $('fName'), fRows = $('fRows');
+		const fFull = $('fFull'), fSum = $('fSum'), fSumText = $('fSumText');
+		const fStamp = $('fStamp'), fReg = $<HTMLAnchorElement>('fReg'), fRegLabel = $('fRegLabel');
+
+		let fileOpen = false;
+		gsap.set(wrap, { autoAlpha: 0 });
+		gsap.set(fileEl, { y: 18 });
+
+		function openFile(id: string) {
+			const r = data[id];
+			if (!r) return;
+
+			fTrack.textContent = r.track.toUpperCase();
+			fRef.textContent = `ANV / ${id.toUpperCase()}`;
+			fName.textContent = r.name;
+			fRows.innerHTML = ([
+				['When', r.when], ['Time', r.time], ['Venue', r.venue], ['Capacity', r.cap],
+			] as [string, string][])
+				.map(([k, v]) => `<div class="file-row"><dt>${k}</dt><span class="file-lead"></span><dd>${v}</dd></div>`).join('');
+			fFull.textContent = r.full;
+
+			// a past event swaps its register button for a stamp and gains a summary
+			// past records swap the register call-to-action for the gallery
+			const past = Boolean(r.summary);
+			fSum.hidden = !past;
+			fStamp.hidden = !past;
+			if (past) {
+				fSumText.textContent = r.summary!;
+				fRegLabel.textContent = 'VIEW GALLERY';
+				fReg.href = `/gallery/${id}`;
+			} else {
+				fRegLabel.textContent = 'REGISTER';
+				fReg.href = `mailto:register@anvesha26.in?subject=${encodeURIComponent(`Register: ${r.name}`)}`;
+			}
+
+			setFile(true);
+		}
+
+		function setFile(on: boolean) {
+			fileOpen = on;
+			wrap.setAttribute('aria-hidden', String(!on));
+			gsap.to(wrap, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.2 });
+			gsap.to(fileEl, { y: on ? 0 : 18, duration: rm ? 0 : 0.3, ease: 'power3.out' });
+			if (on) $('fClose').focus();
+		}
+
+		$('fClose').onclick = () => setFile(false);
+		wrap.addEventListener('click', (e) => { if (e.target === wrap) setFile(false); });
+		addEventListener('keydown', (e) => { if (e.key === 'Escape' && fileOpen) setFile(false); }, { signal });
+
+		// every timeline row opens its own file
+		for (const b of document.querySelectorAll<HTMLElement>('[data-ev]'))
+			b.onclick = () => openFile(b.dataset.ev!);
+
+		// ---- next up ----
+		// Marked client-side, not at build time: a static build would freeze whichever
+		// event was next when the site was compiled.
+		const rows = Array.from(document.querySelectorAll<HTMLElement>('.tl-item[data-at]'));
+		const now = Date.now();
+		// ponytail: fall back to the first row once the whole fest is in the past, so the
+		// treatment stays visible while these dates are still placeholders. Drop the
+		// fallback when the schedule is real and an ended fest should show nothing.
+		const next = rows.find((li) => new Date(li.dataset.at!).getTime() > now) ?? rows[0];
+		if (next) {
+			next.classList.add('next');
+			next.querySelector('.tl-next')?.removeAttribute('hidden');
+		}
+
+		// ---- history dial ----
+		// ponytail: the RING rotates and a fixed pointer at 12 o'clock reads the selection —
+		// that is what makes it feel like a dial rather than a clock with a moving hand.
+		// Ticks carry only dates; their events render in the panel beside it.
+		const face = $('dialFace'), ringEl = $('dialRing');
+		const ticks = Array.from(ringEl.querySelectorAll<HTMLElement>('.dial-tick'));
+		const inners = ticks.map((t) => t.querySelector('.dial-tick-in') as HTMLElement);
+		const dlEdition = $('dlEdition'), dlDate = $('dlDate'), dlList = $('dlList'), dlPos = $('dlPos');
+
+		const N = ticks.length;
+		const STEP = 360 / N;
+		let cur = 0;
+		let rot = 0;            // live ring rotation in degrees
+
+		// ring and tick contents are counter-rotated by the same value, so labels stay
+		// upright however far the dial is spun
+		function applyRot(deg: number, animate: boolean) {
+			const d = animate && !rm ? 0.45 : 0;
+			gsap.to(ringEl, { rotation: deg, duration: d, ease: 'power3.out', overwrite: 'auto' });
+			gsap.to(inners, { rotation: -deg, duration: d, ease: 'power3.out', overwrite: 'auto' });
+		}
+
+		function showDate(i: number, animate = true) {
+			cur = ((i % N) + N) % N;
+			const r = ring[cur];
+
+			ticks.forEach((t, j) => t.classList.toggle('active', j === cur));
+			dlEdition.textContent = r.edition;
+			dlDate.textContent = r.date;
+			dlPos.textContent = `${pad(cur + 1)} / ${pad(N)}`;
+
+			dlList.innerHTML = r.ids.map((id) => {
+				const e = data[id];
+				return `<li><button class="dial-ev" data-ev="${id}">
+					<span class="dial-ev-time">${e.time}</span>
+					<span class="dial-ev-name">${e.name}</span>
+					<span class="dial-ev-short">${e.short}</span>
+				</button></li>`;
+			}).join('');
+			for (const b of dlList.querySelectorAll<HTMLElement>('[data-ev]'))
+				b.onclick = () => openFile(b.dataset.ev!);
+
+			rot = -cur * STEP;
+			applyRot(rot, animate);
+		}
+
+		ticks.forEach((t, i) => { t.onclick = () => showDate(i); });
+		$('dlPrev').onclick = () => showDate(cur - 1);
+		$('dlNext').onclick = () => showDate(cur + 1);
+
+		// ---- drag to spin ----
+		const angleAt = (e: PointerEvent) => {
+			const b = face.getBoundingClientRect();
+			return (Math.atan2(e.clientY - (b.top + b.height / 2), e.clientX - (b.left + b.width / 2)) * 180) / Math.PI;
+		};
+		let dragging = false, lastA = 0, moved = 0;
+
+		face.addEventListener('pointerdown', (e) => {
+			dragging = true; moved = 0; lastA = angleAt(e);
+			face.setPointerCapture(e.pointerId);
+			face.classList.add('dragging');
+		}, { signal });
+
+		face.addEventListener('pointermove', (e) => {
+			if (!dragging) return;
+			const a = angleAt(e);
+			// normalise the step across the atan2 seam at +/-180
+			let d = a - lastA;
+			if (d > 180) d -= 360; else if (d < -180) d += 360;
+			lastA = a; moved += Math.abs(d);
+			rot += d;
+			applyRot(rot, false);   // follow the finger exactly, no easing
+		}, { signal });
+
+		function endDrag(e: PointerEvent) {
+			if (!dragging) return;
+			dragging = false;
+			face.classList.remove('dragging');
+			face.releasePointerCapture?.(e.pointerId);
+			// snap to whichever tick is nearest 12 o'clock
+			showDate(Math.round(-rot / STEP));
+		}
+		face.addEventListener('pointerup', endDrag, { signal });
+		face.addEventListener('pointercancel', endDrag, { signal });
+		// a drag that travelled should not also fire the tick's click
+		face.addEventListener('click', (e) => { if (moved > 6) { e.stopPropagation(); e.preventDefault(); } }, { capture: true, signal });
+
+		showDate(0, false);
+	}
+
+	document.addEventListener('astro:page-load', initEvents);
+	initEvents();
+</script>
+
+<style is:global>
+	/* ============ TIMELINE ============
+	   Time in the gutter, a continuous rail, and each event as a real plate. The rail is
+	   one absolutely-positioned line on the list, not a border per row — stacked borders
+	   leave a hairline gap at every seam. */
+	/* three cards visible, rest scrolls — per day, independently.
+	   ponytail: the wrapper scrolls; .tl itself stays a plain block that grows to its
+	   full natural height. If .tl were the scroll container instead, its ::before rail
+	   (positioned via top/bottom relative to .tl's OWN box) would be clipped to the
+	   fixed 3-row height and vanish for anything scrolled below it — wrapping keeps the
+	   rail spanning the true full list while the wrapper does the clipping. */
+	.tl-scroll {
+		--tl-row: 124px; /* approximate: card content height varies with wrapped text */
+		--tl-rows: 3;
+		max-height: calc(var(--tl-rows) * var(--tl-row));
+		overflow-y: auto; overscroll-behavior: contain;
+	}
+
+	.tl {
+		/* ponytail: the rail and the grid read the SAME three values. They were two
+		   independent numbers before, so the line sat 12px off the dots. */
+		--tl-time: 58px;
+		--tl-gap: 12px;
+		--tl-rail: 26px;
+		position: relative; list-style: none; margin: 0; padding: 0;
+	}
+	.tl::before {
+		content: ''; position: absolute;
+		left: calc(var(--tl-time) + var(--tl-gap) + var(--tl-rail) / 2 - 0.75px);
+		top: 22px; bottom: 22px;
+		width: 1.5px; background: var(--hair);
+	}
+
+	.tl-item {
+		display: grid;
+		grid-template-columns: var(--tl-time) var(--tl-rail) 1fr;
+		align-items: start; gap: 0 var(--tl-gap);
+		padding: 6px 0;
+	}
+	.tl-time {
+		padding-top: 17px; text-align: right;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 13px; color: var(--secondary);
+	}
+	.tl-rail { display: grid; place-items: center; padding-top: 19px; }
+	.tl-dot {
+		width: 11px; height: 11px; border-radius: 50%;
+		background: var(--primary); border: var(--stroke) solid var(--secondary);
+		transition: background .15s ease, border-color .15s ease, transform .15s ease;
+	}
+
+	.tl-card {
+		display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+		width: 100%; text-align: left;
+		padding: 15px 17px 16px;
+		appearance: none; cursor: pointer;
+		background: var(--primary); color: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		font-family: 'Archivo', sans-serif;
+		transition: transform .13s ease, box-shadow .13s ease;
+	}
+	.tl-card:hover { transform: translate(-2px, -2px); box-shadow: var(--pop); }
+	.tl-item:hover .tl-dot { background: var(--accent); border-color: var(--accent); transform: scale(1.2); }
+
+	.tl-top {
+		display: flex; align-items: center; gap: 9px; width: 100%;
+	}
+	.tl-venue { margin-left: auto; }
+	.tl-track {
+		padding: 4px 9px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--accent); border: 1.5px solid var(--accent); border-radius: var(--r);
+	}
+	.tl-venue {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+
+	.tl-head { display: flex; align-items: center; gap: 11px; min-width: 0; }
+	.tl-icon { display: block; line-height: 0; flex: none; }
+	.tl-icon svg { width: 21px; height: 21px; stroke-width: 1.7; }
+	.tl-name {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(14px, 1.5vw, 16px);
+		line-height: 1.1; letter-spacing: -0.01em; text-transform: uppercase;
+	}
+	.tl-short { font-size: 12.5px; line-height: 1.55; color: var(--ink-60); }
+
+	/* ---- next up ---- */
+	.tl-next {
+		padding: 4px 9px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--primary); background: var(--accent);
+		border: 1.5px solid var(--accent); border-radius: var(--r);
+	}
+	.tl-item.next .tl-card { border-color: var(--accent); box-shadow: var(--pop); }
+	.tl-item.next .tl-dot { background: var(--accent); border-color: var(--accent); }
+	/* the venue is the first thing to give up room once a third chip appears */
+	.tl-item.next .tl-venue { flex: 0 1 auto; min-width: 0; }
+
+	/* the page's own dot matrix, painted into just this section so it reads as the
+	   background texture flowing in from behind the card and stopping dead at the
+	   separator below — every other section stays plain paper */
+	.section.history {
+		background: var(--sink);
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+	}
+
+	/* ============ UPCOMING BAND ============
+	   The label straddles the section separator rather than drawing rules of its own —
+	   one line doing two jobs. The section above drops its border so they don't double. */
+	.section:has(+ .band) { border-bottom: 0; }
+	.band {
+		position: relative;
+		border-top: var(--stroke) solid var(--secondary);
+	}
+	.band-label {
+		position: absolute; top: 0; left: 50%;
+		transform: translate(-50%, -50%);
+		padding: 0 clamp(14px, 2.5vw, 24px);
+		background: var(--primary);
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(11px, 1.3vw, 14px);
+		letter-spacing: .3em; text-transform: uppercase; color: var(--secondary);
+		text-indent: .3em; /* balance the trailing letter-space */
+		white-space: nowrap;
+	}
+
+	/* ============ HISTORY DIAL ============
+	   The ring turns; a fixed pointer at 12 o'clock reads whichever date reaches it. */
+	.dial {
+		display: grid; grid-template-columns: auto 1fr; gap: clamp(26px, 4vw, 58px);
+		align-items: start;
+	}
+	/* first thing on the page now, so it gets a little more room above */
+	.page > .section:first-child { padding-top: clamp(30px, 4vw, 46px); }
+	.dial-face {
+		--r: clamp(112px, 14vw, 158px);
+		position: relative; flex: none;
+		width: calc(var(--r) * 2 + 58px); height: calc(var(--r) * 2 + 58px);
+		cursor: grab; touch-action: none; user-select: none;
+	}
+	.dial-face.dragging { cursor: grabbing; }
+
+	.dial-ring-line {
+		position: absolute; inset: 29px; border-radius: 50%;
+		border: 1.5px dashed var(--hair);
+	}
+	/* CSS supplies layout only — GSAP owns rotation on both the ring and the labels */
+	.dial-ring { position: absolute; inset: 0; }
+	.dial-hub {
+		position: absolute; left: 50%; top: 50%; width: 13px; height: 13px;
+		margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--secondary);
+	}
+	/* the read head: a solid wedge sitting outside the ring at 12 o'clock */
+	.dial-pointer {
+		position: absolute; left: 50%; top: 0; z-index: 2;
+		width: 0; height: 0; margin-left: -9px;
+		border-left: 9px solid transparent;
+		border-right: 9px solid transparent;
+		border-top: 13px solid var(--accent);
+	}
+
+	.dial-tick {
+		position: absolute; left: 50%; top: 50%;
+		width: 48px; height: 48px; margin: -24px 0 0 -24px;
+		display: grid; place-items: center; padding: 0;
+		appearance: none; cursor: pointer;
+		background: var(--primary); color: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: 50%;
+		/* polar placement: swing out to the radius, then un-rotate the seat */
+		transform: rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
+		transition: background .16s ease, color .16s ease, border-color .16s ease;
+	}
+	.dial-tick-in {
+		display: flex; flex-direction: column; align-items: center; line-height: 1;
+		font-family: 'DM Mono', ui-monospace, monospace;
+	}
+	.dial-tick-in b { font-size: 14px; font-weight: 500; }
+	.dial-tick-in small { font-size: 8px; letter-spacing: .08em; color: var(--ink-40); }
+	.dial-tick:hover { border-color: var(--accent); color: var(--accent); }
+	.dial-tick.active { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+	.dial-tick.active small { color: var(--accent); }
+
+	.dial-read { min-width: 0; }
+	.dial-date {
+		margin: 0 0 18px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(22px, 2.6vw, 32px);
+		line-height: 1; text-transform: uppercase;
+	}
+
+	/* a date's sessions ride a horizontal rail of ink-filled cards */
+	.dial-list {
+		list-style: none; margin: 0 0 22px; padding: 3px;
+		display: flex; gap: 12px;
+		overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+	}
+	.dial-list::-webkit-scrollbar { display: none; }
+	.dial-list li { flex: none; }
+	.dial-ev {
+		width: 262px; height: 100%; text-align: left;
+		display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+		padding: 15px 16px 17px;
+		appearance: none; cursor: pointer;
+		background: var(--secondary); color: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		font-family: 'Archivo', sans-serif;
+		transition: transform .13s ease, box-shadow .13s ease;
+	}
+	.dial-ev:hover { transform: translate(-2px, -2px); box-shadow: var(--pop); }
+	.dial-ev-time {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px;
+		color: color-mix(in srgb, var(--primary) 60%, transparent);
+	}
+	.dial-ev-name {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; line-height: 1.12; text-transform: uppercase;
+	}
+	.dial-ev-short {
+		font-size: 12px; line-height: 1.5;
+		color: color-mix(in srgb, var(--primary) 68%, transparent);
+	}
+
+	/* prev and next flank the row at its full width — same width as .dial-list above it,
+	   since both are direct children of .dial-read — so next lands at the carousel's
+	   right edge exactly. The position and the drag hint sit centred between them. */
+	.dial-ctl { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+	.dial-ctl-mid {
+		display: flex; align-items: center; justify-content: center;
+		gap: 12px; flex-wrap: wrap; flex: 1;
+	}
+	.dial-pos {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; color: var(--ink-40); min-width: 54px; text-align: center;
+	}
+	.dial-hint {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-40);
+	}
+
+	/* ============ FILE POPUP ============
+	   A records dossier: ink header band, punched margin, dotted-leader form rows.
+	   ponytail: the margin rule sits in its own column — the previous ruled-paper
+	   gradient ran under the text and cut through every descender. */
+	.file-wrap {
+		opacity: 0; visibility: hidden;
+		position: fixed; inset: 0; z-index: 46;
+		display: grid; place-items: center; padding: 26px 18px;
+		background: color-mix(in srgb, var(--secondary) 48%, transparent);
+		overflow-y: auto;
+	}
+	.file {
+		position: relative; width: min(580px, 100%);
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary);
+	}
+
+	.file-bar {
+		display: flex; align-items: center; gap: 14px;
+		padding: 11px 12px 11px 18px;
+		background: var(--secondary); color: var(--primary);
+	}
+	.file-kind {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+	}
+	.file-ref {
+		margin-left: auto;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .14em; color: var(--accent);
+	}
+	.file-x { flex: none; }
+
+	.file-inner { display: grid; grid-template-columns: 46px 1fr; }
+	/* punched margin — the single strongest cue that this is a file */
+	.file-margin {
+		display: flex; flex-direction: column; align-items: center; gap: 26px;
+		padding: 26px 0;
+		border-right: 1.5px solid var(--hair);
+	}
+	.file-margin span {
+		width: 13px; height: 13px; border-radius: 50%;
+		background: var(--sink); border: 1.5px solid var(--hair);
+	}
+	.file-content { padding: 22px 22px 24px; min-width: 0; }
+
+	.file-chip {
+		display: inline-block; margin-bottom: 12px; padding: 5px 11px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--accent); border: 1.5px solid var(--accent); border-radius: var(--r);
+	}
+	.file-title {
+		margin: 0 0 20px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(22px, 3vw, 32px);
+		line-height: 1; letter-spacing: -0.01em; text-transform: uppercase;
+	}
+
+	/* form rows: label, dotted leader, value — reads as a filled-in record */
+	.file-rows { margin: 0 0 20px; display: flex; flex-direction: column; gap: 9px; }
+	.file-row {
+		display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: baseline;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
+	}
+	.file-row dt {
+		font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.file-lead { border-bottom: 1.5px dotted var(--hair); transform: translateY(-3px); }
+	.file-row dd { margin: 0; color: var(--secondary); text-align: right; }
+
+	.file-full { margin: 0; font-size: 13.5px; line-height: 1.68; color: var(--ink-60); }
+
+	.file-sum { margin-top: 20px; padding-top: 16px; border-top: var(--stroke) solid var(--secondary); }
+	.file-sum-label {
+		display: inline-block; margin-bottom: 9px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent);
+	}
+	.file-sum p { margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink-60); }
+
+	.file-foot {
+		display: flex; align-items: center; justify-content: flex-end; gap: 16px;
+		padding: 14px 18px;
+		border-top: var(--stroke) solid var(--secondary);
+		background: var(--sink);
+	}
+	.file-reg { padding: 13px 19px; font-size: 11.5px; }
+	/* rubber stamp, tilted so it reads as pressed on rather than laid out */
+	.file-stamp {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 12px; letter-spacing: .18em;
+		color: var(--accent); border: 2.5px solid var(--accent);
+		padding: 6px 13px; border-radius: 3px;
+		transform: rotate(-4deg); opacity: .85;
+	}
+
+	@media (max-width: 900px) {
+		.dial { grid-template-columns: 1fr; justify-items: center; }
+		.dial-read { width: 100%; }
+	}
+	@media (max-width: 720px) {
+		.tl { --tl-time: 44px; --tl-gap: 8px; --tl-rail: 22px; }
+		.tl-time { font-size: 12px; }
+		.tl-venue { display: none; }
+		.file-inner { grid-template-columns: 30px 1fr; }
+		.file-content { padding: 18px 16px 20px; }
+	}
+</style>
