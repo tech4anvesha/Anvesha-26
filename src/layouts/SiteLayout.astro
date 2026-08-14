@@ -111,9 +111,14 @@ const hasTools = Astro.slots.has('tools');
 			<div class="navmenu-panel" role="dialog" aria-modal="true" aria-label="Site menu">
 				<div class="navmenu-head">
 					<span class="navmenu-title">MENU</span>
+					{/* The wordmark badge lives here on a phone — the header bar has no room
+					    for it beside a centred wordmark. */}
+					{brandTag && <i class="brand-tag navmenu-tag">{brandTag}</i>}
 					<button class="btn x" id="navMenuClose" type="button"
 					        aria-label="Close menu" set:html={iClose} />
 				</div>
+				{/* Who is signed in. Empty on the public site. */}
+				<slot name="menu-meta" />
 				<nav class="navmenu-list" aria-label="Site">
 					{NAV.map((n) => (
 						<a
@@ -510,6 +515,9 @@ const hasTools = Astro.slots.has('tools');
 		}
 		.navmenu-btn svg { width: 18px; height: 18px; stroke-width: 2.2; }
 		.brand { grid-column: 2; justify-self: center; }
+		/* The badge moves into the slide-in menu: the bar is only wide enough for a
+		   centred wordmark once a button sits on each side of it. */
+		.brand-tag { display: none; }
 		.tools { grid-column: 3; justify-self: end; }
 
 		/* ---- the slide-in ---- */
@@ -535,10 +543,14 @@ const hasTools = Astro.slots.has('tools');
 		.navmenu.open .navmenu-panel { transform: translateX(0); }
 
 		.navmenu-head {
-			display: flex; align-items: center; justify-content: space-between;
+			display: flex; align-items: center; gap: 10px;
 			padding-bottom: 14px; margin-bottom: 8px;
 			border-bottom: var(--stroke) solid var(--secondary);
 		}
+		/* Pushes the close button to the far edge whether or not a badge is present, which
+		   space-between could not do once the head had three children. */
+		.navmenu-head .x { margin-left: auto; }
+		.navmenu-tag { display: inline-block; }
 		.navmenu-title {
 			font-family: 'DM Mono', ui-monospace, monospace;
 			font-size: 10px; letter-spacing: .18em; color: var(--ink-40);

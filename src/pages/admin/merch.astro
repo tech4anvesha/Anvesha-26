@@ -192,8 +192,11 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 						<div class="ord-bar">
 							<div>
 								<p class="a-eyebrow">Orders <b id="ordCount">0</b></p>
-								<p class="m-new-hint">
+								<p class="m-new-hint ord-hint-wide">
 									Newest first. Click an order's items to see the full slip.
+								</p>
+								<p class="m-new-hint ord-hint-narrow">
+									The table reads far better on a desktop. Tap an order's items for the full slip.
 								</p>
 							</div>
 							<div class="ord-tools">
@@ -1893,6 +1896,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 	.ord-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 	.ord-tools { flex: none; display: flex; gap: 8px; }
+	.ord-hint-narrow { display: none; }
 	.ord-tool {
 		display: flex; align-items: center; gap: 8px;
 		padding: 11px 14px;
@@ -2188,6 +2192,11 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	   control lifting off the page. */
 	.ov-panel {
 		width: min(430px, 100%); max-height: 86vh;
+		/* min-width:0 — the panel is a grid item, so its automatic minimum is its content
+		   size, and the ledger's `min-width: 460px` pushed the whole dialog wider than a
+		   phone screen. The table is meant to scroll inside .fr-scroll, not to set the
+		   dialog's width. */
+		min-width: 0;
 		display: flex; flex-direction: column;
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
@@ -2822,14 +2831,27 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		.m-panes { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 		.m-list-pane {
 			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
-			max-height: 40vh; padding: 16px;
+			padding: 16px;
 		}
+		/* The cap belongs on the scroller, not the pane. Capping the pane only clipped its
+		   box — its overflow is visible, so a long catalogue spilled straight over the edit
+		   form below. .tree already carries overflow-y: auto; stacked it has no definite
+		   height to fill, so flex-grow gives it nothing and a max-height does the work. */
+		.m-list-pane .tree { flex: none; min-height: 0; max-height: 38vh; max-height: 38dvh; }
 		.m-edit-pane { padding: 18px; }
 		.m-row2 { grid-template-columns: 1fr; }
 		/* Stack the bento: side-by-side at phone width would make both halves unusable. */
 		.m-bento { grid-template-columns: 1fr; }
 		.m-draft-body { grid-template-columns: 1fr; }
-		.m-drops { flex-direction: row; }
+		/* Picture and id side by side. The id is a read-only label, not a field, so on a
+		   phone it drops its box and reads as one bold line — boxed and stretched to the
+		   picture's height it looked like an empty input someone forgot to fill. */
+		.m-drops { flex-direction: row; align-items: center; gap: 14px; }
+		.m-id {
+			padding: 0; background: none; border: 0; border-radius: 0;
+			font-size: 13px; font-weight: 700; letter-spacing: .02em;
+			overflow-wrap: anywhere;
+		}
 		.m-drop { flex: 1; }
 
 		/* The views box drops under its card; the wire would point at nothing, so it
@@ -2859,5 +2881,66 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		.fr-scroll { overflow-x: auto; }
 		.fr-table { min-width: 460px; }
 		.fr-item { max-width: 130px; }
+
+		/* ---- EDIT: fields and pictures only ---- */
+		/* The preview is a scaled-down copy of a page the reader can simply open. On a
+		   phone it would push the form it is previewing off the screen, so it goes.
+		   `display: none` rather than removing it from the DOM: renderPreview() still
+		   writes into these nodes and would throw on a null. */
+		.m-preview { display: none; }
+		/* Nothing stretches on a phone: the desktop layout hands the leftover height to the
+		   form, but stacked there IS no leftover — `flex: 1` with `min-height: 0` let the
+		   details cell shrink BELOW its content, which then spilled out past its own border
+		   and over the views strip. Content-sized boxes, and .m-edit-scroll does the
+		   scrolling. */
+		.m-edit-scroll > .m-bento { flex: none; align-items: start; }
+		.m-edit-left > .m-cell-fields { flex: none; }
+		.m-field-grow { flex: none; }
+		.m-field-grow textarea { flex: none; min-height: 96px; }
+
+		/* ---- ADD: one card per item, told apart ---- */
+		/* Stacked on a phone, two drafts run into each other as one long form. A rule
+		   between them is the cheapest way to say where one item ends. */
+		.m-draft-row + .m-draft-row {
+			padding-top: 20px; margin-top: 6px;
+			border-top: var(--stroke) solid var(--secondary);
+		}
+
+		/* ---- ORDERS: icon-only round controls ---- */
+		/* Count and controls share the first line, the note gets the second. The count and
+		   the note are wrapped in one <div>, so `display: contents` dissolves that wrapper
+		   and lets both sit in the grid directly — otherwise the note could only ever be
+		   under the count, never under the buttons too. */
+		.ord-bar { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 12px; }
+		.ord-bar > div:first-child { display: contents; }
+		.ord-bar .a-eyebrow { grid-area: 1 / 1; margin: 0; }
+		.ord-bar .m-new-hint { grid-area: 2 / 1 / 3 / 3; margin: 0; }
+		.ord-hint-wide { display: none; }
+		.ord-hint-narrow { display: block; }
+		.ord-tools { grid-area: 1 / 2; gap: 10px; }
+		.ord-tool {
+			width: 44px; height: 44px; padding: 0;
+			justify-content: center; gap: 0;
+			border-radius: 999px;
+		}
+		/* The label is the only child that is not the icon. */
+		.ord-tool > span:not(.m-add-icon) { display: none; }
+		.ord-tool .m-add-icon svg { width: 17px; height: 17px; }
+
+		/* ---- overlays on a phone ---- */
+		/* Room at the top for the folder tab, which hangs above the panel and was
+		   getting clipped against the viewport edge. dvh for the same reason the shell
+		   uses it: 86vh is measured against the address-bar-retracted viewport. */
+		.ov { padding: 40px 12px 12px; align-content: start; }
+		.ov-panel { max-height: 86vh; max-height: 88dvh; }
+		.ov-file, .ov-narrow { width: 100%; }
+		.ov-body { padding: 16px; }
+		/* Stacked and full width — two buttons side by side leave neither readable. */
+		.ov-foot { flex-direction: column; padding: 14px 16px; }
+		/* flex:none undoes the row-layout `flex: 1`, which in a column would stretch the
+		   button's HEIGHT to fill the footer instead of its width. */
+		.ov-foot > .btn { width: 100%; flex: none; }
+		.fr-tab { top: -23px; left: 14px; padding: 4px 12px 6px; }
+		.ov-title { font-size: 11px; }
 	}
 </style>
