@@ -945,6 +945,10 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	let scanTimer: number | undefined;
 	let scanning = false;
 	let scanned: Scan | null = null;
+	// The code the message on screen belongs to. A rejected QR is still sitting in front
+	// of the lens, so without this the loop re-decodes it every 100ms and every lookup
+	// clears the message before its own round trip puts it back — the notice blinks.
+	let rejected = '';
 
 	/** Releases the camera. Called on every exit path — a live capture light left on
 	 *  after the dialog closes is alarming and drains a volunteer's phone. */
@@ -996,7 +1000,9 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 			const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
 			const found = jsQR(px.data, px.width, px.height, { inversionAttempts: 'dontInvert' });
-			if (found?.data) {
+			// Anything but the code we already rejected: the lens stays live so pointing it
+			// at the next ticket just works, but the verdict on screen holds still.
+			if (found?.data && found.data.trim() !== rejected) {
 				scanning = false;
 				await lookup(found.data.trim());
 				return;
@@ -1015,6 +1021,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 				body: JSON.stringify({ order_id: orderId }),
 			});
 			scanned = res;
+			rejected = '';
 			stopCamera();
 			showResult(res);
 		} catch (e) {
@@ -1024,6 +1031,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 				? `Not one of ours — no order ${orderId}`
 				: msg;
 			err.hidden = false;
+			rejected = orderId;
 			// Keep looking: the volunteer may just have caught a bad frame.
 			if (stream) { scanning = true; tick(); }
 		}
@@ -1121,6 +1129,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 	function resetDistribution() {
 		scanned = null;
+		rejected = '';
 		$('distResult').hidden = true;
 		$('distResult').innerHTML = '';
 		$('distScan').hidden = false;
@@ -1724,6 +1733,8 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		$<HTMLFormElement>('distManualForm').onsubmit = (e) => {
 			e.preventDefault();
 			const id = $<HTMLInputElement>('distManual').value.trim().toUpperCase();
+			// Typing it out is a deliberate retry, so the camera's skip does not apply.
+			rejected = '';
 			if (id) lookup(id);
 		};
 

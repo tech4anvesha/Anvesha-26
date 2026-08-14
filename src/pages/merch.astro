@@ -195,16 +195,40 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			</div>
 		</div>
 
-		<!-- FACE 3: paid — the collection ticket -->
+		<!-- FACE 3: paid — a torn-off admission ticket. Counterfoil on top (what was
+		     bought), stub below the perforation (the QR the distributor scans). -->
 		<div id="receipt" class="receipt" hidden>
-			<canvas id="qrCanvas" class="qr" width="220" height="220" aria-label="Order QR code"></canvas>
-			<p class="order-id" id="orderId">ORD_</p>
-			<ul class="order-items" id="receiptItems"></ul>
-			<div class="order-row"><span>Name</span><b id="receiptName"></b></div>
-			<div class="order-row"><span>Transaction</span><b class="txn" id="txnId">TXN_</b></div>
-			<div class="order-row"><span>Total</span><b id="paidTotal">₹0</b></div>
+			<div class="ticket">
+				<div class="tk-head">
+					<span class="tk-brand">ANVESHA<sup>'26</sup></span>
+					<span class="tk-kind">COLLECTION PASS</span>
+				</div>
+
+				<div class="tk-body">
+					<p class="tk-eyebrow">Order no.</p>
+					<p class="tk-id" id="orderId">ORD_</p>
+					<ul class="order-items" id="receiptItems"></ul>
+					<div class="tk-meta">
+						<div class="tk-cell"><span>Bearer</span><b id="receiptName"></b></div>
+						<div class="tk-cell tk-cell-paid"><span>Paid</span><b id="paidTotal">₹0</b></div>
+					</div>
+				</div>
+
+				<!-- perforation; the notches are drawn in paper-white over the side rules -->
+				<div class="tk-rip" aria-hidden="true"></div>
+
+				<div class="tk-stub">
+					<canvas id="qrCanvas" class="qr" width="220" height="220" aria-label="Order QR code"></canvas>
+					<div class="tk-stub-side">
+						<p class="tk-eyebrow">Present at counter</p>
+						<p class="tk-txn" id="txnId">TXN_</p>
+						<p class="tk-serial" aria-hidden="true">▚▚ ANVESHA MERCH ▚▚</p>
+					</div>
+				</div>
+			</div>
+
 			<p class="order-note">
-				Take a screenshot of this QR code as proof of payment.
+				Screenshot this ticket, or download it — the QR is what gets scanned at pickup.
 			</p>
 			<button class="btn qrdl" id="qrDownload">DOWNLOAD</button>
 			<button class="btn orderback" id="receiptDone">DONE</button>
@@ -997,14 +1021,16 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		// ---- QR ----
 		// Drawn by hand into a canvas rather than using the library's own image output:
 		// it keeps the modules on the site's palette and gives a real PNG to download.
-		function drawQR(canvas: HTMLCanvasElement, text: string) {
+		function drawQR(canvas: HTMLCanvasElement, text: string, targetPx = 328) {
 			const qr = qrcode(0, 'M');
 			qr.addData(text);
 			qr.make();
 
 			const count = qr.getModuleCount();
 			const quiet = 4;                       // required silent margin, in modules
-			const scale = 8;                       // device px per module
+			// Whole device pixels per module, always: a fractional scale lands module edges
+			// mid-pixel and the antialiasing is what makes a QR hard to read.
+			const scale = Math.max(2, Math.floor(targetPx / (count + quiet * 2)));
 			const size = (count + quiet * 2) * scale;
 			canvas.width = size;
 			canvas.height = size;
@@ -1019,55 +1045,140 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 						ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
 		}
 
-		/** Composites the QR and the receipt text into one downloadable card — the
-		 *  screenshot the shopper takes should not need to also crop in the order id. */
+		/** Redraws the on-screen ticket as a flat PNG — same inked header, perforation and
+		 *  stub, so what gets saved to the camera roll is what was on screen. */
 		function buildReceiptCard(receipt: ReceiptData): HTMLCanvasElement {
-			const pad = 28, lineH = 22, headerH = 34, qrSize = qrCanvas.width;
-			const width = Math.max(qrSize + pad * 2, 440);
-			const rows = 2 + receipt.items.length + 2; // order + name + items + total + txn
-			const height = pad + qrSize + pad + headerH + rows * lineH + pad + 24;
+			const S = 2;                       // drawn at 2x so it stays sharp zoomed in
+			const TW = 420, PAGE = 18;         // ticket width, white margin around it
+			const W = TW + PAGE * 2;
+
+			const INK = '#0b0b0f', PAPER = '#ffffff', SINK = '#f5f5f6';
+			const INK40 = '#9a9a9e', INK60 = '#6b6b70', BLUE = '#0047ff';
+			const mono = (px: number, w = 400) => `${w} ${px}px 'DM Mono', ui-monospace, monospace`;
+			const disp = (px: number) => `800 ${px}px 'Archivo Expanded', 'Archivo', sans-serif`;
+
+			// Its own QR, sized for print rather than reusing the 124px on-screen one.
+			const stubQR = document.createElement('canvas');
+			drawQR(stubQR, receipt.order_id, 132 * S);
+			const qrW = stubQR.width / S;
+
+			// Heights are fixed per block, so the canvas can be sized before anything is
+			// drawn — the one place this layout has to agree with itself twice.
+			const HEAD = 46;
+			const BODY = 16 + 13 + 26 + 8 + receipt.items.length * 18 + 16 + 38 + 16;
+			const STUB = 16 + Math.max(qrW, 96) + 16;
+			const TH = HEAD + BODY + STUB;
+			const H = PAGE + TH + PAGE + 26;
 
 			const canvas = document.createElement('canvas');
-			canvas.width = width; canvas.height = height;
+			canvas.width = W * S; canvas.height = H * S;
 			const ctx = canvas.getContext('2d')!;
+			ctx.scale(S, S);
+			ctx.textBaseline = 'alphabetic';
 
-			ctx.fillStyle = '#ffffff';
-			ctx.fillRect(0, 0, width, height);
-			ctx.strokeStyle = '#0b0b0f';
-			ctx.lineWidth = 3;
-			ctx.strokeRect(4, 4, width - 8, height - 8);
+			ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
 
-			ctx.drawImage(qrCanvas, (width - qrSize) / 2, pad);
-
-			let y = pad + qrSize + pad;
-			ctx.fillStyle = '#0b0b0f';
-			ctx.textAlign = 'center';
-			ctx.font = "700 15px 'Archivo', sans-serif";
-			ctx.fillText("ANVESHA '26 — ORDER RECEIPT", width / 2, y);
-			y += headerH;
-
-			const row = (label: string, value: string, bold = false) => {
-				ctx.textAlign = 'left';
-				ctx.font = "13px 'DM Mono', ui-monospace, monospace";
-				ctx.fillText(label, pad, y);
-				ctx.textAlign = 'right';
-				ctx.font = (bold ? '700 ' : '') + "13px 'DM Mono', ui-monospace, monospace";
-				ctx.fillText(value, width - pad, y);
-				y += lineH;
+			/* Canvas text neither wraps nor clips, so a long item or a long name would
+			   simply be painted over the price beside it. Trim to fit instead. */
+			const fit = (text: string, maxW: number) => {
+				if (ctx.measureText(text).width <= maxW) return text;
+				let t = text;
+				while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+				return t + '…';
 			};
 
-			row('Order', receipt.order_id);
-			row('Name', receipt.name);
-			for (const it of receipt.items)
-				row(`${it.name}${it.size ? ' · ' + it.size : ''} × ${it.quantity}`, rupees(it.line_total_paise));
-			row('Total', rupees(receipt.total_price_paise), true);
-			row('Transaction', receipt.transaction_id);
+			// ---- ticket body ----
+			const L = PAGE, R = PAGE + TW, T = PAGE;
+			ctx.fillStyle = SINK; ctx.fillRect(L, T, TW, TH);
+			ctx.strokeStyle = INK; ctx.lineWidth = 2;
+			ctx.strokeRect(L + 1, T + 1, TW - 2, TH - 2);
+
+			// ---- inked header ----
+			ctx.fillStyle = INK; ctx.fillRect(L, T, TW, HEAD);
+			ctx.textAlign = 'left';
+			ctx.fillStyle = PAPER; ctx.font = disp(15);
+			ctx.fillText('ANVESHA', L + 16, T + 29);
+			const bw = ctx.measureText('ANVESHA').width;
+			ctx.fillStyle = BLUE; ctx.font = disp(9);
+			ctx.fillText("'26", L + 18 + bw, T + 22);
+			ctx.textAlign = 'right';
+			ctx.fillStyle = '#b9b9bd'; ctx.font = mono(9);
+			ctx.fillText('COLLECTION PASS', R - 16, T + 29);
+
+			// ---- counterfoil ----
+			let y = T + HEAD + 16;
+			ctx.textAlign = 'left';
+			ctx.fillStyle = INK40; ctx.font = mono(9);
+			ctx.fillText('ORDER NO.', L + 16, y + 9);
+			y += 13;
+			ctx.fillStyle = INK; ctx.font = mono(19, 500);
+			ctx.fillText(receipt.order_id, L + 16, y + 19);
+			y += 26 + 8;
+
+			for (const it of receipt.items) {
+				ctx.font = mono(11);
+				const price = rupees(it.line_total_paise);
+				const room = TW - 32 - ctx.measureText(price).width - 12;
+				ctx.textAlign = 'left';
+				ctx.fillStyle = INK60;
+				ctx.fillText(
+					fit(`${it.name}${it.size ? ' · ' + it.size : ''} × ${it.quantity}`, room),
+					L + 16, y + 12);
+				ctx.textAlign = 'right';
+				ctx.fillStyle = INK;
+				ctx.fillText(price, R - 16, y + 12);
+				y += 18;
+			}
 
 			y += 10;
+			ctx.strokeStyle = '#dcdcde'; ctx.lineWidth = 1.5;
+			ctx.beginPath(); ctx.moveTo(L + 16, y); ctx.lineTo(R - 16, y); ctx.stroke();
+			y += 6;
+
 			ctx.textAlign = 'left';
-			ctx.fillStyle = '#666';
-			ctx.font = "italic 11px 'Archivo', sans-serif";
-			ctx.fillText('Take a screenshot of this QR code as proof of payment.', pad, y);
+			ctx.fillStyle = INK40; ctx.font = mono(9);
+			ctx.fillText('BEARER', L + 16, y + 10);
+			ctx.fillStyle = INK; ctx.font = disp(17);
+			const totalW = ctx.measureText(rupees(receipt.total_price_paise)).width;
+			ctx.font = mono(12);
+			ctx.fillText(fit(receipt.name, TW - 32 - totalW - 16), L + 16, y + 28);
+			ctx.textAlign = 'right';
+			ctx.fillStyle = INK40; ctx.font = mono(9);
+			ctx.fillText('PAID', R - 16, y + 10);
+			ctx.fillStyle = INK; ctx.font = disp(17);
+			ctx.fillText(rupees(receipt.total_price_paise), R - 16, y + 29);
+
+			// ---- perforation: dashed rule, then two paper-white discs punched over the
+			//      side rules so the tear reads as a real notch ----
+			const ripY = T + HEAD + BODY;
+			ctx.strokeStyle = INK; ctx.lineWidth = 2;
+			ctx.setLineDash([6, 5]);
+			ctx.beginPath(); ctx.moveTo(L, ripY); ctx.lineTo(R, ripY); ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.fillStyle = PAPER;
+			for (const x of [L, R]) {
+				ctx.beginPath(); ctx.arc(x, ripY, 8, 0, Math.PI * 2); ctx.fill();
+			}
+
+			// ---- stub ----
+			const sy = ripY + 16;
+			ctx.imageSmoothingEnabled = false; // integer module scale; never resample it
+			ctx.drawImage(stubQR, L + 16, sy, qrW, qrW);
+			ctx.strokeStyle = INK; ctx.lineWidth = 2;
+			ctx.strokeRect(L + 15, sy - 1, qrW + 2, qrW + 2);
+
+			const sx = L + 16 + qrW + 14;
+			ctx.textAlign = 'left';
+			ctx.fillStyle = INK40; ctx.font = mono(9);
+			ctx.fillText('PRESENT AT COUNTER', sx, sy + 22);
+			ctx.fillStyle = INK60; ctx.font = mono(11);
+			ctx.fillText(receipt.transaction_id, sx, sy + 42);
+			ctx.fillStyle = INK40; ctx.font = mono(9);
+			ctx.fillText('▚▚ ANVESHA MERCH ▚▚', sx, sy + qrW - 4);
+
+			ctx.fillStyle = INK40; ctx.font = "italic 10px 'Archivo', sans-serif";
+			ctx.fillText('Show this at pickup — the QR is scanned once and marked collected.',
+				PAGE, H - 12);
 
 			return canvas;
 		}
@@ -1791,20 +1902,91 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	.pay-progress .seg.on { background: var(--accent); }
 	@media (prefers-reduced-motion: reduce) { .pay-progress .seg { transition: none; } }
 
-	.order-id {
-		margin: 0; word-break: break-all;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 12.5px; line-height: 1.45; color: var(--secondary);
-		padding: 11px 12px; background: var(--sink);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
 	.order-note { margin: 0; font-size: 12px; line-height: 1.6; font-style: italic; color: var(--ink-40); }
 	.pay-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--accent); }
 
-	/* ---- QR ---- */
+	/* ---- the ticket ---- */
+	/* An admission ticket, not a receipt: inked header, counterfoil listing what was
+	   bought, then a perforation and the stub the counter actually scans. */
+	.ticket {
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.tk-head {
+		display: flex; align-items: center; justify-content: space-between; gap: 10px;
+		padding: 11px 14px;
+		background: var(--secondary); color: var(--primary);
+	}
+	.tk-brand {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 13px; letter-spacing: .06em;
+	}
+	.tk-brand sup { color: var(--accent); font-size: 8px; margin-left: 2px; vertical-align: super; }
+	.tk-kind {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .18em; text-align: right;
+		color: color-mix(in srgb, var(--primary) 66%, var(--secondary));
+	}
+
+	.tk-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+	.tk-eyebrow {
+		margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.tk-id {
+		margin: -6px 0 0; overflow-wrap: anywhere;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 17px; font-weight: 500; letter-spacing: .02em; color: var(--secondary);
+	}
+	.tk-meta {
+		display: flex; gap: 12px;
+		padding-top: 11px; border-top: 1.5px solid var(--hair);
+	}
+	.tk-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+	.tk-cell span {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.tk-cell b { font-size: 13px; overflow-wrap: anywhere; }
+	.tk-cell-paid { flex: none; text-align: right; }
+	.tk-cell-paid b { font-family: 'Archivo Expanded', sans-serif; font-size: 18px; }
+
+	/* The tear. Zero height: it is a border plus two paper-white discs sitting over the
+	   ticket's own side rules, which is what makes them read as punched-out notches
+	   rather than as circles drawn beside the edge. */
+	.tk-rip {
+		position: relative; height: 0;
+		border-top: var(--stroke) dashed var(--secondary);
+	}
+	.tk-rip::before, .tk-rip::after {
+		content: ''; position: absolute; top: 0;
+		width: 16px; height: 16px; border-radius: 999px;
+		background: var(--primary);
+		transform: translateY(-50%);
+	}
+	.tk-rip::before { left: calc(-8px - var(--stroke)); }
+	.tk-rip::after { right: calc(-8px - var(--stroke)); }
+
+	.tk-stub {
+		display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+		padding: 14px;
+	}
+	.tk-stub-side { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+	.tk-txn {
+		margin: 0; overflow-wrap: anywhere;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; line-height: 1.4; color: var(--ink-60);
+	}
+	.tk-serial {
+		margin: auto 0 0; overflow: hidden; white-space: nowrap;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .1em; color: var(--ink-40);
+	}
 	.qr {
-		display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto;
+		display: block; width: 124px; height: 124px;
 		image-rendering: pixelated; /* keep module edges hard when the canvas is scaled */
+		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
 	.qrdl, .orderback {
@@ -1820,6 +2002,19 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 
 	@media (max-width: 720px) {
 		.hero { display: none; }
+
+		/* ---- ticket on a phone ---- */
+		/* Same two-part ticket, tightened: the modal is only ~280px wide at 320px, and the
+		   stub's QR and its caption have to stay side by side for it to still read as a
+		   torn stub rather than as a QR with a note under it. */
+		.tk-head, .tk-body, .tk-stub { padding-left: 12px; padding-right: 12px; }
+		.tk-stub { gap: 12px; }
+		.qr { width: 104px; height: 104px; }
+		.tk-brand { font-size: 12px; }
+		.tk-kind { font-size: 8px; letter-spacing: .12em; }
+		.tk-id { font-size: 15px; }
+		.tk-cell-paid b { font-size: 16px; }
+		.tk-serial { display: none; }
 
 		.m-shop {
 			display: block; flex: 1; min-height: 0;
