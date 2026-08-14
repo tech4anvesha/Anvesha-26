@@ -1,11 +1,13 @@
 {
-  "0": "routes.ts",
+  "0": "admin.ts",
   "1": "compilerOptions",
   "2": "scripts",
   "3": "cart.ts",
   "4": "smoke.mjs",
-  "5": "razorpay.ts",
-  "6": "tsconfig.json",
-  "7": "devDependencies",
-  "8": "Anvesha '26 — merch API"
+  "5": "routes.ts",
+  "6": "test/tsconfig.json",
+  "7": "email.ts",
+  "8": "Anvesha '26 — merch API",
+  "9": "set-admin-password.mjs",
+  "10": "CatalogueHub"
 }
