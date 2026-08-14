@@ -1,0 +1,112 @@
+/* ============================================================
+   ANVESHA '26 — catalogue tree
+
+   The expanding category/item rail. Lifted out of the storefront page so the admin
+   panel can browse the catalogue with exactly the same component instead of a
+   lookalike that drifts. Markup contract:
+
+     <div class="tree">
+       <button class="tnode tcat [open]"> .tcaret .tname .tmeta </button>
+       <div class="tkids">
+         <button class="tnode titem [last] [active]"> .tnum .tname .tmeta </button>
+       </div>
+     </div>
+   ============================================================ */
+
+.tree {
+	flex: 1; min-height: 140px;
+	display: flex; flex-direction: column;
+	overflow-y: auto; overscroll-behavior: contain;
+	padding: 2px 6px 2px 2px; margin: 0 -6px 0 -2px;
+	scrollbar-width: none;
+}
+.tree::-webkit-scrollbar { display: none; }
+
+.tnode {
+	display: grid; align-items: center; gap: 10px;
+	width: 100%; text-align: left; border-radius: var(--r);
+	color: var(--secondary);
+}
+button.tnode {
+	appearance: none; -webkit-appearance: none;
+	background: transparent; border: 0; cursor: pointer;
+	font-family: 'Archivo', sans-serif; font-size: 13px;
+	transition: background .12s ease, color .12s ease;
+}
+
+/* ---- folder row ---- */
+.tcat {
+	grid-template-columns: 16px 1fr auto;
+	padding: 11px 10px 11px 4px;
+}
+.tkids { overflow: hidden; }
+.tkids + .tcat { border-top: 1.5px solid var(--hair); }
+.tcaret { display: grid; place-items: center; width: 16px; color: var(--ink-40); }
+.tcaret svg {
+	width: 15px; height: 15px; stroke-width: 2.2;
+	transition: transform .18s ease;
+}
+.tcat.open .tcaret svg { transform: rotate(90deg); }
+.tcat.open .tcaret { color: var(--accent); }
+.tcat .tname {
+	font-size: 11.5px; font-weight: 800;
+	letter-spacing: .12em; text-transform: uppercase;
+}
+.tcat:hover .tcaret { color: var(--accent); }
+
+/* ---- item row ----
+   ponytail: connectors are CSS rules, not box-drawing characters. Glyphs cannot
+   span a row taller than their line box, so '│' rendered as disconnected ticks
+   with gaps at every row seam. Borders join up regardless of font or row height. */
+.titem {
+	position: relative;
+	grid-template-columns: auto 1fr auto;
+	padding: 7px 10px 7px 44px;
+}
+.titem::before {
+	content: ''; position: absolute; left: 20px; top: 0; bottom: 0;
+	width: 1.5px; background: var(--hair);
+}
+.titem.last::before { bottom: 50%; }
+.titem::after {
+	content: ''; position: absolute; left: 20px; top: 50%;
+	width: 13px; height: 1.5px; background: var(--hair);
+}
+
+.tname { font-weight: 700; letter-spacing: .01em; }
+.tmeta {
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 11px; font-weight: 500; color: var(--ink-40);
+}
+.tnum {
+	display: grid; place-items: center; min-width: 20px; height: 15px;
+	font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
+	color: var(--primary); background: var(--accent); border-radius: var(--r);
+}
+button.tnode:hover { background: color-mix(in srgb, var(--secondary) 6%, transparent); }
+.titem.active { background: var(--secondary); color: var(--primary); }
+.titem.active .tprice { color: var(--primary); }
+/* the fill would otherwise swallow this row's own connector */
+.titem.active::before, .titem.active::after {
+	background: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Hovering the selected row inverts it cleanly instead of washing the black fill
+   out with the generic 6% tint, which left white text on pale grey.
+   ponytail: inset shadow, not border — .tnode carries no border at rest, so a real
+   one would resize the row on hover and shove the whole tree down 4px. */
+.titem.active:hover {
+	background: var(--primary); color: var(--secondary);
+	box-shadow: inset 0 0 0 var(--stroke) var(--secondary);
+}
+.titem.active:hover .tprice { color: var(--secondary); }
+.titem.active:hover::before, .titem.active:hover::after { background: var(--hair); }
+
+/* An item hidden from the storefront must be obvious in the admin tree, or it gets
+   "fixed" twice. Public catalogue never renders these, so this is admin-only in effect. */
+.toff {
+	flex: none; padding: 2px 5px;
+	font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5px; letter-spacing: .1em;
+	color: var(--primary); background: var(--accent); border-radius: var(--r);
+}
+.titem.inactive .tname { color: var(--ink-40); text-decoration: line-through; }

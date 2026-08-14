@@ -1,0 +1,2863 @@
+---
+/**
+ * Merch admin. A task rail on the left picks what you are doing; the panes to its right
+ * change to suit. Edit mode adds the storefront's own catalogue tree
+ * (styles/catalogue-tree.css) so both sides of the site browse the catalogue identically.
+ *
+ * Every write broadcasts over the live socket, so other admins and every open
+ * storefront tab update without a refresh.
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import '../../styles/catalogue-tree.css';
+import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
+import chevronLeft from 'lucide-static/icons/chevron-left.svg?raw';
+import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
+import iPlus from 'lucide-static/icons/plus.svg?raw';
+import iTrash from 'lucide-static/icons/trash-2.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iEdit from 'lucide-static/icons/square-pen.svg?raw';
+import iAdd from 'lucide-static/icons/package-plus.svg?raw';
+import iOrders from 'lucide-static/icons/receipt-text.svg?raw';
+import iDownload from 'lucide-static/icons/download.svg?raw';
+import iLayers from 'lucide-static/icons/layers.svg?raw';
+import iScan from 'lucide-static/icons/scan-line.svg?raw';
+---
+
+<AdminLayout title="Merch — Admin — Anvesha '26">
+	<div class="a-wrap m-shell" data-task="edit">
+		<!-- TASK RAIL -->
+		<nav class="m-tasks" aria-label="Merch tasks">
+			<button class="btn m-task" data-task-btn="edit" aria-current="true">
+				<span class="m-task-icon" set:html={iEdit} />
+				<span class="m-task-label">Edit merch</span>
+			</button>
+			<button class="btn m-task" data-task-btn="add">
+				<span class="m-task-icon" set:html={iAdd} />
+				<span class="m-task-label">Add merch</span>
+			</button>
+			<button class="btn m-task" data-task-btn="orders">
+				<span class="m-task-icon" set:html={iOrders} />
+				<span class="m-task-label">Orders</span>
+			</button>
+		</nav>
+
+		<div class="m-panes">
+			<!-- CATALOGUE — edit mode only -->
+			<aside class="m-list-pane" id="mCataloguePane">
+				<p class="a-eyebrow">Catalogue <b id="mCount">—</b></p>
+				<div class="tree" id="mTree" role="tree" aria-label="Merch catalogue"></div>
+			</aside>
+
+			<!-- WORK AREA -->
+			<section class="m-edit-pane scroll-y">
+				<p class="m-empty" id="mEmpty">Pick an item to edit it.</p>
+
+				<form class="m-form" id="mForm" hidden novalidate>
+					<div class="m-edit-scroll">
+						<!-- Bento: the form and its views strip on the left, a live
+						     storefront preview on the right. -->
+						<div class="m-bento">
+						  <div class="m-edit-left">
+							<div class="m-cell m-cell-fields">
+								<!-- Wire across the gap into the preview: this form feeds it. -->
+								<span class="m-wire" aria-hidden="true"></span>
+								<p class="a-eyebrow">Details</p>
+
+								<!-- Same shape as an add-merch card: picture left, key fields right. -->
+								<div class="m-draft-body">
+									<div class="m-drops">
+										<div class="m-main-shot" id="mMainShot">
+											<span class="m-shot-fallback">NO IMAGE</span>
+										</div>
+										<p class="m-id" id="mId">MER_</p>
+									</div>
+
+									<div class="m-draft-fields">
+										<label class="field">
+											<span class="field-label">Name</span>
+											<input class="field-input" id="eName" type="text" maxlength="80" required />
+										</label>
+										<div class="m-row2">
+											<label class="field">
+												<span class="field-label">Price (₹)</span>
+												<input class="field-input" id="ePrice" type="number" min="0.01" step="0.01" required />
+											</label>
+											<label class="field">
+												<span class="field-label">Category</span>
+												<input class="field-input" id="eCategory" type="text" maxlength="40"
+												       list="catList" />
+												<datalist id="catList"></datalist>
+											</label>
+										</div>
+									</div>
+								</div>
+
+								<label class="field m-field-grow">
+									<span class="field-label">Description</span>
+									<textarea class="field-input" id="eDesc" maxlength="500" rows="4"></textarea>
+								</label>
+								<div class="m-row2">
+									<label class="field">
+										<span class="field-label">Designer</span>
+										<input class="field-input" id="eDesigner" type="text" maxlength="80" />
+									</label>
+									<div class="m-draft-toggles">
+										<label class="a-check">
+											<input type="checkbox" id="eHasSize" />
+											<span>Has sizes</span>
+										</label>
+										<label class="a-check">
+											<input type="checkbox" id="eActive" />
+											<span>Visible</span>
+										</label>
+									</div>
+								</div>
+							</div>
+
+							<!-- Below the form, wired to it. Extras only — the primary lives
+							     in Details, above. -->
+							<aside class="m-cell m-cell-media m-views-box m-views-below">
+								<!-- Second wire: the carousel in the preview comes from here. -->
+								<span class="m-wire" aria-hidden="true"></span>
+								<p class="m-views-head">
+									<span>Extra views</span>
+									<b id="mShotCount">0</b>
+								</p>
+								<div class="m-shots" id="mShots"></div>
+								<p class="m-views-hint">Set at creation — not editable here yet</p>
+							</aside>
+						  </div>
+
+						  <!-- What the shopper will see. Redrawn on every keystroke. -->
+						  <aside class="m-cell m-preview">
+							<p class="a-eyebrow">Storefront preview</p>
+
+							<div class="pv">
+								<div class="pv-stage">
+									<img id="pvImg" alt="" />
+									<span class="pv-icon" id="pvIcon"></span>
+								</div>
+								<p class="pv-label" id="pvLabel">01 / FRONT</p>
+
+								<div class="pv-views" id="pvViews"></div>
+
+								<!-- The storefront's pager: arrows that wrap, a scrub slider and
+								     the frame counter. -->
+								<!-- Counter split across the track: where you are at its start,
+								     how many there are at its end. -->
+								<div class="pv-pager">
+									<button class="btn pv-arrow" id="pvPrev" type="button"
+									        aria-label="Previous view" set:html={chevronLeft} />
+									<b class="pv-count pv-cur" id="pvCur">01</b>
+									<input class="pv-slider" id="pvSlider" type="range" min="1" max="1" value="1"
+									       aria-label="View" />
+									<span class="pv-count" id="pvTot">01</span>
+									<button class="btn pv-arrow" id="pvNext" type="button"
+									        aria-label="Next view" set:html={chevronRight} />
+								</div>
+
+								<h3 class="pv-name" id="pvName"></h3>
+								<p class="pv-desc" id="pvDesc"></p>
+								<p class="pv-designer" id="pvDesigner"></p>
+
+								<div class="pv-sizes" id="pvSizes"></div>
+
+								<div class="pv-buy">
+									<span class="pv-buy-label">ADD TO BAG</span>
+									<span class="pv-dot"></span>
+									<b class="pv-price" id="pvPrice">₹0</b>
+								</div>
+
+								<p class="pv-hidden" id="pvHidden" hidden>Hidden from the storefront</p>
+							</div>
+						  </aside>
+						</div>
+					</div>
+
+					<div class="m-new-foot">
+						<p class="a-err" id="eErr" hidden></p>
+						<p class="m-saved" id="eSaved" hidden>Saved.</p>
+
+						<div class="m-actions">
+							<button class="btn a-btn-primary m-save" id="eSave" type="submit">SAVE CHANGES</button>
+							<button class="btn a-btn-secondary" id="eReset" type="button">REVERT</button>
+							<button class="btn a-btn-danger" id="eDelete" type="button">DELETE MERCH</button>
+						</div>
+					</div>
+				</form>
+
+				<!-- ORDERS -->
+				<div class="m-orders" id="mOrders" hidden>
+					<div class="m-new-head">
+						<div class="ord-bar">
+							<div>
+								<p class="a-eyebrow">Orders <b id="ordCount">0</b></p>
+								<p class="m-new-hint">
+									Newest first. Click an order's items to see the full slip.
+								</p>
+							</div>
+							<div class="ord-tools">
+								<button class="btn ord-tool ord-tool-go" id="ordDistribute" type="button">
+									<span class="m-add-icon" set:html={iScan} />
+									<span>DISTRIBUTION</span>
+								</button>
+								<button class="btn ord-tool" id="ordCollections" type="button">
+									<span class="m-add-icon" set:html={iLayers} />
+									<span>COLLECTIONS</span>
+								</button>
+								<button class="btn ord-tool" id="ordDownload" type="button">
+									<span class="m-add-icon" set:html={iDownload} />
+									<span>DOWNLOAD</span>
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- The table scrolls in both directions inside this frame; the header
+					     stays put so a column is never orphaned from its heading. -->
+					<div class="ord-wrap">
+						<table class="ord">
+							<thead>
+								<tr>
+									<th>Order id</th>
+									<th>Name</th>
+									<th>Mail</th>
+									<th>Phone</th>
+									<th>Order info</th>
+									<th>Transaction id</th>
+									<th class="num">Amount</th>
+									<th>Order time</th>
+									<th>Collection</th>
+									<th aria-label="Actions"></th>
+								</tr>
+							</thead>
+							<tbody id="ordBody"></tbody>
+						</table>
+						<p class="ord-empty" id="ordEmpty" hidden>No orders yet.</p>
+					</div>
+
+					<p class="a-err" id="ordErr" hidden></p>
+				</div>
+
+				<!-- ADD MODE: several drafts staged, then sent in one go.
+				     Three bands: a fixed head, the scrolling drafts, and a footer that
+				     stays put — with ten items staged, the submit button must not be a
+				     scroll away. -->
+				<div class="m-new" id="mNew" hidden>
+					<div class="m-new-head">
+						<p class="a-eyebrow">New merch</p>
+						<p class="m-new-hint">
+							Fill in one card per item. Add as many as you like, then send them together.
+						</p>
+					</div>
+
+					<div class="m-new-scroll">
+						<div id="mDrafts"></div>
+
+						<button class="btn m-draft-add" id="mDraftAdd" type="button">
+							<span class="m-add-icon" set:html={iPlus} />
+							<span>ANOTHER ITEM</span>
+						</button>
+					</div>
+
+					<div class="m-new-foot">
+						<!-- Kept in the footer: an error about a card scrolled off screen
+						     would otherwise never be seen. -->
+						<p class="a-err" id="nErr" hidden></p>
+						<p class="m-saved" id="nSaved" hidden></p>
+
+						<div class="m-actions">
+							<button class="btn a-btn-primary m-save" id="nSubmit" type="button">ADD TO CATALOGUE</button>
+							<button class="btn a-btn-secondary" id="nCancel" type="button">CANCEL</button>
+						</div>
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+
+	<!-- One draft card. Cloned per item so the markup lives in one place. -->
+	<!-- ============ ORDER SLIP ============ -->
+	<div class="ov" id="ordModal" hidden>
+		<div class="ov-panel" role="dialog" aria-modal="true" aria-labelledby="ovTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="ovTitle">ORDER</span>
+				<button class="btn x" id="ovClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body" id="ovBody"></div>
+		</div>
+	</div>
+
+	<!-- ============ DISTRIBUTION ============ -->
+	<div class="ov" id="distModal" hidden>
+		<div class="ov-panel" role="dialog" aria-modal="true" aria-labelledby="distTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="distTitle">DISTRIBUTION</span>
+				<button class="btn x" id="distClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+
+			<div class="ov-body">
+				<!-- SCANNER -->
+				<div id="distScan">
+					<div class="ds-stage">
+						<video id="distVideo" playsinline muted></video>
+						<span class="ds-reticle" aria-hidden="true"></span>
+						<p class="ds-state" id="distState">Starting camera…</p>
+					</div>
+
+					<p class="ds-or">or enter the order id</p>
+					<form class="ds-manual" id="distManualForm">
+						<input class="field-input" id="distManual" type="text" autocomplete="off"
+						       spellcheck="false" placeholder="ORD_…" />
+						<button class="btn a-btn-secondary" id="distGo" type="submit">LOOK UP</button>
+					</form>
+					<p class="a-err" id="distErr" hidden></p>
+				</div>
+
+				<!-- RESULT -->
+				<div id="distResult" hidden></div>
+			</div>
+
+			<div class="ov-foot" id="distFoot" hidden>
+				<button class="btn a-btn-primary" id="distCollect" type="button" hidden>MARK COLLECTED</button>
+				<button class="btn a-btn-secondary" id="distAgain" type="button">SCAN ANOTHER</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============ COLLECTIONS ============ -->
+	<div class="ov" id="colModal" hidden>
+		<div class="ov-panel ov-file" role="dialog" aria-modal="true" aria-labelledby="colTitle">
+			<!-- The tab reads as a folder pulled from a drawer rather than a dialog. -->
+			<div class="fr-tab">RECORD</div>
+			<div class="ov-head fr-head">
+				<span class="ov-title" id="colTitle">COLLECTIONS</span>
+				<button class="btn x" id="colClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body" id="colBody"></div>
+			<div class="ov-foot">
+				<button class="btn a-btn-primary" id="colDownload" type="button">DOWNLOAD</button>
+				<button class="btn a-btn-secondary" id="colDone" type="button">CLOSE</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============ DELETE CONFIRM ============ -->
+	<div class="ov" id="delModal" hidden>
+		<div class="ov-panel ov-narrow" role="dialog" aria-modal="true" aria-labelledby="delTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="delTitle">DELETE ORDER</span>
+				<button class="btn x" id="delClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body">
+				<p class="ov-warn">
+					This removes the order and its payment record for good. It cannot be undone.
+				</p>
+				<p class="ov-id" id="delId">ORD_</p>
+				<p class="a-err" id="delErr" hidden></p>
+			</div>
+			<div class="ov-foot">
+				<button class="btn a-btn-danger armed" id="delGo" type="button">DELETE ORDER</button>
+				<button class="btn a-btn-secondary" id="delCancel" type="button">CANCEL</button>
+			</div>
+		</div>
+	</div>
+
+	<template id="draftTpl">
+	  <div class="m-draft-row">
+		<div class="m-draft">
+			<div class="m-draft-head">
+				<span class="m-draft-n"></span>
+				<button class="btn m-draft-del" type="button" aria-label="Remove this item">
+					<span set:html={iTrash} />
+				</button>
+			</div>
+
+			<div class="m-draft-body">
+				<div class="m-drops">
+					<label class="m-drop" data-drop>
+						<input type="file" accept="image/*" data-image hidden />
+						<img class="m-drop-img" data-preview alt="" />
+						<span class="m-drop-text" data-droptext>MAIN IMAGE</span>
+						<button class="m-view-warn m-drop-warn" type="button" data-mainwarn hidden
+						        aria-label="Problem with this image">!</button>
+					</label>
+				</div>
+
+				<div class="m-draft-fields">
+					<label class="field">
+						<span class="field-label">Name</span>
+						<input class="field-input" data-name type="text" maxlength="80" />
+					</label>
+					<div class="m-row2">
+						<label class="field">
+							<span class="field-label">Price (₹)</span>
+							<input class="field-input" data-price type="number" min="0.01" step="0.01" />
+						</label>
+						<label class="field">
+							<span class="field-label">Category</span>
+							<input class="field-input" data-category type="text" maxlength="40" list="catList" />
+						</label>
+					</div>
+				</div>
+			</div>
+
+			<label class="field">
+				<span class="field-label">Description</span>
+				<textarea class="field-input" data-description maxlength="500" rows="2"></textarea>
+			</label>
+			<div class="m-row2">
+				<label class="field">
+					<span class="field-label">Designer</span>
+					<input class="field-input" data-designer type="text" maxlength="80" />
+				</label>
+				<div class="m-draft-toggles">
+					<label class="a-check"><input type="checkbox" data-hassize /><span>Has sizes</span></label>
+					<label class="a-check"><input type="checkbox" data-active checked /><span>Visible</span></label>
+				</div>
+			</div>
+			<p class="m-draft-err" data-err hidden></p>
+		</div>
+
+		<!-- Extra carousel views, in their own box wired to the card beside it. -->
+		<aside class="m-views-box">
+			<p class="m-views-head">
+				<span>Extra views</span>
+				<b data-viewcount>0</b>
+			</p>
+
+			<!-- One input for the whole set: `multiple`, so a re-pick replaces the lot
+			     rather than leaving half the slots from a previous choice. It sits
+			     outside the grid because the grid is rebuilt on every change. -->
+			<input type="file" accept="image/*" multiple data-images hidden />
+
+			<!-- Slots are drawn by renderSlots(); nine empty ones to start. -->
+			<div class="m-views-grid" data-thumbs></div>
+
+			<p class="m-views-hint" data-extratext>Up to 12</p>
+			<p class="m-note" data-note hidden></p>
+		</aside>
+	  </div>
+	</template>
+</AdminLayout>
+
+<script>
+	import { API, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
+	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
+	import iTrash from 'lucide-static/icons/trash-2.svg?raw';
+	// BarcodeDetector is still missing from Safari and Firefox, which is most of the
+	// phones a volunteer will actually be holding. A real decoder is the working choice.
+	import jsQR from 'jsqr';
+	// Same fallbacks the storefront uses, so the preview degrades identically.
+	import icApparel from 'lucide-static/icons/shirt.svg?raw';
+	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
+	import icStationery from 'lucide-static/icons/notebook.svg?raw';
+	import icPackage from 'lucide-static/icons/package.svg?raw';
+
+	type Item = {
+		id: string; name: string; description: string; designer: string; category: string;
+		r2_path: string; price_paise: number; has_size: boolean; is_active: boolean;
+		image_url: string; has_primary: boolean;
+		views: { label: string; url: string }[];
+	};
+
+	const $ = <T extends HTMLElement = HTMLInputElement>(id: string) => document.getElementById(id) as T;
+
+	// Re-queried on every init: ClientRouter swaps in fresh nodes, so anything captured
+	// once would point at elements that are no longer in the document.
+	let treeEl: HTMLElement, countEl: HTMLElement, emptyEl: HTMLElement;
+	let formEl: HTMLFormElement, errEl: HTMLElement, savedEl: HTMLElement;
+	let saveBtn: HTMLButtonElement;
+
+	let items: Item[] = [];
+	let current: Item | null = null;
+	let openCat: string | null = null;
+
+	const escape = (s: string) =>
+		s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+	/** Items grouped by category, categories in alphabetical order. */
+	function grouped(): [string, Item[]][] {
+		const map = new Map<string, Item[]>();
+		for (const it of items) {
+			const cat = it.category || 'General';
+			(map.get(cat) ?? map.set(cat, []).get(cat)!).push(it);
+		}
+		return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+	}
+
+	const pad = (n: number) => String(n).padStart(2, '0');
+
+	/**
+	 * Pictures for one item, split the way the layout is: the primary sits in Details,
+	 * the rest fill the views box. An item created without any is normal.
+	 */
+	function renderShots(it: Item) {
+		const views = it.views ?? [];
+		const [primary, ...extras] = views;
+
+		// ---- main image, in the details cell ----
+		const main = $('mMainShot');
+		main.className = 'm-main-shot';
+		main.innerHTML = primary
+			? `<img src="${API}${primary.url}" alt="${escape(it.name)}" />` +
+				`<span class="m-shot-fallback">MISSING</span>`
+			: `<span class="m-shot-fallback">NO IMAGE</span>`;
+		// Load-gated, as on the storefront: the tile says MISSING until the file
+		// actually arrives, so a dead object never shows as a broken-image box.
+		main.querySelector('img')?.addEventListener('load', () => main.classList.add('ok'));
+
+		// ---- extra views ----
+		const host = $('mShots');
+		host.innerHTML = '';
+		$('mShotCount').textContent = String(extras.length);
+
+		if (!extras.length) {
+			host.innerHTML = `<p class="m-shot-empty">No extra views.</p>`;
+			return;
+		}
+
+		for (const v of extras) {
+			const fig = document.createElement('figure');
+			fig.className = 'm-shot';
+			fig.innerHTML =
+				`<span class="m-shot-frame">` +
+				// No loading="lazy": the tile is display:none until its load fires, and a
+				// lazy image with no box is never fetched — see artHTML() on the storefront.
+				`<img class="m-shot-img" src="${API}${v.url}" alt="${escape(v.label)}" />` +
+				`<span class="m-shot-fallback">MISSING</span>` +
+				`</span>` +
+				`<figcaption class="m-shot-cap">${escape(v.label)}</figcaption>`;
+			fig.querySelector('img')!.onload = () => fig.classList.add('ok');
+			host.appendChild(fig);
+		}
+	}
+
+	// ---- live storefront preview ----
+	const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+	const CAT_ICON: Record<string, string> = {
+		apparel: icApparel, accessories: icAccessories, stationery: icStationery,
+	};
+	let pvIdx = 0; // which view the preview is showing
+
+	/**
+	 * Draws the hero the shopper would see, from the *form's current values* rather than
+	 * the saved row — that is what makes it a preview of the edit rather than a copy of
+	 * the database.
+	 */
+	function renderPreview() {
+		if (!current) return;
+
+		const name = $('eName').value.trim() || 'Untitled';
+		const category = $('eCategory').value.trim();
+		const icon = CAT_ICON[category.toLowerCase()] ?? icPackage;
+		const views = current.views ?? [];
+		if (pvIdx >= Math.max(views.length, 1)) pvIdx = 0;
+
+		// stage
+		const stageImg = $<HTMLImageElement>('pvImg');
+		const view = views[pvIdx];
+		$('pvIcon').innerHTML = icon;
+		stageImg.classList.remove('ok');
+		if (view) {
+			stageImg.src = API + view.url;
+			stageImg.onload = () => stageImg.classList.add('ok');
+		} else {
+			stageImg.removeAttribute('src');
+		}
+		$('pvLabel').textContent = views.length
+			? `${String(pvIdx + 1).padStart(2, '0')} / ${views[pvIdx]?.label ?? 'FRONT'}`.toUpperCase()
+			: 'NO IMAGE';
+
+		// view strip — the storefront's boxes: art, label, frame number
+		const strip = $('pvViews');
+		strip.innerHTML = '';
+		views.forEach((v, i) => {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'pv-view' + (i === pvIdx ? ' active' : '');
+			// Number first in source order — it is pinned to the corner, and reading it
+			// before the picture is also the right order for a screen reader.
+			b.innerHTML =
+				`<i class="pv-view-n">${String(i + 1).padStart(2, '0')}</i>` +
+				`<span class="pv-view-art"><img src="${API}${v.url}" alt="" />` +
+				`<span class="pv-view-icon">${icon}</span></span>` +
+				`<small class="pv-view-label">${escape(v.label)}</small>`;
+			b.querySelector('img')!.onload = (e) => (e.target as HTMLElement).classList.add('ok');
+			b.onclick = () => { pvIdx = i; renderPreview(); };
+			strip.appendChild(b);
+		});
+
+		// pager. Arrows wrap, so they only go dead when there is nothing to move between
+		// — same rule as the storefront.
+		const n = views.length;
+		const single = n < 2;
+		$<HTMLButtonElement>('pvPrev').disabled = single;
+		$<HTMLButtonElement>('pvNext').disabled = single;
+		const slider = $<HTMLInputElement>('pvSlider');
+		slider.max = String(Math.max(n, 1));
+		slider.value = String(pvIdx + 1);
+		slider.disabled = single;
+		$('pvCur').textContent = String(pvIdx + 1).padStart(2, '0');
+		$('pvTot').textContent = String(Math.max(n, 1)).padStart(2, '0');
+
+		// copy. The storefront breaks the last word onto its own line.
+		const parts = name.split(' ');
+		$('pvName').innerHTML =
+			parts.length > 1
+				? `${escape(parts.slice(0, -1).join(' '))}<br />${escape(parts.at(-1)!)}`
+				: escape(name);
+		$('pvDesc').textContent = $<HTMLTextAreaElement>('eDesc').value.trim();
+		const designer = $('eDesigner').value.trim();
+		$('pvDesigner').innerHTML = designer ? `Design <b>${escape(designer)}</b>` : '';
+
+		// sizes only exist for a sized item, exactly as on the storefront — and the
+		// storefront labels the row, so the preview does too.
+		const sizes = $('pvSizes');
+		sizes.innerHTML = $('eHasSize').checked
+			? `<span class="pv-opt-label">Size</span>` +
+				SIZES.map((s, i) => `<span class="pv-size${i === 0 ? ' on' : ''}">${s}</span>`).join('')
+			: '';
+		sizes.hidden = !$('eHasSize').checked;
+
+		const paise = toPaise($('ePrice').value);
+		$('pvPrice').textContent = Number.isFinite(paise) && paise > 0 ? `₹${toRupees(paise)}` : '₹—';
+		$('pvHidden').hidden = $('eActive').checked;
+	}
+
+	// ---- orders ----
+	type Order = {
+		order_id: string; name: string; email: string; phone: string;
+		items: {
+			merch_id: string; name: string; size: string | null;
+			quantity: number; line_total_paise: number;
+		}[];
+		transaction_id: string | null; total_price_paise: number; payment_status: string;
+		collected: boolean; collected_at: string | null; created_at: string;
+	};
+
+	let orders: Order[] = [];
+
+	/** `2026-08-14 09:12:03` (UTC, from SQLite) -> a readable local stamp. */
+	function stamp(sqlUtc: string): string {
+		// SQLite's datetime('now') has no timezone marker; without the Z the browser
+		// would read it as local and the times would drift by the offset.
+		const d = new Date(sqlUtc.replace(' ', 'T') + 'Z');
+		return Number.isNaN(d.getTime())
+			? sqlUtc
+			: d.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+	}
+
+	const summarise = (o: Order) =>
+		o.items.map((l) => `${l.name}${l.size ? ` · ${l.size}` : ''} × ${l.quantity}`).join(', ');
+
+	function renderOrders() {
+		const body = $('ordBody');
+		body.innerHTML = '';
+		$('ordCount').textContent = String(orders.length);
+		$('ordEmpty').hidden = orders.length > 0;
+
+		for (const o of orders) {
+			const tr = document.createElement('tr');
+			const paid = o.payment_status === 'paid';
+
+			tr.innerHTML =
+				`<td class="mono">${escape(o.order_id)}</td>` +
+				`<td>${escape(o.name) || '<span class="ord-none">—</span>'}</td>` +
+				`<td class="mono">${escape(o.email) || '<span class="ord-none">—</span>'}</td>` +
+				`<td class="mono">${escape(o.phone) || '<span class="ord-none">—</span>'}</td>` +
+				`<td><button type="button" class="ord-info" data-info>${escape(summarise(o))}</button></td>` +
+				`<td class="mono">${escape(o.transaction_id ?? '') || '<span class="ord-none">—</span>'}</td>` +
+				`<td class="num">₹${toRupees(o.total_price_paise)}` +
+				(paid ? '' : `<span class="ord-tag">${escape(o.payment_status)}</span>`) +
+				`</td>` +
+				`<td class="mono">${escape(stamp(o.created_at))}</td>` +
+				`<td>${
+					o.collected
+						? `<span class="ord-pill on">COLLECTED</span>`
+						: `<span class="ord-pill">PENDING</span>`
+				}</td>` +
+				`<td><button type="button" class="btn ord-del" data-del aria-label="Delete order">` +
+				`${iTrash}</button></td>`;
+
+			tr.querySelector('[data-info]')!.addEventListener('click', () => openSlip(o));
+			tr.querySelector('[data-del]')!.addEventListener('click', () => openDelete(o));
+			body.appendChild(tr);
+		}
+	}
+
+	async function loadOrders() {
+		try {
+			$('ordErr').hidden = true;
+			const data = await adminFetch<{ orders: Order[] }>('/api/admin/orders');
+			orders = data.orders;
+			renderOrders();
+		} catch (e) {
+			$('ordErr').textContent = (e as Error).message;
+			$('ordErr').hidden = false;
+		}
+	}
+
+	// ---- modals ----
+	function openModal(id: string, on: boolean) {
+		$(id).hidden = !on;
+		// The page behind must not scroll under an open dialog.
+		document.body.classList.toggle('ov-open', on);
+	}
+
+	/** A till receipt, not a data table: monospace, dashed rules, values right-aligned. */
+	function openSlip(o: Order) {
+		$('ovTitle').textContent = 'ORDER SLIP';
+
+		const row = (k: string, v: string) =>
+			`<div class="rc-row"><span class="rc-k">${k}</span><span class="rc-v">${escape(v) || '—'}</span></div>`;
+
+		const lines = o.items
+			.map(
+				(l) =>
+					`<div class="rc-item">` +
+					`<span class="rc-item-name">${escape(l.name)}${l.size ? ` · ${escape(l.size)}` : ''}</span>` +
+					`<span class="rc-item-q">×${l.quantity}</span>` +
+					`<span class="rc-item-amt">${toRupees(l.line_total_paise)}</span>` +
+					`</div>`,
+			)
+			.join('');
+
+		$('ovBody').innerHTML =
+			`<div class="rc">` +
+			`<div class="rc-head">` +
+			`<p class="rc-brand">ANVESHA '26</p>` +
+			`<p class="rc-sub">Merch counter · order slip</p>` +
+			`</div>` +
+
+			`<div class="rc-sec">` +
+			row('ORDER', o.order_id) +
+			row('PLACED', stamp(o.created_at)) +
+			`</div>` +
+
+			`<div class="rc-sec">` +
+			row('NAME', o.name) +
+			row('MAIL', o.email) +
+			row('PHONE', o.phone) +
+			`</div>` +
+
+			`<div class="rc-sec">` +
+			`<div class="rc-item rc-item-head">` +
+			`<span class="rc-item-name">ITEM</span><span class="rc-item-q">QTY</span>` +
+			`<span class="rc-item-amt">AMOUNT</span></div>` +
+			lines +
+			`</div>` +
+
+			`<div class="rc-total"><span>TOTAL</span><b>₹${toRupees(o.total_price_paise)}</b></div>` +
+
+			`<div class="rc-sec">` +
+			row('PAYMENT', o.payment_status.toUpperCase()) +
+			row('TXN', o.transaction_id ?? '') +
+			row('COLLECTED', o.collected ? stamp(o.collected_at ?? '') : 'NOT YET') +
+			`</div>` +
+
+			`<p class="rc-foot">© ${new Date().getFullYear()} Anvesha · IISER Thiruvananthapuram<br />All rights reserved</p>` +
+			`</div>`;
+
+		openModal('ordModal', true);
+	}
+
+	/**
+	 * Writes rows as a CSV file. Excel opens this natively — a real .xlsx would mean a
+	 * zip writer and a spreadsheet schema for something every tool already reads.
+	 */
+	function downloadCsv(filename: string, rows: (string | number)[][]) {
+		const cell = (v: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+		const csv = rows.map((r) => r.map(cell).join(',')).join('\r\n');
+		// The BOM is load-bearing: without it Excel reads the file as its local codepage
+		// and every ₹ and non-ASCII name arrives mangled.
+		const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	const today = () => new Date().toISOString().slice(0, 10);
+
+	function downloadOrders() {
+		const rows: (string | number)[][] = [
+			['Order ID', 'Name', 'Mail', 'Phone', 'Order info', 'Transaction ID',
+			 'Amount paid (INR)', 'Payment status', 'Order time', 'Collection status'],
+		];
+		for (const o of orders)
+			rows.push([
+				o.order_id, o.name, o.email, o.phone, summarise(o), o.transaction_id ?? '',
+				// A plain number, not "₹1,234" — a spreadsheet should be able to sum it.
+				(o.total_price_paise / 100).toFixed(2),
+				o.payment_status, o.created_at, o.collected ? 'Collected' : 'Pending',
+			]);
+		downloadCsv(`anvesha-orders-${today()}.csv`, rows);
+	}
+
+	// ---- collections ----
+	type Tally = {
+		id: string; name: string; category: string; image: string | null;
+		qty: number; revenue: number;
+	};
+
+	/**
+	 * What actually has to be produced, and what was taken for it.
+	 *
+	 * Paid orders only: an unpaid row is an abandoned cart, and printing tees against
+	 * money that never arrived is the expensive kind of mistake.
+	 */
+	function collections() {
+		const paid = orders.filter((o) => o.payment_status === 'paid');
+		const byMerch = new Map<string, Tally>();
+
+		for (const o of paid) {
+			for (const l of o.items) {
+				// Fall back to the name: the snapshot outlives the merch row, so a
+				// deleted item still has to be counted.
+				const key = l.merch_id || l.name;
+				const rec = byMerch.get(key) ?? {
+					id: key, name: l.name, category: 'Unknown', image: null, qty: 0, revenue: 0,
+				};
+				rec.qty += l.quantity;
+				rec.revenue += l.line_total_paise;
+				byMerch.set(key, rec);
+			}
+		}
+
+		// Category and picture come from the live catalogue, which the snapshot omits.
+		for (const rec of byMerch.values()) {
+			const it = items.find((i) => i.id === rec.id);
+			if (it) {
+				rec.category = it.category || 'Unknown';
+				rec.image = it.views?.[0]?.url ?? null;
+			}
+		}
+
+		const tallies = [...byMerch.values()].sort((a, b) => b.qty - a.qty);
+		const byCategory = new Map<string, number>();
+		for (const t of tallies) byCategory.set(t.category, (byCategory.get(t.category) ?? 0) + t.revenue);
+
+		return {
+			tallies,
+			categories: [...byCategory.entries()].sort((a, b) => b[1] - a[1]),
+			units: tallies.reduce((n, t) => n + t.qty, 0),
+			total: tallies.reduce((n, t) => n + t.revenue, 0),
+			paidCount: paid.length,
+		};
+	}
+
+	/** Laid out as a filed record: reference block, ruled ledger, then the totals. */
+	function openCollections() {
+		const c = collections();
+		const now = new Date();
+
+		const rows = c.tallies
+			.map(
+				(t, i) =>
+					`<tr>` +
+					`<td class="fr-n">${String(i + 1).padStart(2, '0')}</td>` +
+					`<td class="fr-art-cell"><span class="col-art">` +
+					(t.image ? `<img src="${API}${t.image}" alt="" loading="lazy" />` : '') +
+					`<span class="col-art-fallback">—</span></span></td>` +
+					`<td class="fr-item">${escape(t.name)}</td>` +
+					`<td class="fr-cat">${escape(t.category)}</td>` +
+					`<td class="fr-units">${t.qty}</td>` +
+					`<td class="fr-amt">₹${toRupees(t.revenue)}</td>` +
+					`</tr>`,
+			)
+			.join('');
+
+		const cats = c.categories
+			.map(
+				([name, revenue]) =>
+					`<div class="fr-sub"><span>${escape(name)}</span>` +
+					`<span class="fr-dots"></span><b>₹${toRupees(revenue)}</b></div>`,
+			)
+			.join('');
+
+		$('colBody').innerHTML =
+			`<div class="fr-meta">` +
+			`<div class="fr-field"><span class="fr-k">VIEWED</span><span class="fr-v">` +
+			escape(
+				now.toLocaleString(undefined, {
+					day: '2-digit', month: 'short', year: 'numeric',
+					hour: '2-digit', minute: '2-digit',
+				}),
+			) +
+			`</span></div>` +
+			`</div>` +
+
+			`<p class="fr-legend">Units to produce</p>` +
+			(c.tallies.length
+				? `<div class="fr-scroll"><table class="fr-table"><thead><tr>` +
+					`<th class="fr-n">#</th><th></th><th>Item</th><th>Category</th>` +
+					`<th class="fr-units">Units</th><th class="fr-amt">Taken</th>` +
+					`</tr></thead><tbody>${rows}</tbody></table></div>`
+				: `<p class="ord-empty">Nothing paid for yet.</p>`) +
+
+			`<p class="fr-legend">Per category</p>` +
+			`<div class="fr-subs">${cats || '<span class="ord-none">—</span>'}</div>` +
+
+			`<div class="fr-total">` +
+			`<div><span class="fr-total-k">TOTAL EARNED</span>` +
+			`<b class="fr-total-v">₹${toRupees(c.total)}</b></div>` +
+			`<div><span class="fr-total-k">UNITS TO HAND OUT</span>` +
+			`<b class="fr-total-v">${c.units}</b></div>` +
+			`</div>`;
+
+		openModal('colModal', true);
+	}
+
+	function downloadCollections() {
+		const c = collections();
+		const rows: (string | number)[][] = [['Item', 'Category', 'Units to produce', 'Amount taken (INR)']];
+		for (const t of c.tallies) rows.push([t.name, t.category, t.qty, (t.revenue / 100).toFixed(2)]);
+
+		// Blank row, then the summaries — one file, readable top to bottom in Excel.
+		rows.push([], ['Category', 'Amount taken (INR)']);
+		for (const [name, revenue] of c.categories) rows.push([name, (revenue / 100).toFixed(2)]);
+		rows.push([], ['Total units', c.units], ['Total earned (INR)', (c.total / 100).toFixed(2)],
+			['Paid orders', c.paidCount]);
+
+		downloadCsv(`anvesha-collections-${today()}.csv`, rows);
+	}
+
+	// ---- distribution ----
+	type Scan = {
+		verdict: 'ok' | 'unpaid' | 'already_collected';
+		collectable: boolean;
+		order: {
+			order_id: string;
+			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
+			total_price_paise: number; payment_status: string;
+			collected: boolean; collected_at: string | null; created_at: string;
+		};
+		payment: { razorpay_transaction_id: string | null; transaction_info: Record<string, unknown> } | null;
+	};
+
+	let stream: MediaStream | null = null;
+	let scanTimer: number | undefined;
+	let scanning = false;
+	let scanned: Scan | null = null;
+
+	/** Releases the camera. Called on every exit path — a live capture light left on
+	 *  after the dialog closes is alarming and drains a volunteer's phone. */
+	function stopCamera() {
+		scanning = false;
+		clearTimeout(scanTimer);
+		stream?.getTracks().forEach((t) => t.stop());
+		stream = null;
+		const v = $<HTMLVideoElement>('distVideo');
+		v.srcObject = null;
+	}
+
+	async function startCamera() {
+		const video = $<HTMLVideoElement>('distVideo');
+		const state = $('distState');
+		try {
+			// facingMode 'environment' asks for the rear camera on a phone; on a laptop
+			// there is only one and the constraint is ignored rather than failing.
+			stream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: 'environment' },
+				audio: false,
+			});
+			video.srcObject = stream;
+			await video.play();
+			state.hidden = true;
+			scanning = true;
+			tick();
+		} catch (e) {
+			// No camera, denied permission, or an insecure origin. Manual entry is the
+			// documented fallback, so this is a notice rather than a failure.
+			state.hidden = false;
+			state.textContent =
+				(e as Error).name === 'NotAllowedError'
+					? 'Camera blocked — use the order id box below.'
+					: 'No camera available — use the order id box below.';
+		}
+	}
+
+	/** Grabs a frame and looks for a QR in it. ~10/s is plenty and leaves the phone alone. */
+	async function tick() {
+		if (!scanning) return;
+		const video = $<HTMLVideoElement>('distVideo');
+
+		if (video.readyState === video.HAVE_ENOUGH_DATA) {
+			const canvas = document.createElement('canvas');
+			canvas.width = video.videoWidth;
+			canvas.height = video.videoHeight;
+			const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+			const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			const found = jsQR(px.data, px.width, px.height, { inversionAttempts: 'dontInvert' });
+			if (found?.data) {
+				scanning = false;
+				await lookup(found.data.trim());
+				return;
+			}
+		}
+		scanTimer = setTimeout(tick, 100) as unknown as number;
+	}
+
+	/** Looks an order up and shows the verdict. Shared by the camera and the manual box. */
+	async function lookup(orderId: string) {
+		const err = $('distErr');
+		err.hidden = true;
+		try {
+			const res = await adminFetch<Scan>('/api/admin/scan', {
+				method: 'POST',
+				body: JSON.stringify({ order_id: orderId }),
+			});
+			scanned = res;
+			stopCamera();
+			showResult(res);
+		} catch (e) {
+			// A 404 is the "this is not one of ours" case and deserves plain words.
+			const msg = (e as Error).message;
+			err.textContent = /no such order/i.test(msg)
+				? `Not one of ours — no order ${orderId}`
+				: msg;
+			err.hidden = false;
+			// Keep looking: the volunteer may just have caught a bad frame.
+			if (stream) { scanning = true; tick(); }
+		}
+	}
+
+	function showResult(s: Scan) {
+		const paid = s.order.payment_status === 'paid';
+		const info = s.payment?.transaction_info ?? {};
+		const buyer = {
+			name: String(info.name ?? ''),
+			email: String(info.email ?? ''),
+			phone: String(info.contact ?? ''),
+		};
+
+		const banner =
+			s.verdict === 'ok'
+				? `<p class="ds-verdict ok">Verified — hand it over</p>`
+				: s.verdict === 'already_collected'
+					? `<p class="ds-verdict warn">Merch has been collected` +
+						(s.order.collected_at ? ` · ${escape(stamp(s.order.collected_at))}` : '') +
+						`</p>`
+					: `<p class="ds-verdict warn">Not paid — do not hand over</p>`;
+
+		const lines = s.order.items
+			.map(
+				(l, i) =>
+					`<li class="dc-item">` +
+					`<i class="dc-item-n">${String(i + 1).padStart(2, '0')}</i>` +
+					`<span class="dc-item-name">${escape(l.name)}` +
+					(l.size ? `<em>${escape(l.size)}</em>` : '') +
+					`</span>` +
+					`<b class="dc-item-q">×${l.quantity}</b>` +
+					`</li>`,
+			)
+			.join('');
+
+		const tile = (k: string, v: string, mod = '') =>
+			`<div class="dc-tile ${mod}"><span class="dc-tile-k">${k}</span>` +
+			`<b class="dc-tile-v">${escape(v)}</b></div>`;
+
+		$('distResult').innerHTML =
+			banner +
+			`<div class="dc">` +
+			`<p class="dc-id">${escape(s.order.order_id)}</p>` +
+
+			`<div class="dc-tiles">` +
+			tile('Payment', s.order.payment_status.toUpperCase(), paid ? 'is-paid' : 'is-due') +
+			tile('Total', `₹${toRupees(s.order.total_price_paise)}`) +
+			tile('Placed', stamp(s.order.created_at)) +
+			`</div>` +
+
+			`<p class="dc-legend">Buyer</p>` +
+			`<div class="dc-buyer">` +
+			`<b class="dc-buyer-name">${escape(buyer.name) || 'Not recorded'}</b>` +
+			`<span class="dc-buyer-line">${escape(buyer.email) || '—'}</span>` +
+			`<span class="dc-buyer-line">${escape(buyer.phone) || '—'}</span>` +
+			`</div>` +
+
+			`<p class="dc-legend">Hand over</p>` +
+			`<ul class="dc-items">${lines}</ul>` +
+			`</div>`;
+
+		$('distScan').hidden = true;
+		$('distResult').hidden = false;
+		$('distFoot').hidden = false;
+		// The button only exists for a paid, uncollected order — an unpaid one must not
+		// offer a way to hand merch over at all.
+		$('distCollect').hidden = !(paid && s.collectable);
+	}
+
+	async function markCollected() {
+		if (!scanned) return;
+		const btn = $<HTMLButtonElement>('distCollect');
+		btn.disabled = true;
+		try {
+			await adminFetch('/api/admin/collect', {
+				method: 'POST',
+				body: JSON.stringify({ order_id: scanned.order.order_id }),
+			});
+			$('distResult').innerHTML =
+				`<p class="ds-verdict ok">Collected — ${escape(scanned.order.order_id)}</p>` +
+				`<p class="ds-done">The order is now marked collected in the table.</p>`;
+			btn.hidden = true;
+			// The table behind is stale the moment this succeeds.
+			if (task === 'orders') loadOrders();
+		} catch (e) {
+			$('distResult').insertAdjacentHTML(
+				'afterbegin',
+				`<p class="a-err">${escape((e as Error).message)}</p>`,
+			);
+		} finally {
+			btn.disabled = false;
+		}
+	}
+
+	function resetDistribution() {
+		scanned = null;
+		$('distResult').hidden = true;
+		$('distResult').innerHTML = '';
+		$('distScan').hidden = false;
+		$('distFoot').hidden = true;
+		$('distCollect').hidden = true;
+		$('distErr').hidden = true;
+		$<HTMLInputElement>('distManual').value = '';
+	}
+
+	function openDistribution(on: boolean) {
+		openModal('distModal', on);
+		if (on) { resetDistribution(); startCamera(); }
+		else stopCamera();
+	}
+
+	let pendingDelete: Order | null = null;
+
+	function openDelete(o: Order) {
+		pendingDelete = o;
+		$('delId').textContent = o.order_id;
+		$('delErr').hidden = true;
+		openModal('delModal', true);
+	}
+
+	async function confirmDelete() {
+		if (!pendingDelete) return;
+		const btn = $<HTMLButtonElement>('delGo');
+		btn.disabled = true;
+		try {
+			await adminFetch(`/api/admin/orders/${pendingDelete.order_id}`, { method: 'DELETE' });
+			openModal('delModal', false);
+			pendingDelete = null;
+			await loadOrders();
+		} catch (e) {
+			$('delErr').textContent = (e as Error).message;
+			$('delErr').hidden = false;
+		} finally {
+			btn.disabled = false;
+		}
+	}
+
+	/**
+	 * Two-step delete. The first click arms the button and the second commits, so a
+	 * mis-click cannot destroy an item and its images — there is no undo behind this.
+	 */
+	let armedDelete: string | null = null;
+	let disarmTimer: number | undefined;
+
+	function disarmDelete() {
+		armedDelete = null;
+		clearTimeout(disarmTimer);
+		const btn = $<HTMLButtonElement>('eDelete');
+		btn.textContent = 'DELETE MERCH';
+		btn.classList.remove('armed');
+	}
+
+	async function onDelete() {
+		if (!current) return;
+		const btn = $<HTMLButtonElement>('eDelete');
+
+		if (armedDelete !== current.id) {
+			armedDelete = current.id;
+			btn.textContent = 'CONFIRM DELETE';
+			btn.classList.add('armed');
+			// Re-arming is deliberate; leaving it armed indefinitely is how an unrelated
+			// later click becomes a deletion.
+			clearTimeout(disarmTimer);
+			disarmTimer = setTimeout(disarmDelete, 5000) as unknown as number;
+			return;
+		}
+
+		btn.disabled = true;
+		errEl.hidden = true;
+		try {
+			await adminFetch(`/api/admin/merch/${current.id}`, { method: 'DELETE' });
+			current = null;
+			disarmDelete();
+			await load();
+			// Nothing left to edit if that was the last item.
+			if (!items.length) { formEl.hidden = true; emptyEl.hidden = false; }
+		} catch (e) {
+			errEl.textContent = (e as Error).message;
+			errEl.hidden = false;
+			disarmDelete();
+		} finally {
+			btn.disabled = false;
+		}
+	}
+
+	/** The storefront's own tree markup — .tcat / .tkids / .titem, same CSS file. */
+	function renderTree() {
+		treeEl.innerHTML = '';
+		for (const [cat, list] of grouped()) {
+			const open = cat === openCat;
+
+			const folder = document.createElement('button');
+			folder.className = 'tnode tcat' + (open ? ' open' : '');
+			folder.setAttribute('role', 'treeitem');
+			folder.setAttribute('aria-expanded', String(open));
+			folder.innerHTML =
+				`<span class="tcaret">${caretRight}</span>` +
+				`<span class="tname">${escape(cat)}</span>` +
+				`<span class="tmeta">${list.length} items</span>`;
+			// Clicking the open category closes it, so the tree can collapse entirely.
+			folder.onclick = () => { openCat = open ? null : cat; renderTree(); };
+			treeEl.appendChild(folder);
+
+			if (!open) continue;
+
+			const kids = document.createElement('div');
+			kids.className = 'tkids';
+			list.forEach((it, ii) => {
+				const b = document.createElement('button');
+				b.className =
+					'tnode titem' +
+					(ii === list.length - 1 ? ' last' : '') +
+					(current?.id === it.id ? ' active' : '') +
+					(it.is_active ? '' : ' inactive');
+				b.setAttribute('role', 'treeitem');
+				b.innerHTML =
+					`<i class="tnum">${pad(ii + 1)}</i>` +
+					`<span class="tname">${escape(it.name)}</span>` +
+					// A hidden item must be obvious here, or it gets "fixed" twice.
+					(it.is_active
+						? `<b class="tmeta tprice">₹${toRupees(it.price_paise)}</b>`
+						: `<span class="toff">OFF</span>`);
+				b.onclick = () => select(it.id);
+				kids.appendChild(b);
+			});
+			treeEl.appendChild(kids);
+		}
+		countEl.textContent = String(items.length);
+
+		// Category suggestions come from the data, so a typo can't silently create a
+		// fourth category that renders as its own group on the storefront.
+		$('catList').innerHTML = grouped()
+			.map(([c]) => `<option value="${escape(c)}"></option>`)
+			.join('');
+	}
+
+	function select(id: string) {
+		current = items.find((i) => i.id === id) ?? null;
+		if (!current) return;
+
+		// Only reveal the editor if editing is what is on screen — a live update landing
+		// while the add form is open must not shove the form aside.
+		if (task === 'edit') {
+			emptyEl.hidden = true;
+			formEl.hidden = false;
+		}
+		errEl.hidden = true;
+		savedEl.hidden = true;
+
+		$('mId').textContent = current.id;
+		$('eName').value = current.name;
+		$<HTMLTextAreaElement>('eDesc').value = current.description ?? '';
+		$('eDesigner').value = current.designer ?? '';
+		$('eCategory').value = current.category ?? '';
+		$('ePrice').value = toRupees(current.price_paise);
+		$('eHasSize').checked = current.has_size;
+		$('eActive').checked = current.is_active;
+
+		renderShots(current);
+		pvIdx = 0; // a new item starts on its first view
+		renderPreview();
+		// Switching items must never carry an armed delete across to the new one.
+		disarmDelete();
+
+		// Selecting an item always opens the category holding it, so the highlight is
+		// never hidden inside a collapsed branch.
+		openCat = current.category || 'General';
+		renderTree();
+	}
+
+	async function save(e: Event) {
+		e.preventDefault();
+		if (!current) return;
+
+		saveBtn.disabled = true;
+		saveBtn.textContent = 'SAVING…';
+		errEl.hidden = true;
+		savedEl.hidden = true;
+
+		try {
+			const price = toPaise($('ePrice').value);
+			if (!Number.isInteger(price) || price <= 0)
+				throw new Error('Enter a price greater than zero');
+
+			const body = {
+				name: $('eName').value,
+				description: $<HTMLTextAreaElement>('eDesc').value,
+				designer: $('eDesigner').value,
+				category: $('eCategory').value,
+				price_paise: price,
+				has_size: $('eHasSize').checked,
+				is_active: $('eActive').checked,
+			};
+
+			await adminFetch(`/api/admin/merch/${current.id}`, {
+				method: 'PUT',
+				body: JSON.stringify(body),
+			});
+
+			// Update the local copy from what was actually sent, so the list and the
+			// REVERT button reflect the saved state rather than the pre-edit one.
+			Object.assign(current, body, { price_paise: price });
+			renderTree();
+			savedEl.hidden = false;
+		} catch (err) {
+			errEl.textContent = (err as Error).message;
+			errEl.hidden = false;
+		} finally {
+			saveBtn.disabled = false;
+			saveBtn.textContent = 'SAVE CHANGES';
+		}
+	}
+
+	async function load(keepSelection = false) {
+		try {
+			const wanted = keepSelection ? current?.id : undefined;
+			const data = await adminFetch<{ merch: Item[] }>('/api/admin/merch');
+			items = data.merch;
+			renderTree();
+			// Re-select what was open if it still exists, so a live update from another
+			// admin does not yank the editor out from under whoever is typing.
+			const target = (wanted && items.some((i) => i.id === wanted) ? wanted : items[0]?.id) ?? null;
+			if (target) select(target);
+		} catch (e) {
+			emptyEl.textContent = (e as Error).message;
+		}
+	}
+
+	// ---- add mode ----
+	let draftSeq = 0;
+	// Mirrors the server's cap in admin.ts. Raised past 9 so the 3-wide grid actually
+	// has something to scroll.
+	const MAX_EXTRA = 12;
+	// Empty slots drawn when fewer pictures than this are chosen — one full 3x3 screen.
+	const SLOTS = 9;
+
+	/** Extra views per draft card. Keyed by the card, so readDraft can find them again. */
+	const draftFiles = new WeakMap<HTMLElement, File[]>();
+
+	// One object URL per file, reused across re-renders. Minting a fresh one on every
+	// redraw would leak a blob URL per keystroke-sized change.
+	const previewUrls = new WeakMap<File, string>();
+	function previewUrl(f: File): string {
+		let url = previewUrls.get(f);
+		if (!url) {
+			url = URL.createObjectURL(f);
+			previewUrls.set(f, url);
+		}
+		return url;
+	}
+
+	/**
+	 * The storefront's magnified view is `--vf: clamp(240px, 42vh, 450px)` and the image
+	 * fills 95% of it — so ~428 CSS px at the largest. Doubling that covers a 2x display
+	 * with pixels to spare; anything beyond is downloaded and then thrown away by the
+	 * browser's own scaler.
+	 */
+	const STAGE_MAX_PX = 428 * 2;
+	const BIG_FILE_BYTES = 1_000_000;
+
+	const dims = new WeakMap<File, { w: number; h: number }>();
+
+	/** Reads the real pixel size. Resolves either way — a file we cannot decode is the
+	 *  server's problem to reject, not a reason to block the form. */
+	function measure(f: File): Promise<void> {
+		return new Promise((done) => {
+			const img = new Image();
+			img.onload = () => {
+				dims.set(f, { w: img.naturalWidth, h: img.naturalHeight });
+				done();
+			};
+			img.onerror = () => done();
+			img.src = previewUrl(f);
+		});
+	}
+
+	/** What is wrong with this picture, if anything. */
+	function imageWarning(f: File): string | null {
+		const d = dims.get(f);
+		const notes: string[] = [];
+		if (d && (d.w > STAGE_MAX_PX || d.h > STAGE_MAX_PX))
+			notes.push(
+				`${d.w}×${d.h}px is larger than the storefront ever shows it. The magnified ` +
+					`view tops out around ${STAGE_MAX_PX}px on a high-density screen, so the extra ` +
+					`pixels are downloaded and then discarded — slower for every shopper.`,
+			);
+		if (f.size > BIG_FILE_BYTES)
+			notes.push(`The file is ${(f.size / 1_048_576).toFixed(1)}MB. Under 1MB keeps the shop quick.`);
+		return notes.length ? notes.join(' ') : null;
+	}
+
+	function addDraft() {
+		const tpl = $<HTMLTemplateElement>('draftTpl');
+		const node = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+		node.dataset.n = String(++draftSeq);
+
+		const preview = node.querySelector<HTMLImageElement>('[data-preview]')!;
+		const fileInput = node.querySelector<HTMLInputElement>('[data-image]')!;
+		const dropText = node.querySelector<HTMLElement>('[data-droptext]')!;
+
+		const mainWarn = node.querySelector<HTMLButtonElement>('[data-mainwarn]')!;
+		fileInput.onchange = async () => {
+			const f = fileInput.files?.[0];
+			if (!f) return;
+			// Local preview: nothing is uploaded until the whole batch is submitted.
+			preview.src = previewUrl(f);
+			preview.classList.add('ok');
+			dropText.hidden = true;
+
+			await measure(f);
+			const warn = imageWarning(f);
+			mainWarn.hidden = !warn;
+			mainWarn.onclick = (e) => { e.preventDefault(); showNote(`${f.name} — ${warn}`); };
+		};
+
+		// Extra views — a fixed 3x3 of slots, filled as pictures are picked.
+		const extraInput = node.querySelector<HTMLInputElement>('[data-images]')!;
+		const grid = node.querySelector<HTMLElement>('[data-thumbs]')!;
+		const countEl = node.querySelector<HTMLElement>('[data-viewcount]')!;
+		const hint = node.querySelector<HTMLElement>('[data-extratext]')!;
+
+		// The picked set is kept here, not read off the input. An <input type="file">
+		// REPLACES its FileList on every pick, so reading it back would make the second
+		// choice wipe the first — which is exactly what it did.
+		const files: File[] = [];
+		draftFiles.set(node, files);
+
+		const noteEl = node.querySelector<HTMLElement>('[data-note]')!;
+		/** Shows the reason behind a warning flag, in this card only. */
+		function showNote(text: string) {
+			// Clicking the same flag again puts it away.
+			const same = noteEl.textContent === text && !noteEl.hidden;
+			noteEl.textContent = text;
+			noteEl.hidden = same;
+		}
+
+		/**
+		 * Always draws at least nine cells so the grid reads as a set of slots waiting to
+		 * be filled rather than a lone button. Anything past nine simply extends the grid
+		 * and scrolls.
+		 */
+		function renderSlots() {
+			grid.innerHTML = '';
+			countEl.textContent = String(files.length);
+			const over = files.length > MAX_EXTRA;
+			hint.textContent = over ? `Too many — max ${MAX_EXTRA}` : `Up to ${MAX_EXTRA}`;
+			hint.classList.toggle('over', over);
+
+			for (let i = 0; i < Math.max(SLOTS, files.length); i++) {
+				const f = files[i];
+				if (f) {
+					const cell = document.createElement('div');
+					cell.className = 'm-view-slot filled';
+					const img = document.createElement('img');
+					img.src = previewUrl(f);
+					img.alt = f.name;
+					cell.appendChild(img);
+
+					// Its own control, so clicking the picture cannot be mistaken for a
+					// way to replace it — the only destructive action is the explicit ×.
+					const del = document.createElement('button');
+					del.type = 'button';
+					del.className = 'm-view-del';
+					del.textContent = '×';
+					del.setAttribute('aria-label', `Remove ${f.name}`);
+					del.onclick = () => {
+						files.splice(i, 1);
+						renderSlots();
+					};
+					cell.appendChild(del);
+
+					// Oversized is a warning, not a rejection: the image still works, it
+					// just costs every shopper more than it needs to.
+					const warn = imageWarning(f);
+					if (warn) {
+						const flag = document.createElement('button');
+						flag.type = 'button';
+						flag.className = 'm-view-warn';
+						flag.textContent = '!';
+						flag.setAttribute('aria-label', `Problem with ${f.name}`);
+						flag.onclick = () => showNote(`${f.name} — ${warn}`);
+						cell.appendChild(flag);
+					}
+					grid.appendChild(cell);
+				} else {
+					const slot = document.createElement('button');
+					slot.type = 'button';
+					slot.className = 'm-view-slot';
+					slot.innerHTML = '<span>+</span>';
+					slot.setAttribute('aria-label', `Add view ${i + 1}`);
+					slot.onclick = () => extraInput.click();
+					grid.appendChild(slot);
+				}
+			}
+		}
+
+		extraInput.onchange = async () => {
+			const added: File[] = [];
+			for (const f of extraInput.files ?? []) {
+				// Same file picked twice is almost certainly a slip, not two views.
+				const dupe = files.some(
+					(g) => g.name === f.name && g.size === f.size && g.lastModified === f.lastModified,
+				);
+				if (!dupe) { files.push(f); added.push(f); }
+			}
+			// Clearing the input is what lets the SAME file be chosen again after being
+			// removed — without it the change event never fires a second time.
+			extraInput.value = '';
+			renderSlots(); // thumbnails first; measuring is a round trip through decode
+			await Promise.all(added.map(measure));
+			renderSlots(); // again, now that any warnings are known
+		};
+		renderSlots();
+
+		node.querySelector<HTMLButtonElement>('.m-draft-del')!.onclick = () => {
+			node.remove();
+			renumberDrafts();
+			// Never leave the form with nothing to fill in.
+			if (!$('mDrafts').children.length) addDraft();
+		};
+
+		$('mDrafts').appendChild(node);
+		renumberDrafts();
+		// The list scrolls now, so a new card is created below the fold. Bring it into
+		// view before focusing, or the caret lands somewhere the user cannot see.
+		node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		node.querySelector<HTMLInputElement>('[data-name]')?.focus({ preventScroll: true });
+	}
+
+	function renumberDrafts() {
+		[...$('mDrafts').children].forEach((el, i) => {
+			el.querySelector('.m-draft-n')!.textContent = `ITEM ${pad(i + 1)}`;
+		});
+	}
+
+	type Task = 'edit' | 'add' | 'orders';
+	let task: Task = 'edit';
+
+	/** One attribute on the shell drives which panes show — the CSS owns the switching. */
+	function setTask(next: Task) {
+		task = next;
+		document.querySelector<HTMLElement>('.m-shell')!.dataset.task = task;
+
+		$('mNew').hidden = task !== 'add';
+		$('mOrders').hidden = task !== 'orders';
+		formEl.hidden = task !== 'edit' || !current;
+		emptyEl.hidden = task !== 'edit' || !!current;
+
+		document.querySelectorAll<HTMLButtonElement>('[data-task-btn]').forEach((b) => {
+			const on = b.dataset.taskBtn === task;
+			b.classList.toggle('on', on);
+			// aria-current, not just a class: the rail is a nav, and a screen reader
+			// should be told which task is open.
+			if (on) b.setAttribute('aria-current', 'true');
+			else b.removeAttribute('aria-current');
+		});
+
+		if (task === 'add' && !$('mDrafts').children.length) addDraft();
+		// Fetched on entry, not on load: orders change constantly and a list from ten
+		// minutes ago is worse than one that takes a moment to arrive.
+		if (task === 'orders') loadOrders();
+	}
+
+	/** Reads one draft card into a FormData, or returns an error message. */
+	function readDraft(card: HTMLElement): FormData | string {
+		const q = <T extends HTMLElement>(sel: string) => card.querySelector<T>(sel)!;
+		const name = q<HTMLInputElement>('[data-name]').value.trim();
+		const priceRaw = q<HTMLInputElement>('[data-price]').value.trim();
+
+		if (!name) return 'Name is required';
+		if (!priceRaw) return 'Price is required';
+		const paise = toPaise(priceRaw);
+		if (!Number.isInteger(paise) || paise <= 0) return 'Price must be greater than zero';
+
+		const fd = new FormData();
+		fd.set('name', name);
+		fd.set('description', q<HTMLTextAreaElement>('[data-description]').value.trim());
+		fd.set('designer', q<HTMLInputElement>('[data-designer]').value.trim());
+		fd.set('category', q<HTMLInputElement>('[data-category]').value.trim() || 'General');
+		fd.set('price_paise', String(paise));
+		fd.set('has_size', String(q<HTMLInputElement>('[data-hassize]').checked));
+		fd.set('is_active', String(q<HTMLInputElement>('[data-active]').checked));
+
+		const file = q<HTMLInputElement>('[data-image]').files?.[0];
+		if (file) fd.set('image', file, file.name);
+
+		// From the card's own list, not the input — the input only ever holds the most
+		// recent pick. append, not set: every extra view has to survive as its own part.
+		const extras = draftFiles.get(card) ?? [];
+		if (extras.length > MAX_EXTRA) return `At most ${MAX_EXTRA} extra views per item`;
+		for (const f of extras) fd.append('image_extra', f, f.name);
+
+		return fd;
+	}
+
+	async function submitDrafts() {
+		const cards = [...$('mDrafts').children] as HTMLElement[];
+		const btn = $<HTMLButtonElement>('nSubmit');
+		const err = $('nErr'), saved = $('nSaved');
+		err.hidden = true;
+		saved.hidden = true;
+		cards.forEach((c) => (c.querySelector<HTMLElement>('[data-err]')!.hidden = true));
+
+		// Validate everything before sending anything: a half-applied batch is worse
+		// than a rejected one, because it is not obvious which half landed.
+		const payloads: { card: HTMLElement; fd: FormData }[] = [];
+		let bad = false;
+		for (const card of cards) {
+			const out = readDraft(card);
+			if (typeof out === 'string') {
+				const e = card.querySelector<HTMLElement>('[data-err]')!;
+				e.textContent = out;
+				e.hidden = false;
+				bad = true;
+			} else payloads.push({ card, fd: out });
+		}
+		if (bad) {
+			err.textContent = 'Fix the highlighted items first.';
+			err.hidden = false;
+			return;
+		}
+
+		btn.disabled = true;
+		let done = 0;
+		try {
+			// Sequential, not parallel: ids are allocated MAX+1 server-side, so firing
+			// these at once would make every request collide and retry against the others.
+			for (const { card, fd } of payloads) {
+				await adminFetch('/api/admin/merch', { method: 'POST', body: fd });
+				done++;
+				card.remove();
+			}
+			saved.textContent = `Added ${done} item${done === 1 ? '' : 's'}.`;
+			saved.hidden = false;
+			addDraft();
+			await load();
+		} catch (e) {
+			err.textContent = `${(e as Error).message}${done ? ` (${done} already added)` : ''}`;
+			err.hidden = false;
+			if (done) await load();
+		} finally {
+			btn.disabled = false;
+			renumberDrafts();
+		}
+	}
+
+	/**
+	 * Runs on every page load, including ClientRouter navigations. Without this the
+	 * panel only worked on a hard load: coming back from Events swapped in a fresh,
+	 * empty DOM that nothing ever populated, and the catalogue looked lost until reload.
+	 */
+	function initMerchAdmin() {
+		// Bail if this page is not the one on screen — astro:page-load fires for every
+		// route, and /admin/events has none of these nodes.
+		const tree = document.getElementById('mTree');
+		if (!tree) return;
+
+		treeEl = tree;
+		countEl = $('mCount');
+		emptyEl = $('mEmpty');
+		formEl = $<HTMLFormElement>('mForm');
+		errEl = $('eErr');
+		savedEl = $('eSaved');
+		saveBtn = $<HTMLButtonElement>('eSave');
+
+		formEl.onsubmit = save;
+		$('eReset').onclick = () => current && select(current.id);
+		$('eDelete').onclick = onDelete;
+
+		// One delegated listener rather than one per control: the preview only ever
+		// reads the form, so it does not care which field moved.
+		formEl.addEventListener('input', renderPreview);
+		formEl.addEventListener('change', renderPreview);
+
+		// Carousel controls. Bound once — renderPreview only ever updates their values.
+		const goView = (i: number) => {
+			const n = current?.views?.length ?? 0;
+			if (n < 1) return;
+			pvIdx = ((i % n) + n) % n; // wrap both directions
+			renderPreview();
+		};
+		$('pvPrev').onclick = () => goView(pvIdx - 1);
+		$('pvNext').onclick = () => goView(pvIdx + 1);
+		$<HTMLInputElement>('pvSlider').oninput = (e) =>
+			goView(Number((e.target as HTMLInputElement).value) - 1);
+
+		// task rail
+		document.querySelectorAll<HTMLButtonElement>('[data-task-btn]').forEach((b) => {
+			b.onclick = () => setTask(b.dataset.taskBtn as Task);
+		});
+
+		// distribution
+		$('ordDistribute').onclick = () => openDistribution(true);
+		$('distClose').onclick = () => openDistribution(false);
+		$('distAgain').onclick = () => { resetDistribution(); startCamera(); };
+		$('distCollect').onclick = markCollected;
+		$<HTMLFormElement>('distManualForm').onsubmit = (e) => {
+			e.preventDefault();
+			const id = $<HTMLInputElement>('distManual').value.trim().toUpperCase();
+			if (id) lookup(id);
+		};
+
+		// order tools
+		$('ordDownload').onclick = downloadOrders;
+		$('ordCollections').onclick = openCollections;
+		$('colClose').onclick = () => openModal('colModal', false);
+		$('colDone').onclick = () => openModal('colModal', false);
+		$('colDownload').onclick = downloadCollections;
+
+		// order modals
+		$('ovClose').onclick = () => openModal('ordModal', false);
+		$('delClose').onclick = () => openModal('delModal', false);
+		$('delCancel').onclick = () => { pendingDelete = null; openModal('delModal', false); };
+		$('delGo').onclick = confirmDelete;
+		// Clicking the backdrop dismisses, but only the backdrop — a click that started
+		// inside the panel and drifted out must not close it.
+		// The distribution dialog holds a camera, so it always closes through its own
+		// handler — openModal alone would hide it and leave the capture light on.
+		const closeOverlay = (id: string) =>
+			id === 'distModal' ? openDistribution(false) : openModal(id, false);
+
+		for (const id of ['ordModal', 'delModal', 'colModal', 'distModal'])
+			$(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); });
+		// Topmost first: the confirm can open over the others.
+		addEventListener('keydown', (e) => {
+			if (e.key !== 'Escape') return;
+			for (const id of ['delModal', 'ordModal', 'colModal', 'distModal']) {
+				if (!$(id).hidden) { closeOverlay(id); return; }
+			}
+		});
+		$('mDraftAdd').onclick = addDraft;
+		$('nSubmit').onclick = submitDrafts;
+		$('nCancel').onclick = () => { $('mDrafts').innerHTML = ''; draftSeq = 0; setTask('edit'); };
+		setTask('edit');
+
+		// State from a previous visit is stale by definition — someone else may have
+		// edited the catalogue in between, so always re-fetch rather than re-render.
+		current = null;
+		load();
+
+		// ---- live ----
+		// Another admin's change lands here without a refresh. The selection is kept so
+		// this cannot yank the editor away from whoever is mid-edit.
+		stopLive?.();
+		stopLive = onCatalogueChange(
+			() => {
+				load(true);
+				// Only refresh the table if it is what is on screen.
+				if (task === 'orders') loadOrders();
+			},
+			['catalogue', 'orders'],
+		);
+	}
+
+	let stopLive: (() => void) | null = null;
+
+	// Leaving the page must drop the socket and the camera, or every visit opens another
+	// one and the capture light stays on after navigating away.
+	document.addEventListener('astro:before-swap', () => {
+		stopLive?.();
+		stopLive = null;
+		stopCamera();
+	});
+	document.addEventListener('astro:page-load', initMerchAdmin);
+</script>
+
+<style is:global>
+	.m-panes {
+		flex: 1; min-height: 0;
+		display: grid; grid-template-columns: var(--rail) 1fr;
+	}
+
+	/* ---- left: catalogue ---- */
+	.m-list-pane {
+		display: flex; flex-direction: column; min-height: 0;
+		padding: 20px 18px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	/* The catalogue rail itself is styles/catalogue-tree.css — the storefront's component. */
+
+	/* ---- shell: task rail | catalogue | work area ---- */
+	/* One variable drives both rails, so they cannot drift out of alignment. */
+	.m-shell { flex-direction: row; --rail: 280px; }
+	.m-tasks {
+		flex: none; width: var(--rail); box-sizing: border-box;
+		display: flex; flex-direction: column; gap: 6px;
+		padding: 20px 14px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	.m-task {
+		display: flex; align-items: center; gap: 10px;
+		box-sizing: border-box; width: 100%;
+		padding: 12px 13px; text-align: left;
+		font-size: 12.5px; font-weight: 700;
+	}
+	.m-task.on { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+	.m-task:disabled { opacity: .4; cursor: not-allowed; }
+	.m-task-icon { display: grid; place-items: center; flex: none; }
+	.m-task-icon svg { width: 16px; height: 16px; stroke-width: 2; }
+	.m-task-label { flex: 1; }
+	.m-task-soon {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .1em; color: var(--ink-40);
+	}
+
+	.m-add-icon { display: grid; place-items: center; }
+	.m-add-icon svg { width: 14px; height: 14px; stroke-width: 2.6; }
+
+	/* The catalogue only belongs to the edit task; the work area takes the full width
+	   for the others rather than leaving a dead column. */
+	.m-shell:not([data-task='edit']) .m-list-pane { display: none; }
+	.m-shell:not([data-task='edit']) .m-panes { grid-template-columns: 1fr; }
+
+	/* ---- orders table ---- */
+	.m-orders { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+	.m-shell[data-task='orders'] .m-edit-pane { overflow: hidden; display: flex; flex-direction: column; }
+
+	.ord-wrap {
+		flex: 1; min-height: 0; overflow: auto;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ord { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+	.ord th, .ord td {
+		padding: 10px 12px; text-align: left; white-space: nowrap;
+		border-bottom: 1.5px solid var(--hair);
+		border-right: 1.5px solid var(--hair);
+	}
+	/* No rule on the last column — the table's own border already closes it. */
+	.ord th:last-child, .ord td:last-child { border-right: 0; }
+	/* Sticky so a column never loses its heading in a long list. */
+	.ord thead th {
+		position: sticky; top: 0; z-index: 1;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+		color: var(--ink-40); background: var(--primary);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.ord tbody tr:hover { background: var(--sink); }
+	.ord tbody tr:last-child td { border-bottom: 0; }
+	.ord .num { text-align: right; }
+	.ord .mono { font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; }
+	.ord-none { color: var(--ink-40); }
+
+	/* The items cell is a control, not text — it opens the slip. */
+	.ord-info {
+		appearance: none; max-width: 260px; padding: 0; text-align: left;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		font: inherit; color: var(--secondary); background: none; border: 0;
+		border-bottom: 1.5px dotted var(--ink-40); cursor: pointer;
+	}
+	.ord-info:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+	.ord-pill {
+		display: inline-block; padding: 3px 7px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: .1em;
+		border: 1.5px solid var(--ink-40); color: var(--ink-40); border-radius: var(--r);
+	}
+	.ord-pill.on { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
+	.ord-tag {
+		margin-left: 7px; padding: 2px 6px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: .08em;
+		text-transform: uppercase; color: var(--primary); background: var(--accent);
+		border-radius: var(--r);
+	}
+	.ord-del { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+	.ord-del svg { width: 13px; height: 13px; stroke-width: 2.2; }
+	.ord-del:hover { color: var(--accent); border-color: var(--accent); }
+	.ord-empty { margin: 0; padding: 22px; font-size: 13px; color: var(--ink-40); }
+
+	.ord-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+	.ord-tools { flex: none; display: flex; gap: 8px; }
+	.ord-tool {
+		display: flex; align-items: center; gap: 8px;
+		padding: 11px 14px;
+		font-size: 10.5px; font-weight: 800; letter-spacing: .12em;
+	}
+
+	/* ---- distribution ---- */
+	.ord-tool-go { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+
+	.ds-stage {
+		position: relative; display: grid; place-items: center; overflow: hidden;
+		aspect-ratio: 4 / 3; margin-bottom: 16px;
+		background: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ds-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+	/* A frame to aim through — the QR does not have to fill it, it just tells the
+	   volunteer where to point. */
+	.ds-reticle {
+		position: absolute; inset: 18% 22%;
+		border: 2px solid var(--primary); border-radius: var(--r);
+		box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--secondary) 55%, transparent);
+	}
+	.ds-state {
+		position: absolute; margin: 0; padding: 9px 12px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .1em; text-align: center;
+		color: var(--primary); background: var(--secondary);
+		border: 1.5px solid var(--primary); border-radius: var(--r);
+	}
+
+	.ds-or {
+		display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.ds-or::before, .ds-or::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
+
+	.ds-manual { display: flex; gap: 8px; margin-bottom: 12px; }
+	.ds-manual .field-input {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px;
+		text-transform: uppercase;
+	}
+	.ds-manual .a-btn-secondary { flex: none; padding: 12px 14px; }
+
+	.ds-verdict {
+		display: flex; align-items: center; gap: 10px;
+		margin: 0 0 18px; padding: 14px 15px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	/* A marker square, the same device the eyebrows use — it makes the banner read as
+	   a status line rather than a coloured slab. */
+	.ds-verdict::before {
+		content: ''; flex: none; width: 9px; height: 9px;
+		background: var(--primary); border-radius: var(--r);
+	}
+	.ds-verdict.ok { color: var(--primary); background: var(--secondary); }
+	/* Accent, not a new colour: the palette is three colours and a warning is still
+	   one of them. The wording carries the meaning. */
+	.ds-verdict.warn { color: var(--primary); background: var(--accent); border-color: var(--accent); }
+	.ds-done { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+
+	/* ---- scan result: a verification card, not a receipt ---- */
+	.dc { display: flex; flex-direction: column; gap: 16px; }
+
+	.dc-id {
+		margin: 0; padding: 11px 13px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; letter-spacing: .04em; word-break: break-all;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	/* Three facts, three boxes — the shape the panel uses everywhere else. */
+	.dc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+	.dc-tile {
+		display: flex; flex-direction: column; gap: 5px;
+		padding: 11px 12px; min-width: 0;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.dc-tile-k {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.dc-tile-v {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; letter-spacing: -.01em;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	/* The payment tile is the one a volunteer reads first, so it is filled rather than
+	   outlined — and its two states are the only place the colour changes. */
+	.dc-tile.is-paid { background: var(--secondary); border-color: var(--secondary); }
+	.dc-tile.is-paid .dc-tile-k { color: color-mix(in srgb, var(--primary) 55%, transparent); }
+	.dc-tile.is-paid .dc-tile-v { color: var(--primary); }
+	.dc-tile.is-due { background: var(--accent); border-color: var(--accent); }
+	.dc-tile.is-due .dc-tile-k { color: color-mix(in srgb, var(--primary) 65%, transparent); }
+	.dc-tile.is-due .dc-tile-v { color: var(--primary); }
+
+	.dc-legend {
+		display: flex; align-items: center; gap: 10px; margin: 0 0 -6px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.dc-legend::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
+
+	.dc-buyer { display: flex; flex-direction: column; gap: 3px; }
+	.dc-buyer-name {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 19px; letter-spacing: -.01em;
+	}
+	.dc-buyer-line {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11.5px; color: var(--ink-60); word-break: break-all;
+	}
+
+	.dc-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+	.dc-item {
+		display: flex; align-items: center; gap: 11px;
+		padding: 11px 12px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.dc-item-n {
+		flex: none; display: grid; place-items: center;
+		min-width: 22px; height: 17px; padding: 0 5px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	.dc-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+	/* The size is what gets handed over wrong most often, so it is set apart rather
+	   than run into the name. */
+	.dc-item-name em {
+		font-style: normal; margin-left: 8px; padding: 2px 6px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9.5px; letter-spacing: .08em;
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.dc-item-q {
+		flex: none;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 16px;
+	}
+
+	/* ---- collections: a filed record ---- */
+	.ov-file { width: min(840px, 100%); position: relative; overflow: visible; }
+	/* Folder tab. Sits above the panel's top edge, hence the negative offset. */
+	.fr-tab {
+		position: absolute; top: -25px; left: 26px;
+		padding: 5px 16px 7px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .18em;
+		color: var(--primary); background: var(--secondary);
+		border: var(--stroke) solid var(--secondary);
+		border-radius: var(--r) var(--r) 0 0;
+	}
+	.fr-head { background: var(--sink); }
+
+	/* Stamped header of a paper record — just when it was pulled. */
+	.fr-meta {
+		display: grid; grid-template-columns: 1fr;
+		margin-bottom: 22px;
+		border: 1.5px solid var(--secondary);
+	}
+	.fr-field {
+		display: flex; align-items: baseline; gap: 10px;
+		padding: 9px 12px; min-width: 0;
+	}
+	.fr-k {
+		flex: none; width: 62px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .14em; color: var(--ink-40);
+	}
+	.fr-v {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+
+	.fr-legend {
+		display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.fr-legend::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
+
+	/* Three rows on screen, the rest scrolling. The frame carries the border and the
+	   scroll; the table inside carries none, or the border would scroll away with it. */
+	.fr-scroll {
+		--row: 62px; --head: 32px;
+		max-height: calc(var(--row) * 3 + var(--head));
+		overflow-y: auto; overscroll-behavior: contain;
+		margin-bottom: 22px;
+		border: 1.5px solid var(--secondary);
+	}
+	/* Fixed row height so the cut lands on the third row rather than wherever the
+	   longest product name happens to wrap to. */
+	.fr-table tbody tr { height: var(--row); }
+
+	/* Ruled ledger, dividers on every column. */
+	.fr-table { width: 100%; border-collapse: collapse; }
+	.fr-table th, .fr-table td {
+		padding: 8px 10px; text-align: left;
+		border-right: 1.5px solid var(--hair); border-bottom: 1.5px solid var(--hair);
+	}
+	.fr-table th:last-child, .fr-table td:last-child { border-right: 0; }
+	.fr-table tbody tr:last-child td { border-bottom: 0; }
+	/* Sticky: the columns must keep their headings while the rows move under them. */
+	.fr-table thead th {
+		position: sticky; top: 0; z-index: 1;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase;
+		color: var(--ink-40); background: var(--sink);
+		border-bottom: 1.5px solid var(--secondary);
+	}
+	.fr-n {
+		width: 34px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; color: var(--ink-40);
+	}
+	.fr-art-cell { width: 46px; }
+	/* One line, clipped: a wrapping name would push the row past the fixed height and
+	   the three-row cut would stop landing where it should. */
+	.fr-item {
+		font-size: 13px; font-weight: 600;
+		max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	.fr-cat {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.fr-units {
+		width: 66px; text-align: right;
+		font-family: 'Archivo Expanded', sans-serif; font-weight: 800; font-size: 15px;
+		color: var(--accent);
+	}
+	.fr-amt {
+		width: 96px; text-align: right;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
+	}
+	.fr-table thead .fr-units, .fr-table thead .fr-amt {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5px; color: var(--ink-40);
+	}
+
+	/* Leader dots, as on a ledger line. */
+	.fr-subs { margin-bottom: 22px; }
+	.fr-sub {
+		display: flex; align-items: baseline; gap: 8px; padding: 6px 0;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
+	}
+	.fr-sub b { font-weight: 500; }
+	.fr-dots {
+		flex: 1; height: 1px; align-self: center;
+		background-image: linear-gradient(to right, var(--ink-40) 33%, transparent 0);
+		background-size: 5px 1px; background-repeat: repeat-x;
+	}
+
+	.fr-total {
+		display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+		border: var(--stroke) solid var(--secondary);
+	}
+	.fr-total > div {
+		display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+		padding: 13px 14px;
+	}
+	.fr-total > div:first-child { border-right: 1.5px solid var(--hair); }
+	.fr-total-k {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .14em; color: var(--ink-40);
+	}
+	.fr-total-v {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 19px; letter-spacing: -.01em;
+	}
+
+	.col-art {
+		display: grid; place-items: center; overflow: hidden;
+		width: 40px; height: 40px;
+		background: var(--sink);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.col-art > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.col-art img { width: 100%; height: 100%; object-fit: cover; }
+	/* Hidden behind the picture when there is one; shown when there is not. */
+	.col-art img + .col-art-fallback { display: none; }
+	.col-art-fallback { font-size: 11px; color: var(--ink-40); }
+
+	/* ---- overlays ---- */
+	.ov {
+		position: fixed; inset: 0; z-index: 60;
+		display: grid; place-items: center; padding: 22px;
+		background: color-mix(in srgb, var(--secondary) 45%, transparent);
+	}
+	body.ov-open { overflow: hidden; }
+	/* No offset shadow: a receipt is a flat piece of paper, and the blue pop reads as a
+	   control lifting off the page. */
+	.ov-panel {
+		width: min(430px, 100%); max-height: 86vh;
+		display: flex; flex-direction: column;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ov-narrow { width: min(420px, 100%); }
+	.ov-head {
+		flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+		padding: 18px 20px; border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.ov-title {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; letter-spacing: .08em; word-break: break-all;
+	}
+	.ov-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+	.ov-foot {
+		flex: none; display: flex; gap: 10px; padding: 16px 20px;
+		border-top: var(--stroke) solid var(--secondary);
+	}
+	.ov-foot .a-btn-danger { flex: 1; }
+
+	/* ---- receipt ---- */
+	/* Monospace end to end, like a till roll: the columns line up because the glyphs
+	   are the same width, not because a grid was asked to hold them. */
+	.rc {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11.5px; line-height: 1.5; color: var(--secondary);
+	}
+	.rc-head { text-align: center; padding-bottom: 14px; }
+	.rc-brand {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 17px; letter-spacing: .06em;
+	}
+	.rc-sub {
+		margin: 5px 0 0;
+		font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40);
+	}
+
+	/* Dashed rules, the way a printed slip separates its blocks. */
+	.rc-sec { padding: 12px 0; border-top: 1.5px dashed var(--secondary); }
+	.rc-row { display: flex; justify-content: space-between; gap: 14px; }
+	.rc-row + .rc-row { margin-top: 5px; }
+	.rc-k { flex: none; letter-spacing: .12em; color: var(--ink-40); }
+	.rc-v { text-align: right; word-break: break-all; }
+
+	/* Items run as a timeline: a node per line, joined by a stem when there is more than
+	   one. Same technique as the catalogue tree — borders and boxes, never box-drawing
+	   glyphs, so the run stays joined whatever the font or line height does. */
+	.rc-item {
+		position: relative; padding-left: 22px;
+		display: grid; grid-template-columns: 1fr auto auto; gap: 10px;
+	}
+	.rc-item + .rc-item { margin-top: 9px; }
+	.rc-item::before {
+		content: ''; position: absolute; left: 0; top: 5px;
+		width: 7px; height: 7px;
+		background: var(--accent); border-radius: var(--r);
+	}
+	/* The stem reaches into the next node rather than stopping at the row's edge, which
+	   is what closes the visible gap between them. */
+	.rc-item::after {
+		content: ''; position: absolute; left: 2.75px; top: 12px; bottom: -14px;
+		width: 1.5px; background: var(--accent);
+	}
+	/* A single item has nothing to connect to, and the header is a label, not a step. */
+	.rc-item:last-child::after { display: none; }
+	.rc-item-head::before, .rc-item-head::after { display: none; }
+
+	.rc-item-head {
+		margin-bottom: 10px;
+		font-size: 9.5px; letter-spacing: .12em; color: var(--ink-40);
+	}
+	/* The whole line is the timeline entry, so it carries the accent — the total below
+	   stays in ink, which keeps it the one figure that reads as final. */
+	.rc-item { color: var(--accent); }
+	.rc-item-name { min-width: 0; word-break: break-word; }
+	.rc-item-q { min-width: 34px; text-align: right; }
+	.rc-item-amt { min-width: 62px; text-align: right; }
+	/* The header is a column label, not an entry. */
+	.rc-item-head { color: var(--ink-40); }
+
+	/* Double rule above the total — the one line on a bill that always gets one. */
+	.rc-total {
+		display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+		padding: 12px 0;
+		border-top: 3px double var(--secondary); border-bottom: 3px double var(--secondary);
+		letter-spacing: .12em;
+	}
+	.rc-total b {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 17px; letter-spacing: -.01em;
+	}
+
+	.rc-foot {
+		margin: 14px 0 0; padding-top: 12px;
+		border-top: 1.5px dashed var(--secondary);
+		text-align: center; font-size: 9px; letter-spacing: .1em; line-height: 1.7;
+		color: var(--ink-40);
+	}
+
+	.ov-warn { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.ov-id {
+		margin: 0 0 12px; padding: 10px 12px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; word-break: break-all;
+		background: var(--sink); border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	/* ---- add drafts ---- */
+	/* No max-width: the card and its views box are a two-column pair and should use the
+	   full pane, not sit in a narrow column with the rest of the page empty. */
+	.m-new { display: flex; flex-direction: column; gap: 14px; }
+
+	/* In add mode the pane hands its scrolling to .m-new-scroll — two nested scrollers
+	   would fight, and the outer one is what carries the footer away. */
+	.m-shell[data-task='add'] .m-edit-pane {
+		overflow: hidden;
+		display: flex; flex-direction: column;
+	}
+	.m-shell[data-task='add'] .m-new { flex: 1; min-height: 0; }
+
+	.m-new-head { flex: none; display: flex; flex-direction: column; gap: 10px; }
+	.m-new-scroll {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: flex; flex-direction: column; gap: 14px;
+		/* room for the focus shadow on controls at the very edge */
+		padding: 4px 6px 4px 4px; margin: -4px -6px -4px -4px;
+	}
+	.m-new-foot {
+		flex: none;
+		display: flex; flex-direction: column; gap: 10px;
+		padding-top: 14px;
+		/* The rule is what tells you the list above is scrolled, not ended. */
+		border-top: var(--stroke) solid var(--secondary);
+		background: var(--primary);
+	}
+	.m-new-hint { margin: -6px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-60); }
+
+	.m-draft {
+		display: flex; flex-direction: column; gap: 12px;
+		padding: 16px; margin-bottom: 12px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.m-draft-head { display: flex; align-items: center; justify-content: space-between; }
+	.m-draft-n {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; color: var(--ink-40);
+	}
+	.m-draft-del { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+	.m-draft-del svg { width: 13px; height: 13px; stroke-width: 2.2; }
+	.m-draft-body { display: grid; grid-template-columns: 116px 1fr; gap: 12px; align-items: start; }
+	.m-drops { display: flex; flex-direction: column; gap: 8px; }
+
+	/* ---- extra views: its own box, wired to the card ---- */
+	/* --wire is the gap the connector has to cross; one value so the line and the
+	   spacing can never disagree. */
+	/* stretch, not start: the views box matches the card's height so the pair reads as
+	   one unit rather than a tall form with a small tag hanging off it. */
+	.m-draft-row {
+		--wire: 30px;
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: var(--wire); align-items: stretch;
+		margin-bottom: 14px;
+	}
+	.m-draft { margin-bottom: 0; }
+
+	.m-views-box {
+		position: relative; min-height: 0;
+		display: flex; flex-direction: column; gap: 10px;
+		padding: 14px;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	/* The connector, drawn the same way the catalogue tree draws its elbows: a border,
+	   not a glyph, so it lines up regardless of font. Used by both the add card and the
+	   editor's bento, which is why it hangs off the box rather than the thing beside it. */
+	.m-views-box::before {
+		content: ''; position: absolute;
+		left: calc(var(--wire) * -1); top: 26px;
+		width: var(--wire); height: 1.5px;
+		background: var(--secondary);
+	}
+	/* The terminal node, marking where the wire lands. Same border-box maths as .m-wire:
+	   a 10px node offset -4px straddles this box's own 2px border. */
+	.m-views-box::after {
+		content: ''; position: absolute; box-sizing: border-box;
+		left: -4px; top: 22px;
+		width: 10px; height: 10px;
+		background: var(--accent);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+
+	.m-views-head {
+		display: flex; align-items: center; justify-content: space-between; gap: 10px;
+		margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.m-views-head b {
+		display: inline-grid; place-items: center;
+		min-width: 18px; height: 16px; padding: 0 4px;
+		font-size: 9.5px; color: var(--primary); background: var(--accent);
+		border-radius: var(--r);
+	}
+
+	/* Three across, rows at a FIXED height.
+	   `1fr` rows only divide a definite height; this grid's height comes from its own
+	   content, so fr degenerated to `auto` and every row grew to fit its tallest
+	   picture — a portrait shot stretched the whole box. A fixed row height decouples
+	   the layout from the images entirely. */
+	.m-views-grid {
+		--tgap: 10px; --tile: 88px;
+		flex: 1; min-height: 0;
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-auto-rows: var(--tile);
+		align-content: start;
+		gap: var(--tgap);
+		overflow-y: auto; overscroll-behavior: contain;
+		padding-right: 2px;
+	}
+	.m-view-slot {
+		appearance: none; -webkit-appearance: none;
+		display: grid; place-items: center; overflow: hidden;
+		/* height, not min-height: the row is fixed and the tile fills it, so nothing
+		   inside can push it taller. */
+		height: 100%; min-height: 0; padding: 0;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 19px; color: var(--ink-40);
+		background: var(--primary);
+		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+		cursor: pointer;
+		transition: border-color .12s ease, color .12s ease;
+	}
+	.m-view-slot:hover { border-color: var(--accent); color: var(--accent); }
+	/* A filled slot is a picture, not a target: solid border, no dashes, no pointer. */
+	.m-view-slot.filled { position: relative; border-style: solid; padding: 0; cursor: default; }
+	/* contain, not cover: the whole picture is scaled to fit the fixed tile rather than
+	   being cropped to fill it — a tall poster stays recognisable in a wide slot. */
+	.m-view-slot img {
+		width: 100%; height: 100%; display: block; min-width: 0; min-height: 0;
+		object-fit: contain; background: var(--sink);
+	}
+	.m-view-del {
+		position: absolute; top: 3px; right: 3px;
+		display: grid; place-items: center;
+		width: 19px; height: 19px; padding: 0;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; line-height: 1;
+		color: var(--primary); background: var(--secondary);
+		border: 1.5px solid var(--primary); border-radius: var(--r);
+		cursor: pointer;
+	}
+	.m-view-del:hover { background: var(--accent); border-color: var(--primary); }
+
+	/* Bottom-left, opposite the remove button, so the two can never be mis-hit. */
+	.m-view-warn {
+		position: absolute; bottom: 3px; left: 3px;
+		display: grid; place-items: center;
+		width: 19px; height: 19px; padding: 0;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500;
+		line-height: 1;
+		color: var(--primary); background: var(--accent);
+		border: 1.5px solid var(--primary); border-radius: var(--r);
+		cursor: pointer;
+	}
+	.m-view-warn:hover { background: var(--secondary); }
+	.m-drop-warn { bottom: 5px; left: 5px; z-index: 1; }
+
+	.m-note {
+		margin: 0; padding: 9px 11px;
+		font-size: 11.5px; line-height: 1.55;
+		color: var(--primary); background: var(--accent);
+		border-radius: var(--r);
+	}
+
+	.m-views-hint {
+		margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.m-views-hint.over { color: var(--accent); }
+
+	/* Wired from ABOVE rather than the side: same line and node, rotated to match a
+	   stacked layout instead of a side-by-side one. */
+	.m-views-below::before {
+		left: 34px; top: calc(var(--wire) * -1);
+		width: 1.5px; height: var(--wire);
+	}
+	/* Straddling the top border instead of the left one, centred on the vertical wire. */
+	.m-views-below::after { left: 30px; top: -4px; right: auto; }
+
+	/* ---- storefront preview ---- */
+	.m-preview { gap: 14px; min-height: 0; }
+	.pv { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+
+	/* The stage takes the slack, exactly as it does on the storefront — the copy and
+	   the buy bar keep their natural height and the picture grows into whatever is left. */
+	.pv-stage {
+		flex: 1; min-height: 190px;
+		display: grid; place-items: center; overflow: hidden;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-stage > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.pv-stage img { display: none; width: 100%; height: 100%; object-fit: contain; }
+	.pv-stage img.ok { display: block; }
+	.pv-stage img.ok ~ .pv-icon { display: none; }
+	.pv-icon { display: grid; place-items: center; color: var(--ink-40); }
+	.pv-icon svg { width: 58px; height: 58px; stroke-width: 1.4; }
+
+	.pv-label {
+		margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .16em; color: var(--ink-40);
+	}
+
+	.pv-views { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+	.pv-views::-webkit-scrollbar { display: none; }
+	/* Landscape, like the frames on the storefront — a portrait chip reads as a button,
+	   a wide one reads as a picture. */
+	.pv-view {
+		position: relative; overflow: hidden;
+		appearance: none; flex: none;
+		width: 124px; aspect-ratio: 16 / 11;
+		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+		padding: 10px; cursor: pointer;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-view.active { background: var(--secondary); }
+	.pv-view-art { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
+	.pv-view-art > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.pv-view-art img { display: none; max-width: 100%; max-height: 100%; object-fit: contain; }
+	.pv-view-art img.ok { display: block; }
+	.pv-view-art img.ok ~ .pv-view-icon { display: none; }
+	.pv-view-icon { color: var(--ink-40); line-height: 0; }
+	.pv-view.active .pv-view-icon { color: var(--primary); }
+	.pv-view-icon svg { width: 26px; height: 26px; stroke-width: 1.6; }
+	.pv-view-label {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-40);
+		max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	.pv-view.active .pv-view-label { color: var(--primary); }
+	/* Pinned to the corner and always ink-on-white-outline, so it stays legible whether
+	   the tile behind it is white or filled. */
+	.pv-view-n {
+		/* Inset from the corner: at 0,0 the tile's own overflow:hidden clips the badge's
+		   top and left borders and it reads as an open-sided box. */
+		position: absolute; top: 5px; left: 5px; z-index: 1;
+		padding: 3px 7px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; font-style: normal; letter-spacing: .06em;
+		color: var(--primary); background: var(--secondary);
+		border: 1px solid var(--primary); border-radius: var(--r);
+	}
+
+	/* ---- pager: arrows, scrub, counter ---- */
+	.pv-pager { display: flex; align-items: center; gap: 10px; }
+	.pv-arrow { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+	.pv-arrow svg { width: 14px; height: 14px; stroke-width: 2.2; }
+	.pv-arrow:disabled { opacity: .3; cursor: not-allowed; }
+	.pv-count {
+		flex: none;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9.5px;
+		font-weight: 400; letter-spacing: .1em; color: var(--ink-40);
+	}
+	/* The live one sits at the head of the track and is the only part that changes. */
+	.pv-cur { color: var(--secondary); }
+
+	/* Native range — drag, keyboard and a11y for free; only the skin is ours, same as
+	   the storefront's pager. */
+	.pv-slider {
+		flex: 1; appearance: none; -webkit-appearance: none;
+		background: transparent; cursor: pointer; height: 18px; margin: 0; min-width: 40px;
+	}
+	.pv-slider::-webkit-slider-runnable-track {
+		height: 2px; background: color-mix(in srgb, var(--secondary) 30%, transparent);
+	}
+	.pv-slider::-webkit-slider-thumb {
+		appearance: none; -webkit-appearance: none;
+		width: 13px; height: 13px; margin-top: -5.5px;
+		background: var(--accent);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-slider::-moz-range-track {
+		height: 2px; background: color-mix(in srgb, var(--secondary) 30%, transparent);
+	}
+	.pv-slider::-moz-range-thumb {
+		width: 13px; height: 13px; box-sizing: border-box;
+		background: var(--accent);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-slider:disabled { opacity: .35; cursor: not-allowed; }
+
+	.pv-name {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 26px; line-height: .98; letter-spacing: -.02em;
+		text-transform: uppercase; color: var(--secondary);
+	}
+	.pv-desc {
+		margin: 0; font-style: italic; font-size: 12.5px; line-height: 1.55; color: var(--ink-60);
+	}
+	/* align-self, as on the storefront: the credit hangs off the right under the copy
+	   rather than starting a new left-aligned line. */
+	.pv-designer {
+		align-self: flex-end;
+		display: flex; align-items: center; gap: 8px; margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.pv-designer:not(:empty)::before { content: ''; width: 16px; height: 1.5px; background: var(--accent); }
+	.pv-designer b { font-weight: 500; color: var(--secondary); }
+
+	.pv-sizes { display: flex; align-items: center; gap: 6px; }
+	/* Labels the row the way the storefront's own size control does. */
+	.pv-opt-label {
+		margin-right: 4px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+		color: var(--ink-40);
+		border-bottom: 1.5px solid var(--hair);
+	}
+	.pv-size {
+		display: grid; place-items: center; min-width: 30px; padding: 6px 4px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 10.5px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-size.on { color: var(--primary); background: var(--secondary); }
+
+	.pv-buy {
+		display: flex; align-items: center; justify-content: center; gap: 11px;
+		padding: 13px;
+		color: var(--primary); background: var(--secondary); border-radius: var(--r);
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 10.5px; letter-spacing: .14em;
+	}
+	.pv-dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+	.pv-price { font-size: 15px; letter-spacing: -.01em; }
+
+	.pv-hidden {
+		margin: 0; padding: 7px 10px; text-align: center;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	.m-draft-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+	.m-draft-toggles { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+	.m-draft-err { margin: 0; font-size: 12px; color: var(--accent); }
+
+	/* The whole tile is the file input's label, so the click target is the picture. */
+	.m-drop {
+		display: grid; place-items: center;
+		height: 116px; cursor: pointer;
+		background: var(--sink);
+		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+		overflow: hidden;
+	}
+	.m-drop > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.m-drop:hover { border-color: var(--accent); }
+	.m-drop-img { display: none; width: 100%; height: 116px; object-fit: cover; }
+	.m-drop-img.ok { display: block; }
+	.m-drop-text {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .12em; text-align: center; color: var(--ink-40);
+		padding: 0 8px;
+	}
+
+	.m-draft-add {
+		align-self: flex-start;
+		display: flex; align-items: center; gap: 8px;
+		padding: 11px 14px;
+		font-size: 10.5px; font-weight: 800; letter-spacing: .12em;
+	}
+
+	/* ---- right: editor ---- */
+	.m-edit-pane { min-height: 0; overflow-y: auto; padding: 24px 30px 30px; }
+	.m-empty { margin: 0; font-size: 13px; color: var(--ink-40); }
+	/* Same three bands as the add form: fixed head, scrolling body, pinned actions. */
+	.m-form { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+	.m-shell[data-task='edit'] .m-edit-pane {
+		overflow: hidden;
+		display: flex; flex-direction: column;
+	}
+	.m-shell[data-task='edit'] .m-form { flex: 1; }
+	.m-edit-scroll {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: flex; flex-direction: column;
+		padding: 4px 6px 4px 4px; margin: -4px -6px -4px -4px;
+	}
+	/* The bento fills the scroll area and both columns stretch to its full height. The
+	   form itself stays content-sized; the views strip below it takes up the slack, so
+	   the space goes to something useful instead of padding the form out. */
+	.m-edit-scroll > .m-bento { flex: 1; min-height: 0; align-items: stretch; }
+	.m-edit-left {
+		display: flex; flex-direction: column; gap: var(--wire);
+		min-width: 0; min-height: 0;
+	}
+	/* The form takes the slack now, not the views strip: the spare height goes into the
+	   description, which is the field that actually benefits from being taller. */
+	.m-edit-left > .m-cell-fields { flex: 1; min-height: 0; }
+	.m-edit-left > .m-views-below { flex: none; }
+	/* The description is the one field allowed to grow; everything else keeps its size. */
+	.m-field-grow { flex: 1; min-height: 0; }
+	.m-field-grow textarea { flex: 1; min-height: 90px; }
+
+	/* Destructive, and styled to say so. Only fills once armed — a permanently red
+	   button in a row of three is just noise until it matters. */
+	.a-btn-danger {
+		box-sizing: border-box; padding: 15px 18px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+		color: var(--accent); border-color: var(--accent);
+	}
+	.a-btn-danger.armed { color: var(--primary); background: var(--accent); }
+	.a-btn-danger:disabled { opacity: .45; cursor: wait; }
+
+	/* ---- bento: details beside the pictures ---- */
+	/* Wired the same way the add form is, and stretched so the two cells end level. */
+	.m-bento {
+		--wire: 30px;
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: var(--wire); align-items: stretch;
+	}
+	.m-cell {
+		position: relative;
+		display: flex; flex-direction: column; gap: 13px;
+		padding: 18px; min-height: 0;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	/* A wire from a source box into the preview. An element rather than a pseudo because
+	   each box needs both a line and a terminal node, and ::before/::after are already
+	   spoken for on the views box by its vertical wire. */
+	.m-wire {
+		position: absolute; right: calc(var(--wire) * -1); top: 34px;
+		width: var(--wire); height: 1.5px;
+		background: var(--secondary);
+	}
+	/* border-box, or the 1.5px border makes the node 11px wide and it lands off-centre.
+	   right:-6 on a 10px node puts its middle 1px past the wire's end — the centre of
+	   the target's 2px border, so the dot sits ON the line rather than beside it. */
+	.m-wire::after {
+		content: ''; position: absolute; box-sizing: border-box;
+		right: -6px; top: 50%; transform: translateY(-50%);
+		width: 10px; height: 10px;
+		background: var(--accent);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.m-cell .a-eyebrow { margin: 0; }
+	.m-cell-media { background: var(--sink); position: relative; }
+
+	/* Three across, rows of a fixed height so however tall the box gets, the tiles stay
+	   the same size and the extra space simply reveals more rows. */
+	.m-shots {
+		--shot: 74px;
+		/* One row on screen, the rest scrolling — the strip is a reference, not the
+		   subject of this pane, so it stays compact. */
+		flex: none; max-height: var(--shot);
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-auto-rows: var(--shot);
+		align-content: start;
+		gap: 10px;
+		overflow-y: auto; overscroll-behavior: contain;
+		padding-right: 2px;
+	}
+
+	/* ---- main image, in the details cell ---- */
+	.m-main-shot {
+		display: grid; place-items: center; overflow: hidden;
+		width: 116px; height: 116px;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.m-main-shot > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.m-main-shot img { display: none; width: 100%; height: 100%; object-fit: cover; }
+	.m-main-shot.ok img { display: block; }
+	.m-main-shot.ok .m-shot-fallback { display: none; }
+	.m-shot { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+	/* The frame keeps its size whether or not the file loads, so the grid never jumps. */
+	.m-shot-frame {
+		display: grid; place-items: center;
+		aspect-ratio: 1; overflow: hidden;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.m-shot-frame > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.m-shot-img { display: none; width: 100%; height: 100%; object-fit: cover; }
+	.m-shot.ok .m-shot-img { display: block; }
+	.m-shot.ok .m-shot-fallback { display: none; }
+	.m-shot-fallback {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .14em; color: var(--ink-40);
+	}
+	.m-shot-cap {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.m-shot-empty { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-40); }
+
+	.m-id {
+		margin: 0; padding: 9px 11px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px;
+		color: var(--secondary); background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	.m-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+	.m-toggles { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
+
+	.m-saved {
+		margin: 0; font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+	}
+
+	/* Sizing only — the chassis is in styles/admin-controls.css. */
+	.m-actions { display: flex; gap: 10px; padding-top: 4px; }
+	.m-save { flex: 1; }
+
+	@media (max-width: 720px) {
+		/* The rail becomes a row of tabs across the top — a 190px column would eat half
+		   a phone screen. */
+		.m-shell { flex-direction: column; }
+		.m-tasks {
+			width: auto; flex-direction: row; gap: 8px;
+			padding: 12px; overflow-x: auto; scrollbar-width: none;
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		}
+		.m-tasks::-webkit-scrollbar { display: none; }
+		.m-task { width: auto; flex: none; padding: 10px 13px; }
+		.m-task-soon { display: none; }
+
+		.m-panes { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+		.m-list-pane {
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+			max-height: 40vh; padding: 16px;
+		}
+		.m-edit-pane { padding: 18px; }
+		.m-row2 { grid-template-columns: 1fr; }
+		/* Stack the bento: side-by-side at phone width would make both halves unusable. */
+		.m-bento { grid-template-columns: 1fr; }
+		.m-draft-body { grid-template-columns: 1fr; }
+		.m-drops { flex-direction: row; }
+		.m-drop { flex: 1; }
+
+		/* The views box drops under its card; the wire would point at nothing, so it
+		   is removed rather than left dangling sideways. */
+		.m-draft-row { grid-template-columns: 1fr; gap: 12px; }
+		.m-views-box::before, .m-views-box::after { display: none; }
+		/* Stacked, the box has no height to fill, so the grid gets an explicit cap of
+		   three rows instead of stretching. */
+		.m-views-grid {
+			flex: none;
+			max-height: calc(var(--tile) * 3 + var(--tgap) * 2);
+		}
+		/* The editor's two columns stack too, so its wire has nothing to span either. */
+		.m-edit-left { gap: 12px; }
+		.m-views-below::before, .m-views-below::after { display: none; }
+		/* Stacked, there is nothing to the right to wire into. */
+		.m-wire { display: none; }
+
+		/* The record's paired blocks stack; its ledger scrolls sideways rather than
+		   crushing six columns into a phone width. */
+		.fr-meta, .fr-total { grid-template-columns: 1fr; }
+		.fr-field { border-right: 0; }
+		.fr-field:nth-last-child(-n + 2) { border-bottom: 1.5px solid var(--hair); }
+		.fr-field:last-child { border-bottom: 0; }
+		.fr-total > div:first-child { border-right: 0; border-bottom: 1.5px solid var(--hair); }
+		/* The ledger scrolls sideways inside its own frame rather than the whole record. */
+		.fr-scroll { overflow-x: auto; }
+		.fr-table { min-width: 460px; }
+		.fr-item { max-width: 130px; }
+	}
+</style>

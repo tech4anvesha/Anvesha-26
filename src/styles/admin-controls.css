@@ -1,0 +1,104 @@
+/* ============================================================
+   ANVESHA '26 — admin form controls
+
+   The retro chassis for inputs, shared by the sign-in page and every panel page.
+   It lives here rather than in a page's <style> block because it is needed by both
+   AdminLayout's children and by /admin, which deliberately does not use AdminLayout.
+   A copy in each was how /admin/merch ended up rendering raw browser defaults.
+   ============================================================ */
+
+/* The UA stylesheet's [hidden]{display:none} loses to any author `display` rule of
+   equal specificity, so a `display: flex` panel stays on screen after being marked
+   hidden — which is how the editor and the add form ended up stacked on top of each
+   other. Declared once here so every future panel is immune rather than each one
+   needing its own guard. */
+[hidden] { display: none !important; }
+
+/* ---- shared furniture (also used by /admin, outside AdminLayout) ---- */
+.a-eyebrow {
+	display: flex; align-items: center; gap: 10px; margin: 0 0 14px;
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+}
+.a-eyebrow::before { content: ''; width: 18px; height: 2px; background: var(--accent); }
+
+.a-note { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-40); font-style: italic; }
+
+.a-err {
+	margin: 0; padding: 11px 13px;
+	font-size: 12.5px; line-height: 1.5;
+	color: var(--primary); background: var(--accent);
+	border: var(--stroke) solid var(--accent); border-radius: var(--r);
+}
+
+/* Labels stack ABOVE their control. Without this the label sits inline and the form
+   reads as a jumble — flex-direction is doing real work, not decoration. */
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field-label {
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+	color: var(--ink-40);
+}
+
+.field-input {
+	appearance: none; -webkit-appearance: none;
+	/* border-box because this project has no global reset: without it `width: 100%`
+	   plus padding and border overflows its container. */
+	box-sizing: border-box; width: 100%;
+	padding: 12px 13px; margin: 0;
+	font-family: 'Archivo', sans-serif; font-size: 13.5px;
+	color: var(--secondary); background: var(--primary);
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	transition: box-shadow .12s ease, transform .12s ease;
+}
+.field-input::placeholder { color: var(--ink-40); }
+.field-input:focus { outline: none; transform: translate(-2px, -2px); box-shadow: var(--pop); }
+/* :user-invalid, not :invalid — :invalid paints every field red before a character
+   has been typed. */
+.field-input:user-invalid { border-color: var(--accent); }
+
+textarea.field-input { resize: vertical; min-height: 78px; line-height: 1.55; }
+
+/* Number spinners are a stray piece of native chrome in an otherwise flat set of
+   controls; the value is typed, not nudged. */
+.field-input[type='number'] { -moz-appearance: textfield; }
+.field-input[type='number']::-webkit-outer-spin-button,
+.field-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- checkbox ---- */
+.a-check {
+	display: flex; align-items: center; gap: 10px;
+	font-size: 13px; color: var(--secondary); cursor: pointer;
+	user-select: none;
+}
+.a-check input {
+	appearance: none; -webkit-appearance: none;
+	flex: none; display: grid; place-items: center;
+	width: 18px; height: 18px; margin: 0;
+	background: var(--primary);
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	cursor: pointer;
+	transition: background .12s ease;
+}
+.a-check input:checked { background: var(--accent); border-color: var(--accent); }
+/* The tick is drawn, not a font glyph, so it cannot shift with the text baseline. */
+.a-check input:checked::after {
+	content: ''; width: 5px; height: 9px; margin-top: -2px;
+	border: solid var(--primary); border-width: 0 2.5px 2.5px 0;
+	transform: rotate(45deg);
+}
+.a-check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- primary/secondary buttons ---- */
+.a-btn-primary {
+	box-sizing: border-box; width: 100%; padding: 15px;
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-weight: 800; font-size: 11.5px; letter-spacing: .14em;
+	color: var(--primary); background: var(--secondary);
+}
+.a-btn-primary:disabled { opacity: .45; cursor: wait; }
+.a-btn-secondary {
+	box-sizing: border-box; padding: 15px 18px;
+	font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+}

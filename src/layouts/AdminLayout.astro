@@ -1,0 +1,90 @@
+---
+/**
+ * Admin shell. Same chassis as the public site — SiteLayout with a different set of
+ * tabs — so there is one layout and one stylesheet to keep in step, not two.
+ *
+ * The client-side gate below is convenience only. Real enforcement is server-side on
+ * every /api/admin route; this just avoids rendering an empty panel to someone who
+ * was never signed in.
+ */
+import SiteLayout from './SiteLayout.astro';
+import '../styles/admin-controls.css';
+
+import iMerch from 'lucide-static/icons/shopping-bag.svg?raw';
+import iEvents from 'lucide-static/icons/calendar-days.svg?raw';
+
+interface Props {
+	title?: string;
+}
+const { title = "Admin — Anvesha '26" } = Astro.props;
+
+const ADMIN_NAV = [
+	{ href: '/admin/merch', label: 'Merch', icon: iMerch },
+	{ href: '/admin/events', label: 'Events', icon: iEvents },
+];
+---
+
+<SiteLayout title={title} nav={ADMIN_NAV} brandHref="/admin/merch" brandTag="ADMIN">
+	<div slot="tools" class="who">
+		<span class="who-name" id="whoName">—</span>
+		<button class="btn signout" id="signOut">SIGN OUT</button>
+	</div>
+
+	<slot />
+</SiteLayout>
+
+<script>
+	import { adminFetch, clearSession, getSession, toLogin } from '../lib/admin';
+
+	// ClientRouter swaps the DOM without re-running module scripts, so this must run on
+	// astro:page-load rather than at module scope — otherwise the header is only wired
+	// up on a full page load and goes dead after any in-app navigation.
+	function initShell() {
+		const session = getSession();
+		if (!session) toLogin();
+
+		const nameEl = document.getElementById('whoName');
+		if (nameEl) nameEl.textContent = `${session!.name} · ${session!.roll_number}`;
+
+		document.getElementById('signOut')?.addEventListener('click', async () => {
+			// Best-effort: the server stamps logout_time so the audit trail shows a real
+			// session length, but a network failure must not trap someone in the panel.
+			await adminFetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
+			clearSession();
+			location.href = '/admin';
+		});
+	}
+
+	// Fires on first load too, so this is the only hook needed.
+	document.addEventListener('astro:page-load', initShell);
+</script>
+
+<style is:global>
+	.who { display: flex; align-items: center; gap: 12px; }
+	.who-name {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .06em; color: var(--ink-60);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw;
+	}
+	.signout {
+		padding: 9px 13px;
+		font-size: 10px; font-weight: 800; letter-spacing: .14em;
+	}
+
+	/* ---- shared admin furniture ---- */
+	.a-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+	.a-head { padding: 26px 30px 18px; border-bottom: var(--stroke) solid var(--secondary); }
+	.a-title {
+		margin: 0; font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 26px; letter-spacing: -.01em; color: var(--secondary);
+	}
+	.a-sub { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	/* .a-eyebrow, .a-note and .a-err live in styles/admin-controls.css — /admin needs
+	   them too and does not render inside this layout. */
+
+	@media (max-width: 720px) {
+		.who-name { display: none; }
+		.a-head { padding: 20px 18px 14px; }
+		.a-title { font-size: 21px; }
+	}
+</style>

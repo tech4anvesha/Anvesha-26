@@ -1,0 +1,42 @@
+---
+/**
+ * Events admin — placeholder.
+ *
+ * Deliberately inert: the tab exists so the shape of the panel is settled, but there is
+ * no events table in D1 yet and nothing here pretends to write one. Building a form
+ * against a schema that does not exist would only have to be thrown away.
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Events — Admin — Anvesha '26">
+	<div class="a-wrap">
+		<div class="a-head">
+			<h1 class="a-title">EVENTS</h1>
+			<p class="a-sub">Event management is not wired up yet.</p>
+		</div>
+
+		<div class="e-body">
+			<div class="e-card">
+				<p class="a-eyebrow">Coming next</p>
+				<p class="e-text">
+					The events page on the storefront is still built from hard-coded content.
+					Once events move into the database, this is where they will be edited —
+					same two-pane shape as Merch.
+				</p>
+				<p class="a-note">Nothing here writes to the database.</p>
+			</div>
+		</div>
+	</div>
+</AdminLayout>
+
+<style is:global>
+	.e-body { flex: 1; min-height: 0; overflow-y: auto; display: grid; place-items: center; padding: 30px 20px; }
+	.e-card {
+		width: min(520px, 100%);
+		padding: 26px;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.e-text { margin: 0 0 14px; font-size: 13.5px; line-height: 1.7; color: var(--ink-60); }
+</style>

@@ -19,13 +19,24 @@ import iOutreach from 'lucide-static/icons/megaphone.svg?raw';
 import iExpo from 'lucide-static/icons/flask-conical.svg?raw';
 import iSponsors from 'lucide-static/icons/handshake.svg?raw';
 
+export interface NavItem {
+	href: string;
+	label: string;
+	icon: string;
+}
+
 interface Props {
 	title?: string;
+	/** Override the tabs — the admin panel ships its own set. Defaults to the site nav. */
+	nav?: NavItem[];
+	/** Where the wordmark points. Admin keeps you inside the panel. */
+	brandHref?: string;
+	/** Small badge beside the wordmark, e.g. "ADMIN". Omitted on the public site. */
+	brandTag?: string;
 }
-const { title = "Anvesha '26" } = Astro.props;
 
 // ponytail: one array, not six copies of the same anchor. Every route here exists.
-const NAV = [
+const SITE_NAV: NavItem[] = [
 	{ href: '/', label: 'Home', icon: iHome },
 	{ href: '/events', label: 'Events', icon: iEvents },
 	{ href: '/merch', label: 'Merch', icon: iMerch },
@@ -33,6 +44,9 @@ const NAV = [
 	{ href: '/expo', label: 'Expo', icon: iExpo },
 	{ href: '/sponsorships', label: 'Sponsorships', icon: iSponsors },
 ];
+
+const { title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag } = Astro.props;
+const NAV = nav;
 // trailing slash stripped so '/merch/' and '/merch' both match
 const here = Astro.url.pathname.replace(/\/$/, '') || '/';
 
@@ -59,7 +73,9 @@ const hasTools = Astro.slots.has('tools');
 	<div id="app">
 		<div class="card">
 			<header class:list={['nav', hasTools && 'has-tools']}>
-				<a class="brand" href="/" transition:name="brand">ANVESHA<sup>'26</sup></a>
+				<a class="brand" href={brandHref} transition:name="brand">
+					ANVESHA<sup>'26</sup>{brandTag && <i class="brand-tag">{brandTag}</i>}
+				</a>
 
 				<nav class="menu" aria-label="Site">
 					{NAV.map((n) => (
@@ -245,6 +261,16 @@ const hasTools = Astro.slots.has('tools');
 		color: var(--secondary); text-decoration: none;
 	}
 	.brand sup { color: var(--accent); font-size: 10px; margin-left: 3px; vertical-align: super; }
+	/* Standing reminder of which side of the site you are on — the panel edits live
+	   prices, so it should never be mistakable for the public storefront. */
+	.brand-tag {
+		font-style: normal; display: inline-block; vertical-align: middle;
+		margin-left: 9px; padding: 3px 7px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; font-weight: 500; letter-spacing: .14em;
+		color: var(--primary); background: var(--accent);
+		border: var(--stroke) solid var(--accent); border-radius: var(--r);
+	}
 
 	.menu { display: flex; align-items: center; gap: 6px; justify-self: end; }
 	.nav.has-tools .menu { justify-self: center; }

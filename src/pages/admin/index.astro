@@ -1,0 +1,117 @@
+---
+/**
+ * Admin sign-in.
+ *
+ * Uses SiteLayout with no tabs at all: there is nowhere to navigate until you are in,
+ * and showing Merch/Events here would just be two links that bounce you back.
+ */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+// Not via AdminLayout: this page deliberately has no tabs and no auth gate.
+import '../../styles/admin-controls.css';
+---
+
+<SiteLayout title="Admin sign-in — Anvesha '26" nav={[]} brandHref="/admin">
+	<div class="login-wrap">
+		<form class="login" id="loginForm" novalidate>
+			<p class="a-eyebrow">Admin access</p>
+			<h1 class="login-title">SIGN IN</h1>
+			<p class="login-sub">
+				Your details are recorded against every change you make.
+			</p>
+
+			<label class="field">
+				<span class="field-label">Full name</span>
+				<input class="field-input" id="fName" name="name" type="text" autocomplete="name"
+				       maxlength="80" required />
+			</label>
+			<label class="field">
+				<span class="field-label">Roll number</span>
+				<input class="field-input" id="fRoll" name="roll_number" type="text"
+				       maxlength="32" required />
+			</label>
+			<label class="field">
+				<span class="field-label">College email</span>
+				<input class="field-input" id="fEmail" name="collegemail" type="email"
+				       autocomplete="email" maxlength="120" placeholder="you@iisertvm.ac.in"
+				       pattern="[^\s@]+@iisertvm\.ac\.in" title="Must be an @iisertvm.ac.in address" required />
+			</label>
+			<label class="field">
+				<span class="field-label">Password</span>
+				<input class="field-input" id="fPassword" name="password" type="password"
+				       autocomplete="current-password" required />
+			</label>
+
+			<p class="a-err" id="loginErr" hidden></p>
+			<button class="btn a-btn-primary loginbtn" id="loginBtn" type="submit">ENTER</button>
+		</form>
+	</div>
+</SiteLayout>
+
+<script>
+	import { API, getSession, saveSession } from '../../lib/admin';
+
+	// Already signed in? Skip straight through rather than making them type it again.
+	if (getSession()) location.href = '/admin/merch';
+
+	const form = document.getElementById('loginForm') as HTMLFormElement;
+	const btn = document.getElementById('loginBtn') as HTMLButtonElement;
+	const err = document.getElementById('loginErr') as HTMLElement;
+	const $ = <T extends HTMLElement = HTMLInputElement>(id: string) => document.getElementById(id) as T;
+
+	form.onsubmit = async (e) => {
+		e.preventDefault();
+		btn.disabled = true;
+		btn.textContent = 'CHECKING…';
+		err.hidden = true;
+
+		try {
+			const res = await fetch(API + '/api/admin/login', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: $('fName').value,
+					roll_number: $('fRoll').value,
+					collegemail: $('fEmail').value,
+					password: $('fPassword').value,
+				}),
+			});
+			const data = await res.json();
+			// The server owns every rule — the browser keeps no second copy of them.
+			if (!res.ok) throw new Error(data.message || data.error || 'Sign-in failed');
+
+			saveSession({ token: data.token, ...data.admin });
+			location.href = '/admin/merch';
+		} catch (e) {
+			err.textContent = (e as Error).message;
+			err.hidden = false;
+			// Never leave a password sitting in a field after a failure.
+			$('fPassword').value = '';
+		} finally {
+			btn.disabled = false;
+			btn.textContent = 'ENTER';
+		}
+	};
+</script>
+
+<style is:global>
+	.login-wrap {
+		flex: 1; min-height: 0; overflow-y: auto;
+		display: grid; place-items: center; padding: 34px 20px;
+	}
+	.login {
+		width: min(420px, 100%);
+		display: flex; flex-direction: column; gap: 14px;
+		padding: 30px;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop-lg);
+	}
+	.login-title {
+		margin: 0; font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 34px; letter-spacing: -.02em; color: var(--secondary);
+	}
+	.login-sub { margin: -4px 0 6px; font-size: 12.5px; line-height: 1.6; color: var(--ink-60); }
+
+	/* Control chassis comes from styles/admin-controls.css — only the size differs here. */
+	.loginbtn { padding: 16px; margin-top: 4px; font-size: 12.5px; }
+</style>

@@ -1,11 +1,15 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
+// The catalogue rail, shared with the admin panel so both browse the same component.
+import '../styles/catalogue-tree.css';
 import chevronLeft from 'lucide-static/icons/chevron-left.svg?raw';
 import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
 import shoppingCart from 'lucide-static/icons/shopping-cart.svg?raw';
 import iX from 'lucide-static/icons/x.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
+// Placeholder for the processing state — swap for real artwork when there is some.
+import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 ---
 
 <SiteLayout title="Merch · Anvesha '26">
@@ -39,7 +43,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 							<p id="pDesigner" class="designer"></p>
 						</div>
 
-						<div class="opt">
+						<div id="opt" class="opt">
 							<button id="sizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
 							<div id="sizes" class="sizes"></div>
 						</div>
@@ -114,8 +118,8 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	</div>
 
 	<div class="drawer-foot">
-		<div class="row"><span>Subtotal</span><span id="cartTotal">₹0</span></div>
-		<div class="row muted"><span>Pickup at fest desk</span><span>FREE</span></div>
+		<div class="row"><span>Total</span><span id="cartTotal">₹0</span></div>
+		<p class="order-err" id="orderErr" hidden></p>
 		<button id="checkout" class="btn checkout" disabled>
 			<span>CHECKOUT</span><span class="chk-arrow" set:html={iArrowRight} />
 		</button>
@@ -143,6 +147,70 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		<p class="modal-note">Inches, garment laid flat. Allow &plusmn;0.5in. Between sizes? Take the larger.</p>
 	</div>
 </div>
+<!-- ============ CHECKOUT POPUP ============ -->
+<!-- Same chassis as the size chart so the shop only ever has one kind of popup.
+     Two faces: details -> paid. The bag stays behind it, untouched. -->
+<div id="payModal" class="modal-wrap" aria-hidden="true">
+	<div class="modal paymodal" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+		<div class="modal-head">
+			<span id="payTitle" class="modal-title">CHECKOUT</span>
+			<button id="payClose" class="btn x" aria-label="Close checkout" set:html={iX}></button>
+		</div>
+
+		<!-- FACE 1: who is buying -->
+		<form id="payForm" class="pay-form" novalidate>
+			<ul class="order-items" id="orderItems"></ul>
+			<div class="order-row"><span>Total</span><b id="orderTotal">₹0</b></div>
+
+			<label class="field">
+				<span class="field-label">Full name</span>
+				<input class="field-input" id="fName" name="name" type="text" autocomplete="name"
+				       maxlength="80" required />
+			</label>
+			<label class="field">
+				<span class="field-label">Phone</span>
+				<input class="field-input" id="fPhone" name="phone" type="tel" inputmode="numeric"
+				       autocomplete="tel" placeholder="10-digit mobile" required />
+			</label>
+			<label class="field">
+				<span class="field-label">College email</span>
+				<input class="field-input" id="fEmail" name="email" type="email" autocomplete="email"
+				       maxlength="120" placeholder="you@iisertvm.ac.in"
+				       pattern="[^\s@]+@iisertvm\.ac\.in" title="Must be an @iisertvm.ac.in address" required />
+			</label>
+
+			<p class="pay-err" id="payErr" hidden></p>
+			<button class="btn paybtn" id="payBtn" type="submit">
+				<span>PAY</span><span class="buy-dot" aria-hidden="true"></span><b id="payAmount">₹0</b>
+			</button>
+		</form>
+
+		<!-- FACE 2: settling — replaces the form so the details cannot be edited mid-flight -->
+		<div id="processing" class="processing" hidden>
+			<span class="proc-icon" set:html={iProcessing} />
+			<p class="proc-label">Processing payment</p>
+			<div id="payProgress" class="pay-progress" role="progressbar"
+			     aria-label="Payment progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+				{Array.from({ length: 14 }).map(() => <span class="seg" />)}
+			</div>
+		</div>
+
+		<!-- FACE 3: paid — the collection ticket -->
+		<div id="receipt" class="receipt" hidden>
+			<canvas id="qrCanvas" class="qr" width="220" height="220" aria-label="Order QR code"></canvas>
+			<p class="order-id" id="orderId">ORD_</p>
+			<ul class="order-items" id="receiptItems"></ul>
+			<div class="order-row"><span>Name</span><b id="receiptName"></b></div>
+			<div class="order-row"><span>Transaction</span><b class="txn" id="txnId">TXN_</b></div>
+			<div class="order-row"><span>Total</span><b id="paidTotal">₹0</b></div>
+			<p class="order-note">
+				Take a screenshot of this QR code as proof of payment.
+			</p>
+			<button class="btn qrdl" id="qrDownload">DOWNLOAD</button>
+			<button class="btn orderback" id="receiptDone">DONE</button>
+		</div>
+	</div>
+</div>
 <!-- ============ MOBILE: product sheet ============ -->
 <div id="mSheet" class="m-sheet" aria-hidden="true">
 	<div class="m-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="mName">
@@ -160,7 +228,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		<p id="mDesc" class="m-desc"></p>
 		<p id="mDesigner" class="designer m-designer"></p>
 
-		<div class="m-opt">
+		<div id="mOpt" class="m-opt">
 			<button id="mSizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
 			<div id="mSizes" class="sizes"></div>
 		</div>
@@ -179,200 +247,109 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 
 <script>
 	import { gsap } from 'gsap';
+	import qrcode from 'qrcode-generator';
+	// Shared with the admin panel: one socket helper, one reconnect policy.
+	import { onCatalogueChange } from '../lib/admin';
 
 	// lucide-static ships each icon as a standalone SVG; ?raw hands us the markup to inject.
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 	import iMinus from 'lucide-static/icons/minus.svg?raw';
 	import iPlus from 'lucide-static/icons/plus.svg?raw';
-	import shirt from 'lucide-static/icons/shirt.svg?raw';
-	import flip from 'lucide-static/icons/flip-horizontal.svg?raw';
-	import microscope from 'lucide-static/icons/microscope.svg?raw';
-	import scissors from 'lucide-static/icons/scissors.svg?raw';
-	import hardHat from 'lucide-static/icons/hard-hat.svg?raw';
-	import shoppingBag from 'lucide-static/icons/shopping-bag.svg?raw';
+	// Category fallbacks. No images are in R2 yet, and an item may never get one —
+	// these draw instead of a broken-image box. See artHTML().
+	import icApparel from 'lucide-static/icons/shirt.svg?raw';
+	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
+	import icStationery from 'lucide-static/icons/notebook.svg?raw';
 	import pkg from 'lucide-static/icons/package.svg?raw';
-	import coffee from 'lucide-static/icons/coffee.svg?raw';
-	import sparkles from 'lucide-static/icons/sparkles.svg?raw';
-	import award from 'lucide-static/icons/award.svg?raw';
-	import mapPin from 'lucide-static/icons/map-pin.svg?raw';
-	import notebook from 'lucide-static/icons/notebook.svg?raw';
-	import fileText from 'lucide-static/icons/file-text.svg?raw';
-	import sticker from 'lucide-static/icons/sticker.svg?raw';
-	import scanSearch from 'lucide-static/icons/scan-search.svg?raw';
-	import layers from 'lucide-static/icons/layers.svg?raw';
-	import palette from 'lucide-static/icons/palette.svg?raw';
-	import tag from 'lucide-static/icons/tag.svg?raw';
-	import ruler from 'lucide-static/icons/ruler.svg?raw';
-	import droplets from 'lucide-static/icons/droplets.svg?raw';
-	import printer from 'lucide-static/icons/printer.svg?raw';
-	import penTool from 'lucide-static/icons/pen-tool.svg?raw';
-	import bookOpen from 'lucide-static/icons/book-open.svg?raw';
-	import qrCode from 'lucide-static/icons/qr-code.svg?raw';
-	import box from 'lucide-static/icons/box.svg?raw';
-	import grid2x2 from 'lucide-static/icons/grid-2x2.svg?raw';
-	import rotateCw from 'lucide-static/icons/rotate-cw.svg?raw';
-	import spool from 'lucide-static/icons/spool.svg?raw';
-	import bookmark from 'lucide-static/icons/bookmark.svg?raw';
-	import highlighter from 'lucide-static/icons/highlighter.svg?raw';
-	import circleDot from 'lucide-static/icons/circle-dot.svg?raw';
-	import sun from 'lucide-static/icons/sun.svg?raw';
-	import move3d from 'lucide-static/icons/move-3d.svg?raw';
-	import footprints from 'lucide-static/icons/footprints.svg?raw';
-	import flask from 'lucide-static/icons/flask-conical.svg?raw';
-	import wind from 'lucide-static/icons/wind.svg?raw';
-	import glassWater from 'lucide-static/icons/glass-water.svg?raw';
-	import ribbon from 'lucide-static/icons/ribbon.svg?raw';
-	import image from 'lucide-static/icons/image.svg?raw';
-	import pencil from 'lucide-static/icons/pencil.svg?raw';
-	import presentation from 'lucide-static/icons/presentation.svg?raw';
 
-	type View = { label: string; icon: string };
-	type Item = { id: string; name: string; price: number; desc: string; designer: string; sizes?: string[]; views: View[] };
+	// The API base. Override with PUBLIC_API_BASE in .env when the worker moves.
+	const API = (import.meta.env.PUBLIC_API_BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+
+	// `url` is absent only for an item with no pictures at all, where the category icon
+	// stands in — see artHTML().
+	type View = { label: string; icon: string; url?: string };
+	type Item = {
+		id: string; name: string; desc: string; designer: string;
+		price_paise: number; has_size: boolean; image_url: string;
+		icon: string; views: View[];
+	};
 	type Cat = { id: string; name: string; items: Item[] };
 
-	// ponytail: hardcoded catalog. Icons stand in for photography — swap View.icon for an
-	// <img src> when real art exists; nothing else has to change.
+	/** Shape returned by GET /api/merch. */
+	type ApiMerch = {
+		id: string; name: string; description: string; designer: string;
+		category: string; price_paise: number; has_size: boolean; image_url: string;
+		views?: { label: string; url: string }[];
+	};
+
 	const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
-	const catalog: Cat[] = [
-		{ id: 'apparel', name: 'Apparel', items: [
-			{ id: 'tee', name: 'Anvesha Tee', price: 499,
-				desc: "Mid-weight combed cotton, boxy cut. Screen-printed lab schematic across the chest, the one that started the whole fest.",
-				designer: 'Ananya Rao', views: [
-				{ label: 'Front', icon: shirt }, { label: 'Back', icon: flip },
-				{ label: 'Detail', icon: scanSearch }, { label: 'Fabric', icon: layers },
-				{ label: 'Print', icon: palette }, { label: 'Label', icon: tag },
-				{ label: 'Sizing', icon: ruler },
-			]},
-			{ id: 'hoodie', name: 'Retro Hoodie', price: 999,
-				desc: "Heavyweight brushed fleece with a double-lined hood and ribbed cuffs. Cut a little roomy, entirely on purpose.",
-				designer: 'Kabir Menon', views: [
-				{ label: 'Front', icon: shirt }, { label: 'Back', icon: flip },
-				{ label: 'Hood', icon: circleDot }, { label: 'Cuff', icon: scissors },
-				{ label: 'Fabric', icon: layers }, { label: 'Drawcord', icon: spool },
-				{ label: 'Care', icon: droplets },
-			]},
-			{ id: 'cap', name: 'Field Cap', price: 399,
-				desc: "Six-panel cotton twill, curved brim, brass adjuster at the back. Arrives already feeling broken in.",
-				designer: 'Ishaan Dutta', views: [
-				{ label: 'Front', icon: hardHat }, { label: 'Side', icon: flip },
-				{ label: 'Crown', icon: rotateCw }, { label: 'Stitch', icon: spool },
-				{ label: 'Strap', icon: ruler }, { label: 'Label', icon: tag },
-			]},
-			{ id: 'windbreaker', name: 'Windbreaker', price: 1499,
-				desc: "Featherweight ripstop shell that packs into its own chest pocket. Taped seams and a storm hood for open-ground days.",
-				designer: 'Meera Krishnan', views: [
-				{ label: 'Front', icon: wind }, { label: 'Back', icon: flip },
-				{ label: 'Hood', icon: circleDot }, { label: 'Zip', icon: scissors },
-				{ label: 'Fabric', icon: layers }, { label: 'Care', icon: droplets },
-			]},
-			{ id: 'labcoat', name: 'Lab Coat', price: 1299,
-				desc: "Full-length poplin with three deep pockets and a vented back. Sized to layer cleanly over a hoodie.",
-				designer: 'Rhea Bhatt', views: [
-				{ label: 'Front', icon: flask }, { label: 'Back', icon: flip },
-				{ label: 'Pocket', icon: box }, { label: 'Fabric', icon: layers },
-				{ label: 'Stitch', icon: spool }, { label: 'Label', icon: tag },
-			]},
-			{ id: 'socks', name: 'Crew Socks', price: 199,
-				desc: "Ribbed combed-cotton crew with a cushioned sole and the mark woven into the ankle, never printed on.",
-				designer: 'Arjun Nair', views: [
-				{ label: 'Front', icon: footprints }, { label: 'Pair', icon: flip },
-				{ label: 'Cuff', icon: spool }, { label: 'Fabric', icon: layers },
-				{ label: 'Sizing', icon: ruler }, { label: 'Label', icon: tag },
-			]},
-		]},
-		{ id: 'accessories', name: 'Accessories', items: [
-			{ id: 'tote', name: 'Canvas Tote', price: 349,
-				desc: "12oz natural canvas, boxed corners, webbing handles cut long enough to clear a shoulder. Takes a laptop and a lab file.",
-				designer: 'Sanya Kulkarni', views: [
-				{ label: 'Front', icon: shoppingBag }, { label: 'Back', icon: flip },
-				{ label: 'Inside', icon: pkg }, { label: 'Handle', icon: spool },
-				{ label: 'Print', icon: palette }, { label: 'Fabric', icon: layers },
-			]},
-			{ id: 'mug', name: 'Cosmos Mug', price: 299,
-				desc: "Glazed stoneware, 350ml, full-wrap starfield that runs under the handle. Dishwasher-safe and microwave-brave.",
-				designer: 'Dev Chatterjee', views: [
-				{ label: 'Front', icon: coffee }, { label: 'Wrap', icon: rotateCw },
-				{ label: 'Print', icon: sparkles }, { label: 'Handle', icon: move3d },
-				{ label: 'Base', icon: circleDot }, { label: 'Care', icon: droplets },
-			]},
-			{ id: 'badges', name: 'Badge Set', price: 199,
-				desc: "Five hard-enamel pins on a printed backing card. Butterfly clutches throughout, no cheap rubber studs.",
-				designer: 'Tara Iyer', views: [
-				{ label: 'Set', icon: award }, { label: 'Pin', icon: mapPin },
-				{ label: 'Face', icon: circleDot }, { label: 'Back', icon: flip },
-				{ label: 'Finish', icon: sun }, { label: 'Pack', icon: box },
-			]},
-			{ id: 'bottle', name: 'Steel Bottle', price: 599,
-				desc: "Double-walled 18/8 steel, 750ml. Twelve hours cold, six hot, and no condensation ring on your notes.",
-				designer: 'Nikhil Shah', views: [
-				{ label: 'Front', icon: glassWater }, { label: 'Cap', icon: rotateCw },
-				{ label: 'Print', icon: palette }, { label: 'Base', icon: circleDot },
-				{ label: 'Care', icon: droplets }, { label: 'Pack', icon: box },
-			]},
-			{ id: 'pouch', name: 'Tech Pouch', price: 449,
-				desc: "Padded shell with a ripstop lining and a chunky metal zip. Swallows a charger, three cables and a mouse.",
-				designer: 'Priya Ramesh', views: [
-				{ label: 'Front', icon: shoppingBag }, { label: 'Inside', icon: pkg },
-				{ label: 'Zip', icon: scissors }, { label: 'Fabric', icon: layers },
-				{ label: 'Print', icon: palette }, { label: 'Label', icon: tag },
-			]},
-			{ id: 'lanyard', name: 'Lanyard', price: 149,
-				desc: "Woven polyester with a metal swivel clip and a breakaway at the nape, because a lanyard should always let go.",
-				designer: 'Aditya Bose', views: [
-				{ label: 'Front', icon: ribbon }, { label: 'Clip', icon: circleDot },
-				{ label: 'Print', icon: palette }, { label: 'Length', icon: ruler },
-				{ label: 'Pack', icon: box },
-			]},
-		]},
-		{ id: 'stationery', name: 'Stationery', items: [
-			{ id: 'notebook', name: 'Lab Notebook', price: 249,
-				desc: "A5 dot-grid on 160gsm stock that lies flat at any page. Numbered throughout with an index left blank for you.",
-				designer: 'Naina Verma', views: [
-				{ label: 'Cover', icon: notebook }, { label: 'Open', icon: bookOpen },
-				{ label: 'Pages', icon: fileText }, { label: 'Grid', icon: grid2x2 },
-				{ label: 'Spine', icon: bookmark }, { label: 'Print', icon: printer },
-				{ label: 'Detail', icon: microscope },
-			]},
-			{ id: 'stickers', name: 'Sticker Pack', price: 149,
-				desc: "Twelve die-cut vinyl stickers, laminated and genuinely weatherproof. Will outlive the laptop you put them on.",
-				designer: 'Rohan Pillai', views: [
-				{ label: 'Sheet', icon: sticker }, { label: 'Peel', icon: scissors },
-				{ label: 'Artwork', icon: penTool }, { label: 'Finish', icon: highlighter },
-				{ label: 'Pack', icon: box }, { label: 'Scan', icon: qrCode },
-			]},
-			{ id: 'poster', name: 'Poster Set', price: 299,
-				desc: "Three A2 prints on 200gsm uncoated stock, shipped rolled in a rigid tube rather than folded flat.",
-				designer: 'Zoya Ahmed', views: [
-				{ label: 'Front', icon: image }, { label: 'Detail', icon: scanSearch },
-				{ label: 'Paper', icon: layers }, { label: 'Print', icon: printer },
-				{ label: 'Size', icon: ruler }, { label: 'Pack', icon: box },
-			]},
-			{ id: 'deskmat', name: 'Desk Mat', price: 699,
-				desc: "900 by 400mm with stitched edges, a micro-textured surface and a base that refuses to travel.",
-				designer: 'Vikram Sethi', views: [
-				{ label: 'Front', icon: presentation }, { label: 'Surface', icon: grid2x2 },
-				{ label: 'Edge', icon: spool }, { label: 'Print', icon: palette },
-				{ label: 'Size', icon: ruler }, { label: 'Pack', icon: box },
-			]},
-			{ id: 'pens', name: 'Pen Pack', price: 99,
-				desc: "Four 0.5mm gel pens loaded with archival ink. Dries fast enough for left-handers, never bleeds through.",
-				designer: 'Ira Mukherjee', views: [
-				{ label: 'Front', icon: pencil }, { label: 'Nib', icon: penTool },
-				{ label: 'Ink', icon: droplets }, { label: 'Grip', icon: circleDot },
-				{ label: 'Pack', icon: box },
-			]},
-		]},
-	];
+
+	const CATEGORY_ICON: Record<string, string> = {
+		apparel: icApparel, accessories: icAccessories, stationery: icStationery,
+	};
+
+	// ponytail: the catalogue is now server state, so it starts empty and is filled by
+	// loadCatalog(). Everything downstream already read from this array, so nothing else
+	// had to change shape.
+	let catalog: Cat[] = [];
+
+	/** Money lives in paise end to end; rupees exist only for display. */
+	const rupees = (paise: number) =>
+		'₹' + (paise % 100 === 0 ? String(paise / 100) : (paise / 100).toFixed(2));
+
+	async function loadCatalog(): Promise<Cat[]> {
+		const res = await fetch(API + '/api/merch');
+		if (!res.ok) throw new Error('Catalogue request failed: ' + res.status);
+		const { merch } = (await res.json()) as { merch: ApiMerch[] };
+
+		// Group into the tree's category buckets, preserving the order the API sent.
+		const byCat = new Map<string, Cat>();
+		for (const m of merch) {
+			const key = m.category.toLowerCase();
+			if (!byCat.has(key)) byCat.set(key, { id: key, name: m.category, items: [] });
+			byCat.get(key)!.items.push({
+				id: m.id,
+				name: m.name,
+				desc: m.description,
+				designer: m.designer,
+				price_paise: m.price_paise,
+				has_size: m.has_size,
+				image_url: m.image_url,
+				icon: CATEGORY_ICON[key] ?? pkg,
+				// One view per stored image, primary first. The category icon rides along
+				// on each so a view whose file is missing from R2 still draws something.
+				views: (m.views?.length ? m.views : [{ label: 'Front', url: m.image_url }]).map((v) => ({
+					label: v.label,
+					url: v.url,
+					icon: CATEGORY_ICON[key] ?? pkg,
+				})),
+			});
+		}
+		return [...byCat.values()];
+	}
+
+	/**
+	 * Image with an icon underneath it. The <img> stays hidden until it actually loads,
+	 * so an item with no file in R2 shows its category icon rather than a broken box.
+	 */
+	function artHTML(it: Item, view = 0): string {
+		const url = it.views[view]?.url ?? it.image_url;
+		// NOT loading="lazy": .art-img starts at display:none and only becomes visible in
+		// its onload. A lazy image with no layout box never intersects the viewport, so
+		// the browser never fetches it, so onload never fires — the image would stay
+		// hidden forever and every item would show its category icon instead.
+		return `<img class="art-img" src="${API}${url}" alt=""
+		             onload="this.classList.add('ok')" /><span class="art-icon">${it.icon}</span>`;
+	}
 
 	// ponytail: Astro-processed module scripts run ONCE per browser session. With the
 	// client router that means a second visit to /merch would render markup with no
 	// behaviour at all — dead tree, dead cart. Everything below re-runs on
 	// astro:page-load against the freshly swapped DOM.
-	// The catalogue above stays at module scope: it is pure data and never changes.
 	let ac: AbortController | null = null;
 	let inited: HTMLElement | null = null;
 
-	function initMerch() {
+	async function initMerch() {
 		const tree = document.getElementById('tree');
 		// not the merch page, or this exact DOM is already wired
 		if (!tree || tree === inited) return;
@@ -393,28 +370,41 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		const mAdd = $<HTMLButtonElement>('mAdd'), mSizeBtn = $<HTMLButtonElement>('mSizeBtn');
 
 		// ---- cart ----
-		type CartLine = { name: string; price: number; qty: number };
+		// ponytail: a line stores ONLY what the API accepts — {merch_id, quantity, size}.
+		// No name, no price. Everything shown is looked up live from the catalogue, so a
+		// stale cart cannot display a price the server would not honour, and an item
+		// pulled from sale simply drops out instead of lingering as a phantom.
+		type CartLine = { merch_id: string; quantity: number; size: string | null };
 
-		// ponytail: derive the thumbnail from the cart key instead of persisting SVG markup —
-		// keys are `itemId:size`, so the icon is already recoverable. Keeps localStorage small
-		// and means an icon swap in the catalog reaches carts saved before the change.
-		const iconFor = (key: string) =>
-			catalog.flatMap((c) => c.items).find((i) => i.id === key.split(':')[0])?.views[0].icon ?? pkg;
 		const KEY = 'anvesha-cart';
+		const cartKey = (merchId: string, sz: string | null) => merchId + '::' + (sz ?? '');
+		const itemById = (id: string) => catalog.flatMap((c) => c.items).find((i) => i.id === id);
+
 		let cart: Record<string, CartLine> = (() => {
-			try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+			try {
+				const raw = JSON.parse(localStorage.getItem(KEY) || '{}');
+				// Drop anything that is not the current shape — an older cart from before
+				// the API existed would otherwise poison every price on the page.
+				return Object.fromEntries(
+					Object.entries(raw as Record<string, CartLine>).filter(
+						([, l]) => l && typeof l.merch_id === 'string' && Number.isInteger(l.quantity),
+					),
+				);
+			} catch {
+				return {};
+			}
 		})();
 		const saveCart = () => localStorage.setItem(KEY, JSON.stringify(cart));
 
 		// ---- state ----
-		let catId = catalog[0].id;
+		let catId = '';
 		let item: Item | null = null;
 		let viewIdx = 0;
 		let size: string | null = null;
 
 		// ---- catalogue tree ----
 		const treeEl = $('tree'), crumbCount = $('crumbCount');
-		let openCat: string | null = catalog[0].id; // accordion — one branch open at a time
+		let openCat: string | null = null; // accordion — one branch open at a time
 
 		// ponytail: the catalogue is static, so the tree is built ONCE and every branch keeps
 		// its rows in the DOM. Rebuilding on each toggle is what made collapsing impossible
@@ -451,7 +441,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 					b.innerHTML =
 						`<i class="tnum">${pad(ii + 1)}</i>` +
 						`<span class="tname">${it.name}</span>` +
-						`<b class="tmeta tprice">₹${it.price}</b>`;
+						`<b class="tmeta tprice">${rupees(it.price_paise)}</b>`;
 					b.onclick = () => selectItem(it);
 					kids.appendChild(b);
 				});
@@ -523,12 +513,13 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		const pNameEl = $('pName'), pDescEl = $('pDesc'), pPriceEl = $('pPrice');
 		const pDesignerEl = $('pDesigner');
 		const addBtn = $<HTMLButtonElement>('addBtn'), sizesEl = $('sizes');
+		const optEl = $('opt'), mOptEl = $('mOpt');
 
 		function selectItem(it: Item) {
 			item = it; viewIdx = 0;
 			catId = catalog.find((c) => c.items.some((x) => x.id === it.id))!.id;
 			openCat = catId; // selecting inside a closed branch opens it, closing the others
-			size = (it.sizes ?? SIZES)[0];
+			size = it.has_size ? SIZES[0] : null;
 			syncTree(); renderHero(); renderSizes(); renderViews();
 			animateSelect();
 		}
@@ -536,7 +527,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		function renderHero() {
 			if (!item) return;
 			const v = item.views[viewIdx];
-			stageViewEl.innerHTML = `<span class="big">${v.icon}</span>`;
+			stageViewEl.innerHTML = `<span class="big art">${artHTML(item, viewIdx)}</span>`;
 			stageLabelEl.textContent = `${pad(viewIdx + 1)} / ${v.label}`;
 			// ponytail: two-line split so long names break like the reference. One word = one line.
 			const parts = item.name.split(' ');
@@ -545,15 +536,18 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 				: item.name;
 			pDescEl.textContent = item.desc;
 			pDesignerEl.innerHTML = `Design <b>${item.designer}</b>`;
-			pPriceEl.textContent = '₹' + item.price;
+			pPriceEl.textContent = rupees(item.price_paise);
 			addBtn.disabled = false;
+			// the size row only exists for items the catalogue says are sized
+			optEl.hidden = !item.has_size;
+			mOptEl.hidden = !item.has_size;
 
 			// mirror into the mobile sheet — one state, two presentations
-			mStage.innerHTML = `<span class="big">${v.icon}</span>`;
+			mStage.innerHTML = `<span class="big art">${artHTML(item, viewIdx)}</span>`;
 			mName.textContent = item.name;
 			mDesc.textContent = item.desc;
 			mDesigner.innerHTML = `Design <b>${item.designer}</b>`;
-			mPrice.textContent = '₹' + item.price;
+			mPrice.textContent = rupees(item.price_paise);
 			// ponytail: scale only, never opacity — see animateSelect().
 			// overwrite so dragging the slider restarts the pop instead of stacking tweens
 			if (!rm) gsap.fromTo(stageViewEl.querySelector('.big'),
@@ -566,7 +560,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		// more, and would drift the moment either side changed.
 		const sizeHosts = [sizesEl, mSizes];
 		function renderSizes() {
-			const list = item?.sizes ?? SIZES; // ponytail: every item is sizeable
+			const list = item?.has_size ? SIZES : []; // has_size is the catalogue's call, not ours
 			for (const host of sizeHosts) {
 				host.innerHTML = '';
 				for (const s of list) {
@@ -598,7 +592,16 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 					const b = document.createElement('button');
 					b.className = 'btn vbox';
 					b.setAttribute('role', 'tab');
-					b.innerHTML = `<span class="vicon">${v.icon}</span><small class="vlabel">${v.label}</small><i class="vnum">${pad(i + 1)}</i>`;
+					// Same trick as the stage: the thumbnail only appears once it loads, so
+					// a view with nothing in R2 shows the category icon instead of a break.
+					b.innerHTML =
+						`<span class="vicon art">` +
+						(v.url
+							? `<img class="art-img vthumb" src="${API}${v.url}" alt=""
+							        onload="this.classList.add('ok')" />`
+							: '') +
+						`<span class="art-icon">${v.icon}</span></span>` +
+						`<small class="vlabel">${v.label}</small><i class="vnum">${pad(i + 1)}</i>`;
 					b.onclick = () => goView(i);
 					track.appendChild(b);
 				});
@@ -666,14 +669,12 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 
 		function addToBag() {
 			if (!item) return;
-			const key = item.id + (size ? ':' + size : '');
-			cart[key] ??= {
-				name: item.name + (size ? ' · ' + size : ''),
-				price: item.price,
-				qty: 0,
-			};
-			cart[key].qty++;
-			saveCart(); renderCart(); openCart(true);
+			const key = cartKey(item.id, size);
+			cart[key] ??= { merch_id: item.id, quantity: 0, size };
+			cart[key].quantity++;
+			// Adding an item only bumps the counter — it does not yank the shopper into
+			// the bag. They open it deliberately, via the bag button, when ready.
+			saveCart(); renderCart();
 			if (!rm) gsap.fromTo('#cartCount, #cartCount2', { scale: 1.8 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' });
 		}
 		addBtn.onclick = addToBag;
@@ -683,35 +684,38 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		const cartEl = $('cart'), scrim = $('scrim');
 		const cartItemsEl = $('cartItems'), cartEmptyEl = $('cartEmpty');
 		const cartTotalEl = $('cartTotal'), cartCountEl = $('cartCount'), cartCount2El = $('cartCount2');
-		const checkoutEl = $<HTMLButtonElement>('checkout');
+		const checkoutEl = $<HTMLButtonElement>('checkout'), orderErr = $('orderErr');
 		gsap.set(cartEl, { xPercent: 100, visibility: 'visible' });
 		gsap.set(scrim, { autoAlpha: 0 });
 
 		function renderCart() {
-			const ids = Object.keys(cart);
 			cartItemsEl.innerHTML = '';
 			let total = 0, count = 0;
-			for (const id of ids) {
-				const it = cart[id];
-				total += it.price * it.qty; count += it.qty;
+			// A line whose item has vanished from the catalogue is dropped, not drawn.
+			for (const [key, line] of Object.entries(cart)) {
+				const it = itemById(line.merch_id);
+				if (!it) { delete cart[key]; continue; }
+
+				const lineTotal = it.price_paise * line.quantity;
+				total += lineTotal; count += line.quantity;
+
 				const li = document.createElement('li');
 				li.innerHTML = `
-					<span class="cthumb">${iconFor(id)}</span>
 					<span class="cmeta">
-						<span class="cn">${it.name}</span>
-						<span class="cu">₹${it.price} each</span>
+						<span class="cn">${it.name}${line.size ? ' · ' + line.size : ''}</span>
 					</span>
 					<span class="cq">
-						<button class="btn" data-act="dec" data-id="${id}" aria-label="Decrease quantity">${iMinus}</button>
-						<b>${it.qty}</b>
-						<button class="btn" data-act="inc" data-id="${id}" aria-label="Increase quantity">${iPlus}</button>
+						<button class="btn" data-act="dec" data-id="${key}" aria-label="Decrease quantity">${iMinus}</button>
+						<b>${line.quantity}</b>
+						<button class="btn" data-act="inc" data-id="${key}" aria-label="Increase quantity">${iPlus}</button>
 					</span>
-					<span class="cl">₹${it.price * it.qty}</span>`;
+					<span class="cl">${rupees(lineTotal)}</span>`;
 				cartItemsEl.appendChild(li);
 			}
+			const ids = Object.keys(cart);
 			cartEmptyEl.style.display = ids.length ? 'none' : 'flex';
 			cartItemsEl.style.display = ids.length ? 'flex' : 'none';
-			cartTotalEl.textContent = '₹' + total;
+			cartTotalEl.textContent = rupees(total);
 			cartCountEl.textContent = String(count);
 			cartCount2El.textContent = String(count);
 			checkoutEl.disabled = ids.length === 0;
@@ -721,8 +725,8 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 			const t = (e.target as HTMLElement).closest('button');
 			if (!t) return;
 			const id = t.dataset.id!;
-			if (t.dataset.act === 'inc') cart[id].qty++;
-			else if (--cart[id].qty <= 0) delete cart[id];
+			if (t.dataset.act === 'inc') cart[id].quantity++;
+			else if (--cart[id].quantity <= 0) delete cart[id];
 			saveCart(); renderCart();
 		});
 
@@ -760,18 +764,287 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		sizeBtn.onclick = () => openSize(true);
 		$('sizeClose').onclick = () => openSize(false);
 
-		scrim.onclick = () => (sizeOpen ? openSize(false) : openCart(false));
+		scrim.onclick = () => {
+			if (payOpen) openPay(false);
+			else if (sizeOpen) openSize(false);
+			else openCart(false);
+		};
 		addEventListener('keydown', (e) => {
 			if (e.key !== 'Escape') return;
-			if (sizeOpen) openSize(false);
+			if (payOpen) openPay(false);
+			else if (sizeOpen) openSize(false);
 			else if (sheetOpen) openSheet(false);
 			else if (cartOpen) openCart(false);
 		}, { signal });
 
-		checkoutEl.onclick = () => {
-			// ponytail: no gateway yet — confirm + clear. Wire Razorpay when live.
-			alert(`Order total ${cartTotalEl.textContent}. Payment coming soon.`);
-			cart = {}; saveCart(); renderCart(); openCart(false);
+		// ---- checkout: cart -> details -> paid ----
+		// The drawer has three faces; `stage` decides which one shows. Keeping it on one
+		// attribute means the CSS owns the switching and no two faces can be open at once.
+		const payForm = $<HTMLFormElement>('payForm'), receiptEl = $('receipt');
+		const orderItems = $('orderItems'), orderTotal = $('orderTotal'), payAmount = $('payAmount');
+		const orderIdEl = $('orderId'), txnIdEl = $('txnId'), paidTotal = $('paidTotal');
+		const receiptItemsEl = $('receiptItems'), receiptNameEl = $('receiptName');
+		const payErr = $('payErr'), payBtn = $<HTMLButtonElement>('payBtn');
+		const processingEl = $('processing'), payProgress = $('payProgress');
+		const segs = [...payProgress.querySelectorAll<HTMLElement>('.seg')];
+		const fName = $<HTMLInputElement>('fName'), fPhone = $<HTMLInputElement>('fPhone');
+		const fEmail = $<HTMLInputElement>('fEmail');
+		const qrCanvas = $<HTMLCanvasElement>('qrCanvas');
+
+		let segTimer = 0;
+		function setSegs(n: number) {
+			segs.forEach((s, i) => s.classList.toggle('on', i < n));
+			payProgress.setAttribute('aria-valuenow', String(Math.round((n / segs.length) * 100)));
+		}
+		/** Lights tiles one at a time, holding the last one back until the server answers. */
+		function startProgress() {
+			setSegs(0);
+			let i = 0;
+			clearInterval(segTimer);
+			segTimer = setInterval(() => {
+				if (i >= segs.length - 1) return;
+				setSegs(++i);
+			}, 110) as unknown as number;
+		}
+		function finishProgress() { clearInterval(segTimer); setSegs(segs.length); }
+		function resetProgress() { clearInterval(segTimer); setSegs(0); }
+		resetProgress();
+
+		let currentOrder: string | null = null;
+		type ReceiptData = {
+			order_id: string; transaction_id: string; total_price_paise: number;
+			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
+			name: string;
+		};
+		let lastReceipt: ReceiptData | null = null;
+
+		// The popup has three faces; `face` decides which one shows. Driving all three from
+		// one call means two can never be on screen together.
+		const payModal = $('payModal'), payPanel = payModal.querySelector('.modal') as HTMLElement;
+		const payTitle = $('payTitle'), payClose = $<HTMLButtonElement>('payClose');
+		let payOpen = false;
+		gsap.set(payModal, { autoAlpha: 0 });
+		gsap.set(payPanel, { scale: 0.96 });
+
+		const TITLES = { details: 'CHECKOUT', processing: 'PROCESSING', paid: 'PAID' };
+		function setFace(face: 'details' | 'processing' | 'paid') {
+			payForm.hidden = face !== 'details';
+			processingEl.hidden = face !== 'processing';
+			receiptEl.hidden = face !== 'paid';
+			payTitle.textContent = TITLES[face];
+			// No bailing out mid-payment: the money is already moving and closing here
+			// would strand the shopper with no order id and no receipt.
+			payClose.disabled = face === 'processing';
+		}
+		setFace('details');
+
+		function openPay(on: boolean) {
+			payOpen = on;
+			payModal.setAttribute('aria-hidden', String(!on));
+			// Locks everything behind the popup — including the bag drawer, which sits
+			// above the scrim in stacking order and would otherwise stay clickable through it.
+			document.body.classList.toggle('pay-lock', on);
+			gsap.to(payModal, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
+			gsap.to(payPanel, { scale: on ? 1 : 0.96, duration: rm ? 0 : 0.26, ease: 'power2.out' });
+			gsap.to(scrim, { autoAlpha: on || cartOpen ? 1 : 0, duration: rm ? 0 : 0.22 });
+			// Closing always resets to the form: an order already paid for must not reopen
+			// on its receipt and invite a second PAY on a stale order id.
+			if (!on) { setFace('details'); currentOrder = null; }
+		}
+		$('payClose').onclick = () => openPay(false);
+
+		// ---- 1. cart -> order ----
+		checkoutEl.onclick = async () => {
+			const lines = Object.values(cart);
+			if (!lines.length) return;
+
+			checkoutEl.disabled = true;
+			orderErr.hidden = true;
+			try {
+				// Only ids, quantities and sizes cross the wire — the total shown in the
+				// cart is for the shopper's benefit and is recalculated server-side.
+				const res = await fetch(API + '/api/checkout', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ cart: lines }),
+				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.message || data.error || 'Checkout failed');
+
+				currentOrder = data.order_id;
+				orderItems.innerHTML = data.items
+					.map((l: any) =>
+						`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
+						`<b>${rupees(l.line_total_paise)}</b></li>`)
+					.join('');
+				// Both read the server's total, not the browser's — if they ever disagree,
+				// the shopper sees the number they will actually be charged.
+				orderTotal.textContent = rupees(data.total_price_paise);
+				payAmount.textContent = rupees(data.total_price_paise);
+				setFace('details');
+				openPay(true);
+				fName.focus();
+			} catch (e) {
+				// Reported in the bag, not the popup — the popup never opened.
+				orderErr.textContent = (e as Error).message;
+				orderErr.hidden = false;
+			} finally {
+				checkoutEl.disabled = false;
+			}
+		};
+
+		// ---- 2. details -> paid ----
+		payForm.onsubmit = async (e) => {
+			e.preventDefault();
+			if (!currentOrder) return;
+
+			payBtn.disabled = true;
+			payErr.hidden = true;
+
+			// The form is replaced, not merely disabled — the details behind a payment in
+			// flight must not be editable, and there is nothing to do here but wait.
+			setFace('processing');
+			startProgress();
+
+			try {
+				const res = await fetch(API + '/api/pay', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						order_id: currentOrder,
+						name: fName.value,
+						phone: fPhone.value,
+						email: fEmail.value,
+					}),
+				});
+				const data = await res.json();
+				// The server validates name/phone/email; its message is the one shown,
+				// so the browser never has to keep a second copy of those rules.
+				if (!res.ok) throw new Error(data.message || data.error || 'Payment failed');
+
+				// Light the last tile and hold a beat, so the bar is seen completing rather
+				// than the face snapping away the instant the response lands.
+				finishProgress();
+				await new Promise((r) => setTimeout(r, 420));
+
+				orderIdEl.textContent = data.order_id;
+				txnIdEl.textContent = data.transaction_id;
+				paidTotal.textContent = rupees(data.total_price_paise);
+				receiptNameEl.textContent = data.customer?.name ?? '';
+				receiptItemsEl.innerHTML = data.items
+					.map((l: any) =>
+						`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
+						`<b>${rupees(l.line_total_paise)}</b></li>`)
+					.join('');
+				lastReceipt = { order_id: data.order_id, transaction_id: data.transaction_id,
+					total_price_paise: data.total_price_paise, items: data.items, name: data.customer?.name ?? '' };
+				drawQR(qrCanvas, data.order_id);
+
+				// The order is settled server-side; clear the bag so a refresh cannot
+				// re-checkout the same items.
+				cart = {}; saveCart(); renderCart();
+				payForm.reset();
+				setFace('paid');
+			} catch (err) {
+				// Back to the form with the details intact, so a rejected phone or email can
+				// be corrected and resubmitted against the same order.
+				setFace('details');
+				payErr.textContent = (err as Error).message;
+				payErr.hidden = false;
+			} finally {
+				payBtn.disabled = false;
+				resetProgress();
+			}
+		};
+
+		$('receiptDone').onclick = () => { openPay(false); openCart(false); };
+
+		// ---- QR ----
+		// Drawn by hand into a canvas rather than using the library's own image output:
+		// it keeps the modules on the site's palette and gives a real PNG to download.
+		function drawQR(canvas: HTMLCanvasElement, text: string) {
+			const qr = qrcode(0, 'M');
+			qr.addData(text);
+			qr.make();
+
+			const count = qr.getModuleCount();
+			const quiet = 4;                       // required silent margin, in modules
+			const scale = 8;                       // device px per module
+			const size = (count + quiet * 2) * scale;
+			canvas.width = size;
+			canvas.height = size;
+
+			const ctx = canvas.getContext('2d')!;
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect(0, 0, size, size);
+			ctx.fillStyle = '#0b0b0f';
+			for (let r = 0; r < count; r++)
+				for (let c = 0; c < count; c++)
+					if (qr.isDark(r, c))
+						ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+		}
+
+		/** Composites the QR and the receipt text into one downloadable card — the
+		 *  screenshot the shopper takes should not need to also crop in the order id. */
+		function buildReceiptCard(receipt: ReceiptData): HTMLCanvasElement {
+			const pad = 28, lineH = 22, headerH = 34, qrSize = qrCanvas.width;
+			const width = Math.max(qrSize + pad * 2, 440);
+			const rows = 2 + receipt.items.length + 2; // order + name + items + total + txn
+			const height = pad + qrSize + pad + headerH + rows * lineH + pad + 24;
+
+			const canvas = document.createElement('canvas');
+			canvas.width = width; canvas.height = height;
+			const ctx = canvas.getContext('2d')!;
+
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect(0, 0, width, height);
+			ctx.strokeStyle = '#0b0b0f';
+			ctx.lineWidth = 3;
+			ctx.strokeRect(4, 4, width - 8, height - 8);
+
+			ctx.drawImage(qrCanvas, (width - qrSize) / 2, pad);
+
+			let y = pad + qrSize + pad;
+			ctx.fillStyle = '#0b0b0f';
+			ctx.textAlign = 'center';
+			ctx.font = "700 15px 'Archivo', sans-serif";
+			ctx.fillText("ANVESHA '26 — ORDER RECEIPT", width / 2, y);
+			y += headerH;
+
+			const row = (label: string, value: string, bold = false) => {
+				ctx.textAlign = 'left';
+				ctx.font = "13px 'DM Mono', ui-monospace, monospace";
+				ctx.fillText(label, pad, y);
+				ctx.textAlign = 'right';
+				ctx.font = (bold ? '700 ' : '') + "13px 'DM Mono', ui-monospace, monospace";
+				ctx.fillText(value, width - pad, y);
+				y += lineH;
+			};
+
+			row('Order', receipt.order_id);
+			row('Name', receipt.name);
+			for (const it of receipt.items)
+				row(`${it.name}${it.size ? ' · ' + it.size : ''} × ${it.quantity}`, rupees(it.line_total_paise));
+			row('Total', rupees(receipt.total_price_paise), true);
+			row('Transaction', receipt.transaction_id);
+
+			y += 10;
+			ctx.textAlign = 'left';
+			ctx.fillStyle = '#666';
+			ctx.font = "italic 11px 'Archivo', sans-serif";
+			ctx.fillText('Take a screenshot of this QR code as proof of payment.', pad, y);
+
+			return canvas;
+		}
+
+		$('qrDownload').onclick = async () => {
+			if (!lastReceipt) return;
+			await document.fonts.ready; // canvas text only renders correctly once webfonts are loaded
+			const card = buildReceiptCard(lastReceipt);
+			const a = document.createElement('a');
+			a.href = card.toDataURL('image/png');
+			a.download = `anvesha-${lastReceipt.order_id}.png`;
+			a.click();
 		};
 
 		// ---- mobile shop ----
@@ -797,7 +1070,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 				b.innerHTML =
 					`<span class="m-card-icon">${it.views[0].icon}</span>` +
 					`<span class="m-card-name">${it.name}</span>` +
-					`<span class="m-card-price">₹${it.price}</span>`;
+					`<span class="m-card-price">${rupees(it.price_paise)}</span>`;
 				b.onclick = () => { selectItem(it); openSheet(true); };
 				mGrid.appendChild(b);
 			}
@@ -818,10 +1091,51 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		mSheet.addEventListener('click', (e) => { if (e.target === mSheet) openSheet(false); });
 		mSizeBtn.onclick = () => openSize(true);
 
+		// ---- boot ----
+		// Everything above is wiring; nothing renders until the catalogue arrives.
+		try {
+			catalog = await loadCatalog();
+		} catch (e) {
+			// A dead API must say so plainly. Silently showing an empty shop would look
+			// like the fest sold out.
+			treeEl.innerHTML =
+				`<p class="load-err">Could not reach the shop.<br /><small>${(e as Error).message}` +
+				`<br />Is the worker running on ${API}?</small></p>`;
+			return;
+		}
+		if (!catalog.length) {
+			treeEl.innerHTML = `<p class="load-err">No merch on sale yet.</p>`;
+			return;
+		}
+
+		catId = catalog[0].id;
+		openCat = catId;
 		buildTree(); renderCart(); renderMCats(); renderMGrid();
 		selectItem(catalog[0].items[0]);
+
+		// ---- live catalogue ----
+		// An admin adding or repricing an item reaches open tabs immediately. The
+		// shopper's place is kept: the same item stays selected if it still exists, and
+		// the bag is untouched — renderCart() drops any line whose item has vanished.
+		stopLive?.();
+		stopLive = onCatalogueChange(async () => {
+			const openId = item?.id;
+			const fresh = await loadCatalog().catch(() => null);
+			if (!fresh?.length) return; // a blip must not blank a working shop
+
+			catalog = fresh;
+			buildTree();
+			renderMCats();
+			renderMGrid();
+			renderCart();
+
+			const stillThere = catalog.flatMap((c) => c.items).find((i) => i.id === openId);
+			selectItem(stillThere ?? catalog[0].items[0]);
+		});
 	}
 
+	let stopLive: (() => void) | null = null;
+	document.addEventListener('astro:before-swap', () => { stopLive?.(); stopLive = null; });
 	document.addEventListener('astro:page-load', initMerch);
 	// ...and run now, in case this module was inserted mid-navigation and page-load
 	// has already fired. The `inited` guard makes the duplicate call a no-op.
@@ -882,15 +1196,9 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	.crumb-count { flex: none; }
 	.crumb-count b { color: var(--accent); font-weight: 500; }
 
-	/* ---- catalogue tree ---- */
-	.tree {
-		flex: 1; min-height: 140px;
-		display: flex; flex-direction: column;
-		overflow-y: auto; overscroll-behavior: contain;
-		padding: 2px 6px 2px 2px; margin: 0 -6px 0 -2px;
-		scrollbar-width: none;
-	}
-	.tree::-webkit-scrollbar { display: none; }
+	/* ---- catalogue tree ----
+	   The rail itself now lives in styles/catalogue-tree.css, imported above, so the
+	   admin panel renders the identical component instead of a copy that drifts. */
 
 	.divider { display: flex; align-items: center; gap: 12px; margin: 14px 0 22px; }
 	.divider .dv-line { flex: 1; height: 1.5px; background: var(--hair); }
@@ -900,85 +1208,6 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	.dv-cross::before, .dv-cross::after { content: ''; position: absolute; background: var(--accent); }
 	.dv-cross::before { left: 50%; top: 0; bottom: 0; width: 1.5px; transform: translateX(-50%); }
 	.dv-cross::after { top: 50%; left: 0; right: 0; height: 1.5px; transform: translateY(-50%); }
-	.tnode {
-		display: grid; align-items: center; gap: 10px;
-		width: 100%; text-align: left; border-radius: var(--r);
-		color: var(--secondary);
-	}
-	button.tnode {
-		appearance: none; -webkit-appearance: none;
-		background: transparent; border: 0; cursor: pointer;
-		font-family: 'Archivo', sans-serif; font-size: 13px;
-		transition: background .12s ease, color .12s ease;
-	}
-
-	/* ---- folder row ---- */
-	.tcat {
-		grid-template-columns: 16px 1fr auto;
-		padding: 11px 10px 11px 4px;
-	}
-	.tkids { overflow: hidden; }
-	.tkids + .tcat { border-top: 1.5px solid var(--hair); }
-	.tcaret { display: grid; place-items: center; width: 16px; color: var(--ink-40); }
-	.tcaret svg {
-		width: 15px; height: 15px; stroke-width: 2.2;
-		transition: transform .18s ease;
-	}
-	.tcat.open .tcaret svg { transform: rotate(90deg); }
-	.tcat.open .tcaret { color: var(--accent); }
-	.tcat .tname {
-		font-size: 11.5px; font-weight: 800;
-		letter-spacing: .12em; text-transform: uppercase;
-	}
-	.tcat:hover .tcaret { color: var(--accent); }
-
-	/* ---- item row ----
-	   ponytail: connectors are CSS rules, not box-drawing characters. Glyphs cannot
-	   span a row taller than their line box, so '│' rendered as disconnected ticks
-	   with gaps at every row seam. Borders join up regardless of font or row height. */
-	.titem {
-		position: relative;
-		grid-template-columns: auto 1fr auto;
-		padding: 7px 10px 7px 44px;
-	}
-	.titem::before {
-		content: ''; position: absolute; left: 20px; top: 0; bottom: 0;
-		width: 1.5px; background: var(--hair);
-	}
-	.titem.last::before { bottom: 50%; }
-	.titem::after {
-		content: ''; position: absolute; left: 20px; top: 50%;
-		width: 13px; height: 1.5px; background: var(--hair);
-	}
-
-	.tname { font-weight: 700; letter-spacing: .01em; }
-	.tmeta {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 11px; font-weight: 500; color: var(--ink-40);
-	}
-	.tnum {
-		display: grid; place-items: center; min-width: 20px; height: 15px;
-		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
-		color: var(--primary); background: var(--accent); border-radius: var(--r);
-	}
-	button.tnode:hover { background: color-mix(in srgb, var(--secondary) 6%, transparent); }
-	.titem.active { background: var(--secondary); color: var(--primary); }
-	.titem.active .tprice { color: var(--primary); }
-	/* the fill would otherwise swallow this row's own connector */
-	.titem.active::before, .titem.active::after {
-		background: color-mix(in srgb, var(--primary) 40%, transparent);
-	}
-
-	/* Hovering the selected row inverts it cleanly instead of washing the black fill
-	   out with the generic 6% tint, which left white text on pale grey.
-	   ponytail: inset shadow, not border — .tnode carries no border at rest, so a real
-	   one would resize the row on hover and shove the whole tree down 4px. */
-	.titem.active:hover {
-		background: var(--primary); color: var(--secondary);
-		box-shadow: inset 0 0 0 var(--stroke) var(--secondary);
-	}
-	.titem.active:hover .tprice { color: var(--secondary); }
-	.titem.active:hover::before, .titem.active:hover::after { background: var(--hair); }
 
 	/* margin-top:auto puts the slack ABOVE the copy, so name/description/credit sit
 	   low in the column and read as one block with the size and buy rows */
@@ -1066,8 +1295,24 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	   pass. Centring them independently (grid item vs. absolute + translate) left the
 	   icon off-axis from the brackets. */
 	.stage-frame > * { grid-area: 1 / 1; }
-	.stage-view { display: grid; place-items: center; }
-	.stage-view .big { display: block; line-height: 0; }
+	/* The SAME square as the viewfinder, so the two are concentric by construction
+	   rather than by two independent centring passes agreeing.
+	   min-height:0 is what makes that hold: as a grid item this box's automatic minimum
+	   is its content size, which let a tall image stretch it past the aspect-ratio and
+	   left every percentage inside with nothing definite to resolve against. */
+	.stage-view {
+		position: relative; overflow: hidden;
+		width: min(var(--vf), 86%); aspect-ratio: 1;
+		min-width: 0; min-height: 0;
+	}
+	/* Absolutely positioned with all four insets, which is the one way to give this a
+	   height the browser treats as definite. `height: 100%` against an aspect-ratio box
+	   is not reliable — that is why max-height: 95% on the image kept being ignored and
+	   a tall poster ran on behind the carousel. inset: 2.5% IS the 95% frame. */
+	.stage-view .big {
+		position: absolute; inset: 2.5%;
+		display: grid; place-items: center; line-height: 0;
+	}
 
 	/* ---- camera viewfinder ---- */
 	.viewfinder {
@@ -1133,14 +1378,31 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		position: relative; overflow: hidden;
 		flex: 1 1 auto; min-width: 200px; max-width: 320px;
 		height: clamp(150px, 19vh, 200px);
-		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+		display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px;
 		padding: 16px 8px 10px;
 	}
-	.vbox .vicon { display: block; line-height: 0; }
+	/* The picture IS the frame: absolute so it fills the whole box rather than sitting
+	   as a small item in the flex column. grid inside keeps the thumbnail and the
+	   fallback icon in one cell so the icon shows until (or unless) the image loads. */
+	.vbox .vicon {
+		position: absolute; inset: 0;
+		display: grid; place-items: center; line-height: 0;
+	}
+	/* Same automatic-minimum-size trap as .art > * — without these the thumbnail is
+	   laid out at its intrinsic pixel size and only looks right because of overflow. */
+	.vbox .vicon > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	/* The icon is a placeholder, so it stays small and centred; the photo covers. */
 	.vbox .vicon svg { width: 46px; height: 46px; stroke-width: 1.5; }
+	.vthumb { width: 100%; height: 100%; max-width: none; object-fit: cover; }
+	/* A chip, because it now sits over a photograph and plain text would be unreadable
+	   against a light one. */
 	.vbox .vlabel {
+		position: relative; z-index: 1;
+		padding: 3px 8px;
 		font-family: 'DM Mono', monospace;
-		font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-60);
+		font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+		color: var(--secondary); background: var(--primary);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
 	}
 	.vbox .vnum {
 		position: absolute; top: 0; left: 0; padding: 2px 6px;
@@ -1151,7 +1413,9 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		border-bottom-right-radius: var(--r);
 	}
 	.vbox.active { background: var(--secondary); color: var(--primary); }
-	.vbox.active .vlabel { color: var(--primary); }
+	.vbox.active .vlabel {
+		color: var(--primary); background: var(--secondary); border-color: var(--primary);
+	}
 	.vbox.active .vnum { background: transparent; color: var(--primary); border-color: var(--primary); }
 
 	.pager {
@@ -1233,20 +1497,12 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		display: flex; flex-direction: column; overflow-y: auto; flex: 1;
 	}
 	.cart-items li {
-		display: grid; grid-template-columns: 52px 1fr auto; grid-template-areas: 'thumb meta price' 'thumb qty price';
+		display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'meta price' 'qty price';
 		align-items: center; column-gap: 14px; row-gap: 8px;
 		padding: 16px 0; border-bottom: 1.5px solid var(--hair);
 	}
-	.cthumb {
-		grid-area: thumb; display: grid; place-items: center;
-		width: 52px; height: 52px;
-		background: var(--sink);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.cthumb svg { width: 24px; height: 24px; stroke-width: 1.8; }
 	.cmeta { grid-area: meta; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 	.cn { font-size: 13.5px; font-weight: 600; }
-	.cu { font-family: 'DM Mono', monospace; font-size: 10.5px; color: var(--ink-40); }
 	.cq { grid-area: qty; display: flex; align-items: center; gap: 4px; justify-self: start; }
 	.cq button {
 		display: grid; place-items: center;
@@ -1269,10 +1525,6 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	.drawer-foot .row {
 		display: flex; justify-content: space-between; align-items: baseline;
 		font-weight: 700; font-size: 17px; margin-bottom: 6px;
-	}
-	.drawer-foot .row.muted {
-		font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 400;
-		color: var(--ink-40); margin-bottom: 18px;
 	}
 	.checkout {
 		width: 100%;
@@ -1334,7 +1586,178 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 
 	.scrim { opacity: 0; visibility: hidden; position: fixed; inset: 0; z-index: 25; background: color-mix(in srgb, var(--secondary) 45%, transparent); }
 
+	/* ---- checkout lock ---- */
+	/* The bag drawer sits above the scrim (z-30 vs z-25) so it would otherwise stay
+	   sharp and clickable right through a dimmed background. pointer-events: none is
+	   the actual lock; the blur is just what makes that lock visible. */
+	body.pay-lock .card,
+	body.pay-lock #cart,
+	body.pay-lock .botnav {
+		filter: blur(6px);
+		pointer-events: none;
+		transition: filter .25s ease;
+	}
+
 	:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+	/* ---- image with an icon fallback underneath ---- */
+	/* ponytail: the <img> only becomes visible once it has actually loaded, so an item
+	   with nothing in R2 shows its category icon instead of a broken-image box. */
+	.art { display: grid; place-items: center; }
+	/* min-*: 0 is load-bearing. A grid item's automatic minimum size is its CONTENT
+	   size, and for an <img> that is the file's intrinsic pixels — so a 1200x1800
+	   photo ignored `width: 95%` and stretched the stage, and the page with it. */
+	.art > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.art-img { display: none; max-width: 100%; height: auto; object-fit: contain; }
+	.art-img.ok { display: block; }
+	.art-img.ok ~ .art-icon { display: none; }
+	/* Fits whatever the 95% frame above gives it, keeping its own proportions: a tall
+	   poster caps on height, a wide one on width. */
+	.stage-view .art-img {
+		width: auto; height: auto;
+		max-width: 100%; max-height: 100%;
+		object-fit: contain;
+	}
+	.m-stage-icon .art-img { width: 100%; max-height: 42vh; object-fit: contain; }
+
+	.load-err {
+		margin: 0; padding: 18px 2px;
+		font-size: 13px; line-height: 1.6; color: var(--ink-60);
+	}
+	.load-err small { color: var(--ink-40); font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px; }
+
+	/* ---- checkout popup ---- */
+	/* The popup is capped to the viewport and scrolls internally, so a long bag or a
+	   short laptop screen can never push the PAY button off-screen. */
+	.paymodal { display: flex; flex-direction: column; max-height: min(86vh, 760px); }
+
+	.pay-form, .receipt {
+		min-height: 0; overflow-y: auto; overflow-x: hidden;
+		display: flex; flex-direction: column; gap: 14px;
+		/* Setting only overflow-y leaves overflow-x computed as 'auto' per spec, not
+		   'visible' — that phantom horizontal scrollbar under the PAY button was this.
+		   But every input/button's hover-focus effect (translate(-2,-2) + a 3px hard
+		   shadow) needs a few px of clearance on every side, or this same overflow clips
+		   it right at the scroll box's edge — a 100%-width field has nowhere else to go.
+		   6px comfortably covers the 2px shift and the 1px net shadow overshoot. */
+		padding: 6px;
+		margin: -6px;
+	}
+	/* An author `display` rule outranks the UA sheet's [hidden]{display:none} at equal
+	   specificity, so without this the face marked hidden stays on screen — which is
+	   exactly how all three faces ended up stacked at once. */
+	.pay-form[hidden], .receipt[hidden] { display: none; }
+
+	.order-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+	.order-items li {
+		display: flex; justify-content: space-between; gap: 12px;
+		font-size: 12.5px; color: var(--ink-60);
+	}
+	.order-items b { color: var(--secondary); }
+	.order-row {
+		display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+		padding-top: 12px; border-top: 1.5px solid var(--hair);
+		font-size: 13px;
+	}
+	.order-row b { font-family: 'Archivo Expanded', sans-serif; font-size: 19px; }
+	.order-row .txn {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px;
+		word-break: break-all; text-align: right;
+	}
+
+	/* ---- form fields, in the same retro chassis as the buttons ---- */
+	.field { display: flex; flex-direction: column; gap: 6px; }
+	.field-label {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	/* This project has no global border-box reset, so a `width: 100%` control adds its
+	   own padding and border on top of the full width and hangs over the right edge —
+	   which is exactly where the popup's overflow clipped the inputs' right border off.
+	   Scoped to the controls that actually declare width: 100%. */
+	.field-input, .paybtn, .qrdl, .orderback, .checkout { box-sizing: border-box; }
+
+	.field-input {
+		appearance: none; -webkit-appearance: none;
+		width: 100%; padding: 12px 13px;
+		font-family: 'Archivo', sans-serif; font-size: 13.5px;
+		color: var(--secondary); background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: box-shadow .12s ease, transform .12s ease;
+	}
+	.field-input::placeholder { color: var(--ink-40); }
+	.field-input:focus {
+		outline: none;
+		transform: translate(-2px, -2px);
+		box-shadow: var(--pop);
+	}
+	/* :user-invalid, not :invalid — :invalid paints every field red before the shopper
+	   has typed a single character. */
+	.field-input:user-invalid { border-color: var(--accent); }
+
+	.paybtn {
+		display: flex; align-items: center; justify-content: center; gap: 13px;
+		width: 100%; padding: 17px 20px; margin-top: 4px;
+		color: var(--primary); background: var(--secondary);
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 13px; letter-spacing: .14em;
+	}
+	.paybtn b { font-family: 'Archivo Expanded', sans-serif; font-size: 17px; letter-spacing: -0.01em; }
+	.paybtn:disabled { opacity: .45; cursor: wait; }
+
+	/* ---- processing face ---- */
+	/* Tiles fill while POST /api/pay is genuinely in flight and the last one is held
+	   back until the server confirms, so the bar can never read complete before the
+	   payment is. */
+	.processing {
+		display: flex; flex-direction: column; align-items: center; gap: 20px;
+		padding: 26px 0 22px;
+	}
+	.processing[hidden] { display: none; }
+	.proc-icon {
+		display: grid; place-items: center;
+		width: 68px; height: 68px;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.proc-icon svg { width: 32px; height: 32px; stroke-width: 1.8; }
+	.proc-label {
+		margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--ink-60);
+	}
+	.pay-progress { display: flex; gap: 4px; width: 100%; }
+	.pay-progress .seg {
+		flex: 1; height: 16px;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: background .16s ease;
+	}
+	.pay-progress .seg.on { background: var(--accent); }
+	@media (prefers-reduced-motion: reduce) { .pay-progress .seg { transition: none; } }
+
+	.order-id {
+		margin: 0; word-break: break-all;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12.5px; line-height: 1.45; color: var(--secondary);
+		padding: 11px 12px; background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.order-note { margin: 0; font-size: 12px; line-height: 1.6; font-style: italic; color: var(--ink-40); }
+	.pay-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--accent); }
+
+	/* ---- QR ---- */
+	.qr {
+		display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto;
+		image-rendering: pixelated; /* keep module edges hard when the canvas is scaled */
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.qrdl, .orderback {
+		width: 100%; padding: 14px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+	}
+	.qrdl { background: var(--accent); color: var(--primary); border-color: var(--accent); }
 
 	/* ============ MOBILE SHOP ============
 	   Desktop and mobile are two presentations of one state; exactly one is displayed,
@@ -1412,6 +1835,7 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 		/* flex:none — .vbox is `flex: 1 1 auto` for the desktop carousel and would stretch here */
 		.m-views .vbox { flex: none; width: 78px; height: 84px; min-width: 0; max-width: none; gap: 7px; padding: 12px 5px 7px; }
 		.m-views .vicon svg { width: 26px; height: 26px; }
+		.m-views .vthumb { width: 26px; height: 26px; }
 
 		.m-name {
 			margin: 4px 0 0;
@@ -1436,6 +1860,8 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 	}
 	@media (max-width: 720px) {
 		.bagword { display: none; }
-		.stage-view { width: min(88%, 340px); }
+		/* Both, together: they are one box conceptually, so a rule that resized only the
+		   picture would slide it out of the brackets. */
+		.viewfinder, .stage-view { width: min(88%, 340px); }
 	}
 </style>
