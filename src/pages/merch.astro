@@ -249,6 +249,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	import { gsap } from 'gsap';
 	import qrcode from 'qrcode-generator';
 	// Shared with the admin panel: one socket helper, one reconnect policy.
+	import { API } from '../lib/api';
 	import { onCatalogueChange } from '../lib/admin';
 
 	// lucide-static ships each icon as a standalone SVG; ?raw hands us the markup to inject.
@@ -261,9 +262,6 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
 	import icStationery from 'lucide-static/icons/notebook.svg?raw';
 	import pkg from 'lucide-static/icons/package.svg?raw';
-
-	// The API base. Override with PUBLIC_API_BASE in .env when the worker moves.
-	const API = (import.meta.env.PUBLIC_API_BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 
 	// `url` is absent only for an item with no pictures at all, where the category icon
 	// stands in — see artHTML().

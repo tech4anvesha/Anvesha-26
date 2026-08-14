@@ -6,7 +6,9 @@
  * nothing but a redirect.
  */
 
-export const API = (import.meta.env.PUBLIC_API_BASE ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+import { API } from './api';
+
+export { API };
 
 const KEY = 'anvesha_admin_session';
 
