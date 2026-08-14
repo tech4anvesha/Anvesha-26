@@ -39,7 +39,7 @@
 	"vars": {
 		"ENVIRONMENT": "development",
 		// Comma-separated. The Astro dev server, then your real domain(s).
-		"ALLOWED_ORIGINS": "http://localhost:4321,http://127.0.0.1:4321,https://anvesha26.in,https://www.anvesha26.in",
+		"ALLOWED_ORIGINS": "http://localhost:4321,http://127.0.0.1:4321,https://anvesha26.in,https://www.anvesha26.in,https://anvesha-three.vercel.app",
 		// No payment gateway yet: checkout skips Razorpay and POST /api/pay settles the
 		// order at the counter. DELETE THIS the moment Razorpay goes live — leaving it on
 		// beside a real gateway would let anyone mark any order paid.
@@ -52,7 +52,7 @@
 		"production": {
 			"vars": {
 				"ENVIRONMENT": "production",
-				"ALLOWED_ORIGINS": "https://anvesha26.in"
+				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-three.vercel.app"
 				// DIRECT_PAY and RAZORPAY_STUB deliberately absent.
 			},
 			"ratelimits": [
