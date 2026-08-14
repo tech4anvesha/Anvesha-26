@@ -26,5 +26,10 @@ const { title = 'Astro Basics' } = Astro.props;
 		margin: 0;
 		width: 100%;
 		height: 100%;
+		/* Matches the card's own dvh sizing. `height: 100%` resolves against the initial
+		   containing block, which on a phone is the address-bar-retracted viewport — so
+		   the shell stayed taller than the screen and left the page scrollable by exactly
+		   the height of the browser chrome. */
+		height: 100dvh;
 	}
 </style>
