@@ -18,6 +18,8 @@ import iMerch from 'lucide-static/icons/shopping-bag.svg?raw';
 import iOutreach from 'lucide-static/icons/megaphone.svg?raw';
 import iExpo from 'lucide-static/icons/flask-conical.svg?raw';
 import iSponsors from 'lucide-static/icons/handshake.svg?raw';
+import iMenu from 'lucide-static/icons/menu.svg?raw';
+import iClose from 'lucide-static/icons/x.svg?raw';
 
 export interface NavItem {
 	href: string;
@@ -73,6 +75,11 @@ const hasTools = Astro.slots.has('tools');
 	<div id="app">
 		<div class="card">
 			<header class:list={['nav', hasTools && 'has-tools']}>
+				{/* mobile only — the desktop keeps its full row of links */}
+				<button class="btn navmenu-btn" id="navMenuBtn" type="button"
+				        aria-label="Open menu" aria-expanded="false" aria-controls="navMenu"
+				        set:html={iMenu} />
+
 				<a class="brand" href={brandHref} transition:name="brand">
 					ANVESHA<sup>'26</sup>{brandTag && <i class="brand-tag">{brandTag}</i>}
 				</a>
@@ -99,20 +106,28 @@ const hasTools = Astro.slots.has('tools');
 
 		<slot name="overlays" />
 
-		{/* mobile only — replaces the top menu below 720px */}
-		<nav class="botnav" aria-label="Site">
-			{NAV.map((n) => (
-				<a
-					href={n.href}
-					class="botnav-link"
-					aria-current={n.href === here ? 'page' : undefined}
-					transition:name={`bot-${n.label.toLowerCase()}`}
-				>
-					<span class="botnav-icon" set:html={n.icon} />
-					<span class="botnav-label">{n.label}</span>
-				</a>
-			))}
-		</nav>
+		{/* mobile only — the slide-in the menu button opens, replacing the old bottom bar */}
+		<div class="navmenu" id="navMenu" hidden>
+			<div class="navmenu-panel" role="dialog" aria-modal="true" aria-label="Site menu">
+				<div class="navmenu-head">
+					<span class="navmenu-title">MENU</span>
+					<button class="btn x" id="navMenuClose" type="button"
+					        aria-label="Close menu" set:html={iClose} />
+				</div>
+				<nav class="navmenu-list" aria-label="Site">
+					{NAV.map((n) => (
+						<a
+							href={n.href}
+							class="btn navmenu-link"
+							aria-current={n.href === here ? 'page' : undefined}
+						>
+							<span class="navmenu-icon" set:html={n.icon} />
+							<span class="navmenu-label">{n.label}</span>
+						</a>
+					))}
+				</nav>
+			</div>
+		</div>
 	</div>
 </Layout>
 
@@ -154,8 +169,42 @@ const hasTools = Astro.slots.has('tools');
 		setTimeout(settle, 2500);
 	}
 
+	// ---- mobile menu ----
+	// Bound on every page-load: ClientRouter swaps in fresh nodes, so anything wired
+	// once at module scope would go dead after the first navigation.
+	function initMenu() {
+		const wrap = document.getElementById('navMenu');
+		const btn = document.getElementById('navMenuBtn');
+		if (!wrap || !btn) return;
+
+		const setOpen = (on: boolean) => {
+			// `hidden` gates it for assistive tech and for the desktop, where the panel
+			// should not exist at all; `.open` drives the slide.
+			if (on) wrap.hidden = false;
+			// A frame between unhiding and animating, or the transition has no start
+			// state to move from and the panel simply appears.
+			requestAnimationFrame(() => wrap.classList.toggle('open', on));
+			btn.setAttribute('aria-expanded', String(on));
+			document.body.style.overflow = on ? 'hidden' : '';
+			if (!on) setTimeout(() => { if (!wrap.classList.contains('open')) wrap.hidden = true; }, 300);
+		};
+
+		btn.onclick = () => setOpen(true);
+		document.getElementById('navMenuClose')?.addEventListener('click', () => setOpen(false));
+		// Backdrop only — a tap that lands on the panel must not dismiss it.
+		wrap.addEventListener('click', (e) => { if (e.target === wrap) setOpen(false); });
+		// A link navigates, but ClientRouter keeps the DOM alive long enough that the
+		// panel would still be sitting open over the new page.
+		wrap.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+		addEventListener('keydown', (e) => { if (e.key === 'Escape' && !wrap.hidden) setOpen(false); });
+	}
+
+	// Body scroll-lock is inline style, so it survives a swap unless explicitly cleared.
+	document.addEventListener('astro:before-swap', () => { document.body.style.overflow = ''; });
+
 	// fires on first load and after every client-side navigation
 	document.addEventListener('astro:page-load', reveal);
+	document.addEventListener('astro:page-load', initMenu);
 </script>
 
 <style is:global>
@@ -183,6 +232,12 @@ const hasTools = Astro.slots.has('tools');
 	@media (prefers-reduced-motion: reduce) {
 		html[data-anim] [data-reveal] { opacity: 1; }
 	}
+
+	/* The UA stylesheet's [hidden]{display:none} loses to any author `display` rule of
+	   equal specificity, so `el.hidden = true` silently did nothing to anything carrying
+	   a `display: flex` — which is how the SIZE row kept showing on items with no sizes.
+	   Declared once here so every page inherits the guarantee. */
+	[hidden] { display: none !important; }
 
 	/* ============ BUTTON PRIMITIVE ============
 	   One chassis for every control on the site. Add `class="btn"` to any button or
@@ -427,47 +482,71 @@ const hasTools = Astro.slots.has('tools');
 	@media (max-width: 1080px) {
 		.card { box-shadow: 4px 4px 0 var(--accent), 0 0 0 11px var(--sink); }
 	}
-	/* ============ BOTTOM NAV (mobile) ============ */
-	.botnav { display: none; }
+	/* ============ MOBILE MENU ============ */
+	/* Desktop shows the full row of links, so the button and its panel stay out of the
+	   way entirely — not merely hidden behind a z-index. */
+	.navmenu-btn, .navmenu { display: none; }
 
 	@media (max-width: 720px) {
-		#app { --botnav: 84px; }
+		/* Nothing is pinned to the bottom any more, so the card takes the full height. */
+		#app { --botnav: 0px; }
 
-		/* the top bar keeps brand + tools; navigation moves to the bottom bar */
+		/* Links move behind the menu button. */
 		.menu { display: none; }
-		.nav, .nav.has-tools { grid-template-columns: 1fr auto; }
+		/* Three tracks with the brand pinned to the middle one, so it is centred on the
+		   bar itself rather than centred in the space the button and tools happen to
+		   leave. The outer tracks are equal, so it holds whether or not a page fills
+		   `tools`. */
+		.nav, .nav.has-tools { grid-template-columns: 1fr auto 1fr; }
+		.navmenu-btn {
+			display: grid; place-items: center;
+			grid-column: 1; justify-self: start;
+			width: 38px; height: 38px; padding: 0;
+		}
+		.navmenu-btn svg { width: 18px; height: 18px; stroke-width: 2.2; }
+		.brand { grid-column: 2; justify-self: center; }
+		.tools { grid-column: 3; justify-self: end; }
 
-		.botnav {
-			position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 35;
-			display: flex; align-items: center; justify-content: space-between; gap: 2px;
-			padding: 7px;
+		/* ---- the slide-in ---- */
+		/* Above every page-level overlay (the merch sheet is 45, its size chart 50), so
+		   the menu is always reachable from wherever the reader is. */
+		.navmenu {
+			display: block; position: fixed; inset: 0; z-index: 60;
+			background: color-mix(in srgb, var(--secondary) 42%, transparent);
+			backdrop-filter: blur(7px);
+		}
+		.navmenu-panel {
+			position: absolute; inset: 0 auto 0 0;
+			width: min(82%, 320px);
+			display: flex; flex-direction: column; gap: 6px;
+			padding: 18px 16px;
 			background: var(--primary);
-			border: var(--stroke) solid var(--secondary);
-			border-radius: 999px;
-			box-shadow: 0 8px 24px color-mix(in srgb, var(--secondary) 20%, transparent);
-			/* six items on a 360px screen is tight; let it scroll rather than squash */
-			overflow-x: auto; scrollbar-width: none;
+			border-right: var(--stroke) solid var(--secondary);
+			/* Slides in; the open state clears it. */
+			transform: translateX(-100%);
+			transition: transform .28s cubic-bezier(.2, .7, .3, 1);
+			overflow-y: auto; overscroll-behavior: contain;
 		}
-		.botnav::-webkit-scrollbar { display: none; }
+		.navmenu.open .navmenu-panel { transform: translateX(0); }
 
-		.botnav-link {
-			flex: none;
-			display: inline-flex; align-items: center; gap: 7px;
-			padding: 10px 11px; border-radius: 999px;
-			color: var(--ink-60); text-decoration: none;
-			transition: background .2s ease, color .2s ease;
+		.navmenu-head {
+			display: flex; align-items: center; justify-content: space-between;
+			padding-bottom: 14px; margin-bottom: 8px;
+			border-bottom: var(--stroke) solid var(--secondary);
 		}
-		.botnav-icon { display: grid; place-items: center; }
-		.botnav-icon svg { width: 19px; height: 19px; stroke-width: 2; }
-		/* only the current page spells its name out — same idea as the reference bar */
-		.botnav-label {
-			display: none;
-			font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+		.navmenu-title {
+			font-family: 'DM Mono', ui-monospace, monospace;
+			font-size: 10px; letter-spacing: .18em; color: var(--ink-40);
 		}
-		.botnav-link[aria-current='page'] {
-			background: var(--secondary); color: var(--primary);
-			padding-right: 15px;
+
+		.navmenu-list { display: flex; flex-direction: column; gap: 8px; }
+		.navmenu-link {
+			display: flex; align-items: center; gap: 12px;
+			padding: 13px 14px; text-decoration: none;
+			font-size: 13px; font-weight: 700;
 		}
-		.botnav-link[aria-current='page'] .botnav-label { display: inline; }
+		.navmenu-icon { display: grid; place-items: center; flex: none; }
+		.navmenu-icon svg { width: 17px; height: 17px; stroke-width: 2; }
+		.navmenu-link[aria-current='page'] { background: var(--secondary); color: var(--primary); }
 	}
 </style>

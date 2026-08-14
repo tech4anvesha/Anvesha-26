@@ -220,8 +220,23 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		</div>
 
 		<div class="m-stage"><div id="mStage" class="m-stage-icon"></div></div>
+		<p id="mStageLabel" class="m-stage-label">01 / FRONT</p>
+
 		<div id="mViewport" class="m-viewport">
 			<div id="mViews" class="m-views" role="tablist" aria-label="Product views"></div>
+		</div>
+
+		<!-- Same pager as the desktop stage: arrows that wrap, a scrub slider, and the
+		     frame counter split across the track. -->
+		<div class="m-pager">
+			<button id="mPrev" class="btn m-parrow" type="button"
+			        aria-label="Previous view" set:html={chevronLeft}></button>
+			<b class="m-pcount m-pcur" id="mCur">01</b>
+			<input id="mSlider" class="pgslider m-pslider" type="range" min="1" max="1" value="1"
+			       aria-label="View" />
+			<span class="m-pcount" id="mTot">01</span>
+			<button id="mNext" class="btn m-parrow" type="button"
+			        aria-label="Next view" set:html={chevronRight}></button>
 		</div>
 
 		<h2 id="mName" class="m-name"></h2>
@@ -576,6 +591,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		const pgCur = $('pgCur'), pgTot = $('pgTot'), pgSlider = $<HTMLInputElement>('pgSlider');
 		const vfFrame = $('vfFrame');
 		const prevBtn = $<HTMLButtonElement>('prevView'), nextBtn = $<HTMLButtonElement>('nextView');
+		// The sheet's own pager. Both drive the one viewIdx, so they can never disagree.
+		const mStageLabel = $('mStageLabel');
+		const mCur = $('mCur'), mTot = $('mTot'), mSlider = $<HTMLInputElement>('mSlider');
+		const mPrev = $<HTMLButtonElement>('mPrev'), mNext = $<HTMLButtonElement>('mNext');
 
 		// full rebuild — only when the item changes
 		const viewHosts = [
@@ -606,9 +625,12 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			}
 			pgTot.textContent = pad(item.views.length);
 			pgSlider.max = String(item.views.length);
+			mTot.textContent = pad(item.views.length);
+			mSlider.max = String(item.views.length);
 			// arrows wrap, so they only go dead when there's nothing to move between
 			const single = item.views.length < 2;
 			prevBtn.disabled = nextBtn.disabled = pgSlider.disabled = single;
+			mPrev.disabled = mNext.disabled = mSlider.disabled = single;
 			syncViews();
 		}
 
@@ -626,6 +648,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			pgCur.textContent = pad(viewIdx + 1);
 			pgSlider.value = String(viewIdx + 1);
 			vfFrame.textContent = `FRM ${pad(viewIdx + 1)}/${pad(item!.views.length)}`;
+
+			mCur.textContent = pad(viewIdx + 1);
+			mSlider.value = String(viewIdx + 1);
+			mStageLabel.textContent = `${pad(viewIdx + 1)} / ${item!.views[viewIdx]?.label ?? 'FRONT'}`;
 		}
 
 		function goView(i: number) {
@@ -638,6 +664,9 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		prevBtn.onclick = () => goView(viewIdx - 1);
 		nextBtn.onclick = () => goView(viewIdx + 1);
 		pgSlider.oninput = () => goView(Number(pgSlider.value) - 1);
+		mPrev.onclick = () => goView(viewIdx - 1);
+		mNext.onclick = () => goView(viewIdx + 1);
+		mSlider.oninput = () => goView(Number(mSlider.value) - 1);
 
 		// arrow keys drive the carousel while focus is inside it
 		viewListEl.addEventListener('keydown', (e) => {
@@ -756,11 +785,19 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 
 			gsap.to(sizeModal, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
 			gsap.to(sizePanel, { scale: on ? 1 : 0.96, duration: rm ? 0 : 0.26, ease: 'power2.out' });
-			gsap.to(scrim, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.22 });
+			// The shared scrim is deliberately NOT touched: the chart carries its own
+			// backdrop now, and driving the scrim from here would yank it out from under
+			// an open bag drawer on close.
 			(on ? $<HTMLButtonElement>('sizeClose') : sizeBtn).focus();
 		}
 		sizeBtn.onclick = () => openSize(true);
 		$('sizeClose').onclick = () => openSize(false);
+		// The backdrop is the wrapper itself, so it takes the tap-outside-to-close that
+		// the scrim used to handle. `e.target === sizeModal` keeps a drag that started
+		// inside the panel from dismissing it.
+		sizeModal.addEventListener('click', (e) => {
+			if (e.target === sizeModal) openSize(false);
+		});
 
 		scrim.onclick = () => {
 			if (payOpen) openPay(false);
@@ -1065,8 +1102,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			for (const it of cat.items) {
 				const b = document.createElement('button');
 				b.className = 'btn m-card';
+				// The card leads with the product's own photo — artHTML keeps the category
+				// icon underneath for anything with nothing in R2 yet.
 				b.innerHTML =
-					`<span class="m-card-icon">${it.views[0].icon}</span>` +
+					`<span class="m-card-art art">${artHTML(it, 0)}</span>` +
 					`<span class="m-card-name">${it.name}</span>` +
 					`<span class="m-card-price">${rupees(it.price_paise)}</span>`;
 				b.onclick = () => { selectItem(it); openSheet(true); };
@@ -1541,11 +1580,21 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	/* ---- size chart modal ---- */
 	/* the wrapper centres and fades; the panel scales. Keeping them separate avoids
 	   GSAP's scale fighting a translate(-50%,-50%) on the same element. */
+	/* z-index above the mobile product sheet (45) and the cart drawer (30) — at 40 the
+	   size chart opened *behind* the sheet that summoned it.
+	   It also carries its own backdrop rather than borrowing the shared .scrim: the
+	   scrim sits at 25, below the sheet, so it could never dim the thing in front of it.
+	   The blur is what makes the chart read as being on top rather than merely over. */
 	.modal-wrap {
 		opacity: 0; visibility: hidden;
-		position: fixed; inset: 0; z-index: 40;
+		position: fixed; inset: 0; z-index: 50;
 		display: grid; place-items: center; padding: 20px;
-		pointer-events: none;
+		background: color-mix(in srgb, var(--secondary) 42%, transparent);
+		/* Standard property only — the build's CSS pass adds the -webkit- prefix itself,
+		   and hand-writing both made it keep the prefixed one and drop the standard,
+		   which left the blur working in Safari but nowhere else. */
+		backdrop-filter: blur(7px);
+		pointer-events: auto;
 	}
 	.modal {
 		pointer-events: auto;
@@ -1588,9 +1637,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	/* The bag drawer sits above the scrim (z-30 vs z-25) so it would otherwise stay
 	   sharp and clickable right through a dimmed background. pointer-events: none is
 	   the actual lock; the blur is just what makes that lock visible. */
+	/* .botnav used to be listed here; the mobile bottom bar is gone, replaced by the
+	   menu panel, which cannot be open behind checkout. */
 	body.pay-lock .card,
-	body.pay-lock #cart,
-	body.pay-lock .botnav {
+	body.pay-lock #cart {
 		filter: blur(6px);
 		pointer-events: none;
 		transition: filter .25s ease;
@@ -1616,7 +1666,13 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		max-width: 100%; max-height: 100%;
 		object-fit: contain;
 	}
-	.m-stage-icon .art-img { width: 100%; max-height: 42vh; object-fit: contain; }
+	/* Fits the framed stage rather than filling its width: a tall poster would otherwise
+	   be forced to full width and cropped by the frame's overflow. */
+	.m-stage-icon .art-img {
+		width: auto; height: auto;
+		max-width: 100%; max-height: 100%;
+		object-fit: contain;
+	}
 
 	.load-err {
 		margin: 0; padding: 18px 2px;
@@ -1794,8 +1850,19 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
 			padding: 14px 14px 16px; text-align: left;
 		}
-		.m-card-icon { display: grid; place-items: center; width: 100%; height: 82px; }
-		.m-card-icon svg { width: 58px; height: 58px; stroke-width: 1.4; }
+		/* The photo, filling the card's width. A fixed aspect keeps the grid on an even
+		   baseline whatever shape the uploads are, and the fallback icon sits in the
+		   same cell for items with nothing in R2 yet. */
+		.m-card-art {
+			width: 100%; aspect-ratio: 1; overflow: hidden;
+			border: 1.5px solid var(--secondary); border-radius: var(--r);
+			background: var(--sink);
+		}
+		.m-card-art .art-img {
+			width: 100%; height: 100%; max-width: none; object-fit: cover;
+		}
+		.m-card-art .art-icon { display: grid; place-items: center; color: var(--ink-40); }
+		.m-card-art .art-icon svg { width: 46px; height: 46px; stroke-width: 1.4; }
 		.m-card-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
 		.m-card-price {
 			font-family: 'DM Mono', ui-monospace, monospace;
@@ -1808,11 +1875,13 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			display: block; position: fixed; inset: 0; z-index: 45;
 			background: color-mix(in srgb, var(--secondary) 45%, transparent);
 		}
+		/* Taller sheet, looser stack. Nearly the full screen and a wider gap between
+		   blocks — the stage, carousel, copy and buy bar were reading as one dense slab. */
 		.m-sheet-panel {
 			position: absolute; left: 0; right: 0; bottom: 0;
-			max-height: 94%; overflow-y: auto; overscroll-behavior: contain;
-			display: flex; flex-direction: column; gap: 13px;
-			padding: 0 18px 22px;
+			max-height: 98%; overflow-y: auto; overscroll-behavior: contain;
+			display: flex; flex-direction: column; gap: 20px;
+			padding: 0 18px 30px;
 			background: var(--primary);
 			border-top: var(--stroke) solid var(--secondary);
 			border-radius: 18px 18px 0 0;
@@ -1824,16 +1893,51 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		}
 		.m-grab { width: 42px; height: 4px; border-radius: 999px; background: var(--hair); }
 
-		.m-stage { display: grid; place-items: center; padding: 6px 0 2px; }
-		.m-stage-icon svg { width: clamp(120px, 42vw, 190px); height: auto; stroke-width: 1.1; }
+		/* A framed stage, like the admin preview's — the picture sits in a bordered box
+		   rather than floating loose above the copy. */
+		.m-stage {
+			display: grid; place-items: center; overflow: hidden;
+			aspect-ratio: 4 / 3;
+			background: var(--sink);
+			border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		}
+		.m-stage-icon { display: grid; place-items: center; width: 100%; height: 100%; }
+		.m-stage-icon > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+		.m-stage-icon svg { width: clamp(96px, 34vw, 150px); height: auto; stroke-width: 1.1; }
+
+		/* Pulled back up against the stage: it captions the picture, so it belongs with
+		   it rather than floating a full gap away from everything. */
+		.m-stage-label {
+			margin: -11px 0 0;
+			font-family: 'DM Mono', ui-monospace, monospace;
+			font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+		}
 
 		.m-viewport { overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 0 18px; }
 		.m-viewport::-webkit-scrollbar { display: none; }
 		.m-views { display: flex; gap: 9px; width: max-content; padding: 3px; }
-		/* flex:none — .vbox is `flex: 1 1 auto` for the desktop carousel and would stretch here */
-		.m-views .vbox { flex: none; width: 78px; height: 84px; min-width: 0; max-width: none; gap: 7px; padding: 12px 5px 7px; }
-		.m-views .vicon svg { width: 26px; height: 26px; }
-		.m-views .vthumb { width: 26px; height: 26px; }
+		/* flex:none — .vbox is `flex: 1 1 auto` for the desktop carousel and would stretch here.
+		   Landscape and photo-filled, matching the admin preview's frames. */
+		.m-views .vbox {
+			flex: none; width: 108px; height: 76px;
+			min-width: 0; max-width: none; gap: 0; padding: 0;
+		}
+		.m-views .vicon svg { width: 24px; height: 24px; }
+		.m-views .vlabel { font-size: 8px; padding: 2px 6px; }
+		.m-views .vnum { font-size: 8px; }
+
+		/* ---- pager, mirroring the desktop stage ---- */
+		.m-pager { display: flex; align-items: center; gap: 10px; }
+		.m-parrow { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; flex: none; }
+		.m-parrow svg { width: 14px; height: 14px; stroke-width: 2.2; }
+		.m-parrow:disabled { opacity: .3; cursor: not-allowed; }
+		.m-pcount {
+			flex: none;
+			font-family: 'DM Mono', ui-monospace, monospace;
+			font-size: 9.5px; font-weight: 400; letter-spacing: .1em; color: var(--ink-40);
+		}
+		.m-pcur { color: var(--secondary); }
+		.m-pslider { flex: 1; min-width: 40px; }
 
 		.m-name {
 			margin: 4px 0 0;
@@ -1841,7 +1945,9 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			font-weight: 900; font-size: 25px; line-height: 1; text-transform: uppercase;
 		}
 		.m-desc { margin: 0; font-style: italic; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
-		.m-designer { align-self: flex-start; }
+		/* Hangs right, as on the desktop stage and the admin preview — this used to
+		   override .designer's own align-self and pin it left. */
+		.m-designer { align-self: flex-end; }
 		.m-opt { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 		.m-sheet .buy { margin-top: 4px; }
 
