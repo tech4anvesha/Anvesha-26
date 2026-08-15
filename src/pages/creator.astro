@@ -1,0 +1,609 @@
+---
+/**
+ * Easter egg. Unlisted — you get here by typing /creator, and nothing links to it.
+ *
+ * Deliberately NOT inside SiteLayout: no nav, no bordered card, no dotted paper. The
+ * page is a handheld console drawn in CSS, and the credit runs on its screen.
+ *
+ * Same philosophy as the rest of the site — flat fills, hard 2/3px ink strokes, offset
+ * shadows with no blur, the same three typefaces. Only two things change: the layout
+ * (a console instead of a card) and the palette (the DMG's four greens instead of
+ * white/black/blue, on the Gen-3 battle scene). No gradients, no glass, no glow.
+ */
+import Layout from '../layouts/Layout.astro';
+
+// Pixels drifting up the screen. Deterministic rather than random so the built HTML is
+// stable between builds.
+const MOTES = Array.from({ length: 14 }, (_, i) => ({
+	x: (i * 41) % 100,
+	size: 2 + (i % 2) * 2,
+	delay: ((i * 5) % 11) / 1.3,
+	dur: 9 + (i % 5),
+}));
+---
+
+<Layout title="Creator · Anvesha '26">
+	<Fragment slot="head">
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Expanded:wght@700;800;900&family=DM+Mono:wght@400;500&display=swap"
+		/>
+	</Fragment>
+
+	<main class="gb">
+		<div class="gb-case">
+			<!-- ---- moulding above the screen ---- -->
+			<div class="gb-top">
+				<span class="gb-led" aria-hidden="true"></span>
+				<span class="gb-power">POWER</span>
+				<span class="gb-model">ANVESHA <b>BOY</b></span>
+			</div>
+
+			<!-- ---- the screen ---- -->
+			<div class="gb-frame">
+				<span class="gb-frame-tag">CREATOR'S CONSOLE</span>
+
+				<div class="gb-lcd">
+					<div class="gb-px" aria-hidden="true"></div>
+					<div class="gb-motes" aria-hidden="true">
+						{MOTES.map((m) => (
+							<i style={`--x:${m.x}%;--s:${m.size}px;--d:${m.delay}s;--t:${m.dur}s`}></i>
+						))}
+					</div>
+
+					<div class="gb-view">
+						<div class="gb-bar">
+							<span id="gbBar">BULBASAUR SAYS HI</span><span class="gb-caret">_</span>
+						</div>
+
+						<div class="gb-stage">
+							<span class="gb-plate" aria-hidden="true"></span>
+							{/* The idle sway lives on the button and the move on the sprite inside
+							    it — one element cannot run two transform animations at once, and
+							    the sway has to keep going underneath whatever it just did. */}
+							<button class="gb-poke" id="gbPoke" type="button" aria-label="Make Bulbasaur use a move">
+								<img class="gb-hero" id="gbHero" src="/sprites/bulbasaur.gif"
+								     alt="An animated Bulbasaur" width="45" height="49" />
+							</button>
+						</div>
+
+						<p class="gb-kicker">THIS WEBSITE WAS MADE BY</p>
+
+						{/* The vine runs in two layers with the name sandwiched between them, so
+						    it passes behind some letters and over others. One layer could only
+						    ever sit flat in front of or behind the whole word. */}
+						<div class="gb-namewrap">
+							<svg class="vine vine-back" viewBox="0 0 640 170"
+							     preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+								<path class="v-stem" d="M-30 128 C 60 44, 150 34, 224 82 S 352 152, 438 104 S 566 38, 672 78" />
+								<path class="v-curl" d="M224 82 c -18 -14, -34 -6, -30 10 c 4 12, 22 10, 22 -4" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(96 74) rotate(-24)" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(300 132) rotate(18)" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(500 78) rotate(-30)" />
+							</svg>
+
+							<h1 class="gb-name">ANTRIN&nbsp;MAJI</h1>
+
+							<svg class="vine vine-front" viewBox="0 0 640 170"
+							     preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+								<path class="v-stem" d="M-30 62 C 66 130, 156 118, 238 70 S 372 22, 462 80 S 588 138, 672 100" />
+								<path class="v-curl" d="M462 80 c 20 -12, 36 -2, 30 14 c -6 12, -24 8, -22 -6" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(170 108) rotate(26)" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(378 44) rotate(-16)" />
+								<path class="v-leaf" d="M0,0 C7,-13 25,-15 32,-2 C25,12 7,12 0,0 Z" transform="translate(596 118) rotate(30)" />
+							</svg>
+						</div>
+
+						<div class="gb-meta">
+							<span class="gb-chip">B24</span>
+							<span class="gb-code">CODE NAME: <b>BULBASAUR</b></span>
+							<span class="gb-chip gb-chip-on">GRASS</span>
+						</div>
+
+						<!-- The PS, as the game's own text box. The sweating sprite has a white
+						     background, and the box is white, so the two join up with no seam. -->
+						<div class="gb-dialog">
+							<div class="gb-dcol">
+								<p class="gb-dtext">
+									<b class="gb-ps">PS</b>
+									Bulbasaur almost became <span class="gb-water">WATER TYPE</span> upon hearing the requirements of the website<span class="gb-dots" aria-hidden="true">.......</span>
+								</p>
+								<p class="gb-foot">*This creator loved working on this project and has survived the ordeal</p>
+							</div>
+							{/* Animated WebP, not GIF: GIF alpha is one bit, which leaves a white
+							    fringe on art this soft-edged. The sprite's own loop is the only
+							    motion here — no CSS animation on top. */}
+							<img class="gb-sweat" src="/sprites/bulbasaur-sweating.webp"
+							     alt="A Bulbasaur sweating profusely" width="300" height="240" />
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Decorative, except START — which is a real way back to the site, so the
+			    deck cannot be aria-hidden wholesale. */}
+			<div class="gb-deck">
+				{/* One SVG, not two crossing divs: a cross needs a single unbroken outline,
+				    and two bordered bars show their seams where they meet. */}
+				<svg class="gb-pad" viewBox="0 0 100 100" aria-hidden="true">
+					<path class="gb-pad-body"
+					      d="M34 4 H66 V34 H96 V66 H66 V96 H34 V66 H4 V34 H34 Z" />
+					<path class="gb-pad-tick" d="M50 16 l7 10 h-14 Z" />
+					<path class="gb-pad-tick" d="M50 84 l7 -10 h-14 Z" />
+					<path class="gb-pad-tick" d="M16 50 l10 7 v-14 Z" />
+					<path class="gb-pad-tick" d="M84 50 l-10 7 v-14 Z" />
+				</svg>
+
+				<div class="gb-mid">
+					<span class="gb-slot" aria-hidden="true">
+						<span class="gb-pill"></span>
+						<span class="gb-pilltxt">SELECT</span>
+					</span>
+					<a class="gb-slot" href="/" aria-label="Back to Anvesha">
+						<span class="gb-pill"></span>
+						<span class="gb-pilltxt">START</span>
+					</a>
+				</div>
+
+				<div class="gb-ab" aria-hidden="true">
+					<span class="gb-btn">B</span>
+					<span class="gb-btn">A</span>
+				</div>
+
+				<div class="gb-speaker" aria-hidden="true"></div>
+			</div>
+		</div>
+
+		<a class="gb-exit" href="/">◀&nbsp; PRESS START TO EXIT</a>
+	</main>
+</Layout>
+
+<script>
+	// Cycled rather than picked at random: five clicks in a row should show five
+	// different moves, which random selection cannot promise.
+	const MOVES = [
+		{ cls: 'is-bounce', name: 'BOUNCE' },
+		{ cls: 'is-tackle', name: 'TACKLE' },
+		{ cls: 'is-spin',   name: 'RAPID SPIN' },
+		{ cls: 'is-vine',   name: 'VINE WHIP' },
+		{ cls: 'is-growth', name: 'GROWTH' },
+	];
+	const IDLE = 'BULBASAUR SAYS HI';
+
+	function initPoke() {
+		const poke = document.getElementById('gbPoke');
+		const hero = document.getElementById('gbHero');
+		const bar = document.getElementById('gbBar');
+		if (!poke || !hero || !bar) return;
+
+		let i = 0;
+		let timer = 0;
+
+		poke.addEventListener('click', () => {
+			const move = MOVES[i++ % MOVES.length];
+
+			// Strip, force a reflow, then re-add. Without the reflow the browser coalesces
+			// both class changes into one frame and an interrupted move never restarts.
+			hero.className = 'gb-hero';
+			void hero.offsetWidth;
+			hero.classList.add(move.cls);
+
+			bar.textContent = `BULBASAUR USED ${move.name}!`;
+			clearTimeout(timer);
+			timer = window.setTimeout(() => {
+				bar.textContent = IDLE;
+				hero.className = 'gb-hero';
+			}, 1500);
+		});
+	}
+
+	// ClientRouter swaps the DOM without re-running module scripts, so this binds on
+	// astro:page-load — which fires on first load too, making it the only hook needed.
+	document.addEventListener('astro:page-load', initPoke);
+</script>
+
+<style is:global>
+	/* This page owns the whole window — no card, no border, no paper. */
+	body { margin: 0; }
+
+	.gb {
+		/* The DMG's four greens, plus the console's own plastic. The site's three
+		   colours are replaced wholesale — this is the only page that does that. */
+		--ink:    #0f380f;   /* darkest green — this page's black */
+		--mid:    #306230;
+		--lcd-2:  #8bac0f;
+		--lcd:    #9bbc0f;   /* screen */
+		--case:   #d8d4c6;   /* console plastic */
+		--case-2: #bdb8a7;   /* deck, one flat shade down — not a gradient */
+		--bezel:  #4b4557;
+		--btn:    #a02c5a;
+		--pad:    #2f2f38;
+		/* Same recipe as the site, a pixel heavier: a console has chunky moulding. */
+		--r: 2px;
+		--gb-stroke: 3px;
+		--gb-pop: 6px 6px 0 var(--ink);
+
+		min-height: 100dvh;
+		display: flex; flex-direction: column; align-items: center; justify-content: center;
+		gap: 18px;
+		padding: clamp(16px, 4vh, 44px) clamp(12px, 4vw, 40px);
+		background: var(--ink);
+		/* Same dot matrix as the rest of the site, in this page's palette. `circle` is
+		   load-bearing — the default radial-gradient shape smears the dots into ovals. */
+		background-image: radial-gradient(circle at center, rgba(155,188,15,.22) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+		font-family: 'Archivo', system-ui, sans-serif;
+		color: var(--ink);
+	}
+
+	/* ---- the shell ---- */
+	.gb-case {
+		width: min(920px, 100%);
+		padding: clamp(14px, 2.4vw, 24px);
+		background: var(--case);
+		border: var(--gb-stroke) solid var(--ink);
+		/* One oversized corner, bottom-right. That asymmetry is most of what makes a
+		   rectangle read as a handheld rather than a box. */
+		border-radius: 8px 8px 64px 8px;
+		box-shadow: var(--gb-pop);
+	}
+
+	.gb-top {
+		display: flex; align-items: center; gap: 9px;
+		padding: 0 4px 12px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+	}
+	.gb-led {
+		width: 12px; height: 12px; flex: none;
+		background: var(--btn);
+		border: 2px solid var(--ink); border-radius: 999px;
+		animation: gb-led 2.4s steps(1) infinite;
+	}
+	@keyframes gb-led { 0%, 62% { opacity: 1; } 63%, 100% { opacity: .25; } }
+	.gb-power { font-size: 8px; letter-spacing: .2em; color: var(--mid); }
+	.gb-model {
+		margin-left: auto;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 12px; letter-spacing: .12em; color: var(--mid);
+	}
+	.gb-model b { color: var(--ink); }
+
+	/* ---- the screen ---- */
+	.gb-frame {
+		padding: clamp(26px, 3vw, 34px) clamp(14px, 2.2vw, 22px) clamp(14px, 2.2vw, 22px);
+		background: var(--bezel);
+		border: var(--gb-stroke) solid var(--ink);
+		border-radius: 6px 6px 34px 6px;
+	}
+	.gb-frame-tag {
+		display: block; margin: -14px 0 12px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8px; letter-spacing: .22em; color: #b9b2cc; text-align: center;
+	}
+
+	.gb-lcd {
+		position: relative; overflow: hidden; isolation: isolate;
+		padding: clamp(18px, 3.4vw, 38px) clamp(14px, 3.4vw, 36px);
+		/* The Gen-3 battle scene is the game running on the screen. `pixelated` because
+		   it is 640x360 art blown up to fill a desktop-sized LCD — smoothed, it turns to
+		   mush. --lcd stays behind it as the colour the screen falls back to. */
+		background: var(--lcd) url('/sprites/bg-hoenn.png') center / cover no-repeat;
+		image-rendering: pixelated;
+		border: var(--gb-stroke) solid var(--ink);
+		border-radius: 3px;
+		text-align: center;
+	}
+	/* The LCD's own dot pitch — hard-edged rules, not a soft overlay. */
+	.gb-px {
+		position: absolute; inset: 0; z-index: 3; pointer-events: none;
+		background-image:
+			repeating-linear-gradient(rgba(15,56,15,.11) 0 1px, transparent 1px 3px),
+			repeating-linear-gradient(90deg, rgba(15,56,15,.08) 0 1px, transparent 1px 3px);
+	}
+	.gb-motes { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+	.gb-motes i {
+		position: absolute; left: var(--x); bottom: -4%;
+		width: var(--s); height: var(--s);      /* square: they are pixels, not sparks */
+		background: var(--mid); opacity: 0;
+		animation: gb-float var(--t) linear var(--d) infinite;
+	}
+	@keyframes gb-float {
+		0%   { transform: translate3d(0, 0, 0);         opacity: 0; }
+		14%  { opacity: .55; }
+		86%  { opacity: .3; }
+		100% { transform: translate3d(18px, -620px, 0); opacity: 0; }
+	}
+	.gb-view { position: relative; z-index: 1; }
+
+	.gb-bar {
+		display: flex; justify-content: center; align-items: center; gap: 12px;
+		padding: 6px 10px;
+		background: var(--mid); color: var(--lcd);
+		border: 2px solid var(--ink); border-radius: var(--r, 2px);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .22em;
+	}
+	.gb-caret { animation: gb-blink 1s steps(1) infinite; }
+	@keyframes gb-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+	/* ---- hero sprite ---- */
+	.gb-stage {
+		position: relative;
+		display: grid; place-items: center;
+		margin-top: clamp(18px, 3vh, 30px);
+	}
+	/* The battle platform it stands on. A flat ellipse with a hard rule, not a blur. */
+	.gb-plate {
+		position: absolute; bottom: 0; left: 50%;
+		width: clamp(150px, 20vw, 230px); height: clamp(26px, 3.4vw, 40px);
+		transform: translateX(-50%);
+		background: var(--lcd-2);
+		border: 2px solid var(--ink); border-radius: 999px;
+	}
+	/* The idle sway. It never stops, so a move can play on the sprite inside without
+	   the two transforms fighting over the same element. */
+	.gb-poke {
+		position: relative;
+		display: block; padding: 0; margin-bottom: 12px;
+		background: none; border: 0; cursor: pointer;
+		animation: gb-bob 2.6s ease-in-out infinite;
+	}
+	.gb-poke:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+	@keyframes gb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+	.gb-hero {
+		display: block; width: clamp(120px, 16vw, 180px); height: auto;
+		image-rendering: pixelated;              /* pixel art: never smooth it */
+	}
+
+	/* ---- moves, one per click ---- */
+	.is-bounce { animation: gb-m-bounce .85s ease-out; }
+	@keyframes gb-m-bounce {
+		0%   { transform: translateY(0) scale(1); }
+		14%  { transform: translateY(0) scale(1.16, .82); }   /* crouch */
+		46%  { transform: translateY(-52px) scale(.9, 1.14); }
+		72%  { transform: translateY(0) scale(1.16, .82); }   /* land */
+		100% { transform: translateY(0) scale(1); }
+	}
+
+	.is-tackle { animation: gb-m-tackle .6s ease-in-out; }
+	@keyframes gb-m-tackle {
+		0%, 100% { transform: translateX(0) rotate(0deg); }
+		28%      { transform: translateX(-18px) rotate(-7deg); }  /* wind up */
+		58%      { transform: translateX(34px) rotate(9deg); }
+	}
+
+	.is-spin { animation: gb-m-spin .7s ease-in-out; }
+	@keyframes gb-m-spin { to { transform: rotate(360deg); } }
+
+	.is-vine { animation: gb-m-vine .75s ease-in-out; }
+	@keyframes gb-m-vine {
+		0%, 100% { transform: rotate(0deg) translateX(0); }
+		16%      { transform: rotate(-12deg) translateX(-7px); }
+		42%      { transform: rotate(14deg) translateX(9px); }
+		66%      { transform: rotate(-9deg) translateX(-6px); }
+		86%      { transform: rotate(6deg) translateX(3px); }
+	}
+
+	.is-growth { animation: gb-m-growth 1s ease-out; }
+	@keyframes gb-m-growth {
+		0%   { transform: scale(1); }
+		34%  { transform: scale(1.42); }
+		62%  { transform: scale(1.3); }
+		100% { transform: scale(1); }
+	}
+
+	/* ---- the credit ---- */
+	.gb-kicker {
+		margin: clamp(18px, 3vh, 28px) 0 0;
+		font-size: clamp(9px, 1.2vw, 12px); font-weight: 800;
+		letter-spacing: .34em; color: var(--mid);
+	}
+
+	.gb-namewrap {
+		position: relative; display: inline-block;
+		margin-top: clamp(8px, 1.4vh, 14px); padding: 26px 34px;
+	}
+	.gb-name {
+		position: relative; z-index: 1; margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(28px, 6.2vw, 66px);
+		line-height: 1; letter-spacing: -.02em; color: var(--ink);
+	}
+	.vine { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+	.vine-back  { z-index: 0; }
+	.vine-front { z-index: 2; }
+	.v-stem, .v-curl {
+		fill: none; stroke: var(--mid); stroke-linecap: round;
+		stroke-width: 8; vector-effect: non-scaling-stroke;
+		/* Drawn on, not popped in: the dash is longer than the path, so animating the
+		   offset to zero walks the stroke along from one end. */
+		stroke-dasharray: 1200; stroke-dashoffset: 1200;
+		animation: gb-grow 2s ease-out forwards;
+	}
+	.v-curl { stroke-width: 5; animation-delay: 1.1s; }
+	.vine-front .v-stem { animation-delay: .35s; }
+	.vine-front .v-curl { animation-delay: 1.4s; }
+	@keyframes gb-grow { to { stroke-dashoffset: 0; } }
+
+	.v-leaf {
+		fill: var(--lcd-2); stroke: var(--ink); stroke-width: 2.5;
+		vector-effect: non-scaling-stroke;
+		transform-box: fill-box; transform-origin: 0 0;
+		opacity: 0;
+		animation: gb-leaf .42s ease-out forwards;
+	}
+	/* Each leaf unfurls once the stroke has reached roughly where it sits. */
+	.vine-back  .v-leaf:nth-of-type(1) { animation-delay: .8s; }
+	.vine-back  .v-leaf:nth-of-type(2) { animation-delay: 1.15s; }
+	.vine-back  .v-leaf:nth-of-type(3) { animation-delay: 1.5s; }
+	.vine-front .v-leaf:nth-of-type(1) { animation-delay: 1.05s; }
+	.vine-front .v-leaf:nth-of-type(2) { animation-delay: 1.4s; }
+	.vine-front .v-leaf:nth-of-type(3) { animation-delay: 1.75s; }
+	@keyframes gb-leaf { from { opacity: 0; scale: 0; } to { opacity: 1; scale: 1; } }
+
+	.gb-meta {
+		display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+		gap: 9px; margin-top: clamp(10px, 1.8vh, 18px);
+	}
+	.gb-chip {
+		padding: 5px 12px;
+		background: var(--lcd-2); color: var(--ink);
+		border: 2px solid var(--ink); border-radius: var(--r, 2px);
+		font-size: 9.5px; font-weight: 800; letter-spacing: .18em;
+	}
+	.gb-chip-on { background: var(--mid); color: var(--lcd); }
+	.gb-code {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11.5px; letter-spacing: .1em; color: var(--mid);
+	}
+	.gb-code b { color: var(--ink); }
+
+	/* ---- the text box ---- */
+	.gb-dialog {
+		display: flex; align-items: center; gap: clamp(10px, 2vw, 22px);
+		margin-top: clamp(20px, 3.4vh, 36px); padding: 13px 16px;
+		text-align: left;
+		background: #fff;
+		border: var(--gb-stroke) solid var(--ink);
+		border-radius: var(--r, 2px);
+		box-shadow: 5px 5px 0 var(--mid);
+	}
+	/* Hanging indent: the badge sits out in a gutter of its own so every line of copy —
+	   including the footnote — starts at the same x. A fixed badge width is what makes
+	   the gutter exact rather than a guess at how wide "PS" happens to render. */
+	.gb-dtext {
+		margin: 0; padding-left: var(--ps-gutter); text-indent: calc(var(--ps-gutter) * -1);
+		font-size: clamp(13px, 1.5vw, 17px); font-weight: 600; line-height: 1.6;
+		color: var(--ink);
+	}
+	.gb-ps {
+		display: inline-block; width: 36px; margin-right: 10px; padding: 3px 0;
+		background: var(--ink); color: #fff;
+		border-radius: var(--r, 2px);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; font-weight: 500; letter-spacing: .14em;
+		text-align: center; text-indent: 0; vertical-align: 2px;
+	}
+	/* The one place the site's electric blue shows up — the joke is about water. */
+	.gb-water { font-weight: 900; color: #0047ff; }
+
+	.gb-dcol { flex: 1; min-width: 0; --ps-gutter: 46px; }
+	.gb-foot {
+		margin: 8px 0 0; padding-left: var(--ps-gutter);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .04em; color: var(--mid);
+	}
+
+	/* Typewriter: the dots are always in the DOM, and the box clips how many of them
+	   show. In DM Mono a dot is exactly 1ch, so 7ch reveals all seven. steps(7) is what
+	   makes them land one at a time instead of sliding into view. */
+	.gb-dots {
+		display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom;
+		width: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		animation: gb-type 5s steps(7, end) infinite;
+	}
+	@keyframes gb-type {
+		0%   { width: 0; }
+		36%  { width: 7ch; }   /* typed over 1.8s */
+		100% { width: 7ch; }   /* then held until the loop snaps it back */
+	}
+	/* Cut out to real 8-bit alpha, so it sits on whatever the box happens to be rather
+	   than dragging a white rectangle along with it. Smooth art, not pixel art — it must
+	   opt out of the page's pixelated scaling. */
+	.gb-sweat {
+		display: block; flex: none; width: clamp(120px, 16vw, 180px); height: auto;
+		image-rendering: auto;
+	}
+
+	/* ---- the deck ---- */
+	.gb-deck {
+		position: relative;
+		display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+		gap: 16px; padding: clamp(20px, 3vw, 30px) 6px 4px;
+	}
+
+	.gb-pad { width: 76px; height: 76px; overflow: visible; }
+	.gb-pad-body {
+		fill: var(--pad); stroke: var(--ink); stroke-width: 4;
+		stroke-linejoin: round; vector-effect: non-scaling-stroke;
+	}
+	.gb-pad-tick { fill: var(--case-2); }
+
+	.gb-mid { display: flex; justify-content: center; gap: 18px; transform: rotate(-18deg); }
+	.gb-slot { display: grid; justify-items: center; gap: 5px; text-decoration: none; }
+	.gb-pill {
+		display: block; width: 46px; height: 13px;
+		background: var(--case-2);
+		border: 2px solid var(--ink); border-radius: 999px;
+	}
+	.gb-pilltxt {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 7.5px; letter-spacing: .16em; color: var(--mid);
+	}
+	a.gb-slot:hover .gb-pill { background: var(--mid); }
+	a.gb-slot:hover .gb-pilltxt { color: var(--ink); }
+
+	.gb-ab { display: flex; gap: 14px; transform: rotate(-18deg); }
+	.gb-btn {
+		display: grid; place-items: center;
+		width: 48px; height: 48px;
+		background: var(--btn); color: #fff;
+		border: var(--gb-stroke) solid var(--ink); border-radius: 999px;
+		box-shadow: 3px 3px 0 var(--ink);
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 15px;
+	}
+
+	/* Speaker grille: slanted slits from one repeating rule, no markup. */
+	.gb-speaker {
+		position: absolute; right: 4px; bottom: 0;
+		width: 92px; height: 54px;
+		background: repeating-linear-gradient(115deg,
+			var(--ink) 0 4px, transparent 4px 12px);
+		opacity: .55;
+	}
+
+	/* A chip, not bare text: it sits on the battle scene now, and pale type on pale
+	   grass would be unreadable. */
+	.gb-exit {
+		padding: 7px 13px;
+		background: var(--ink); color: var(--lcd);
+		border: 2px solid var(--ink); border-radius: var(--r);
+		box-shadow: 3px 3px 0 var(--case);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .2em; text-decoration: none;
+	}
+	.gb-exit:hover { background: var(--mid); }
+
+	@media (max-width: 760px) {
+		/* Sprite above the words: side by side there is room for neither. */
+		.gb-dialog { flex-direction: column; text-align: center; }
+		.gb-dtext { text-align: center; }
+		/* Centred copy has no left edge to hang off, so the gutter collapses and the
+		   badge goes back to sitting inline. */
+		.gb-dcol { --ps-gutter: 0px; }
+		.gb-sweat { width: clamp(140px, 46vw, 200px); }
+		.gb-frame-tag { font-size: 7px; letter-spacing: .14em; }
+		.gb-case { border-radius: 6px 6px 44px 6px; }
+		.gb-deck { grid-template-columns: auto auto; justify-content: space-between; gap: 14px 20px; }
+		.gb-mid { order: 3; grid-column: 1 / -1; justify-self: center; }
+		.gb-speaker { display: none; }
+		.gb-pad { width: 62px; height: 62px; }
+		.gb-btn { width: 42px; height: 42px; font-size: 13px; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.gb-led, .gb-caret, .gb-poke { animation: none; }
+		/* Clicked moves still play — they are the point of the button, and they only
+		   run when asked for. Only the dots, which run unprompted, are pinned open. */
+		.gb-dots { animation: none; width: 7ch; }
+		/* Vines land grown rather than drawing themselves on. */
+		.v-stem, .v-curl { animation: none; stroke-dashoffset: 0; }
+		.v-leaf { animation: none; opacity: 1; }
+		.gb-motes { display: none; }
+	}
+</style>
