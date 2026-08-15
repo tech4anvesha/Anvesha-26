@@ -158,7 +158,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		</div>
 
 		<!-- FACE 1: who is buying -->
-		<form id="payForm" class="pay-form" novalidate>
+		<!-- No `novalidate`: the required/pattern attributes below ARE the frontend lock.
+		     The browser refuses to fire submit until name, phone and email are filled and
+		     well-formed, and points at the offending field itself. -->
+		<form id="payForm" class="pay-form">
 			<ul class="order-items" id="orderItems"></ul>
 			<div class="order-row"><span>Total</span><b id="orderTotal">₹0</b></div>
 
