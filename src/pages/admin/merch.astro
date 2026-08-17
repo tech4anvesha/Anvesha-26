@@ -300,30 +300,42 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 			</div>
 
 			<div class="ov-body">
-				<!-- SCANNER -->
-				<div id="distScan">
-					<div class="ds-stage">
-						<video id="distVideo" playsinline muted></video>
-						<span class="ds-reticle" aria-hidden="true"></span>
-						<p class="ds-state" id="distState">Starting camera…</p>
-					</div>
-
-					<p class="ds-or">or enter the order id</p>
-					<form class="ds-manual" id="distManualForm">
-						<input class="field-input" id="distManual" type="text" autocomplete="off"
-						       spellcheck="false" placeholder="ORD_…" />
-						<button class="btn a-btn-secondary" id="distGo" type="submit">LOOK UP</button>
-					</form>
-					<p class="a-err" id="distErr" hidden></p>
+				<!-- The clock is the point of this screen: a session is a stretch of time
+				     with a start and an end, so the panel shows a running one rather than
+				     a static label. -->
+				<div class="dz-clock">
+					<span class="dz-clock-k" id="distClockK">TIME NOW</span>
+					<b class="dz-clock-v" id="distClockV">--:--:--</b>
 				</div>
 
-				<!-- RESULT -->
-				<div id="distResult" hidden></div>
+				<!-- IDLE -->
+				<div id="distIdle">
+					<p class="dz-note">
+						Opens a counter link. Whoever holds it can scan tickets and hand merch
+						over — no admin sign-in needed — until you end the session.
+					</p>
+				</div>
+
+				<!-- RUNNING -->
+				<div id="distLive" hidden>
+					<p class="dz-legend">Counter link</p>
+					<div class="dz-link">
+						<input class="field-input" id="distLink" type="text" readonly
+						       aria-label="Distribution counter link" />
+						<button class="btn a-btn-secondary" id="distCopy" type="button">COPY</button>
+					</div>
+					<p class="dz-note">
+						Send it to whoever is at the counter. Ending the session kills the link
+						at once, and starting a new one replaces it.
+					</p>
+				</div>
+
+				<p class="a-err" id="distErr" hidden></p>
 			</div>
 
-			<div class="ov-foot" id="distFoot" hidden>
-				<button class="btn a-btn-primary" id="distCollect" type="button" hidden>MARK COLLECTED</button>
-				<button class="btn a-btn-secondary" id="distAgain" type="button">SCAN ANOTHER</button>
+			<div class="ov-foot">
+				<button class="btn a-btn-primary" id="distStart" type="button">START DISTRIBUTION</button>
+				<button class="btn a-btn-secondary" id="distEnd" type="button" hidden>END DISTRIBUTION</button>
 			</div>
 		</div>
 	</div>
@@ -445,12 +457,9 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 </AdminLayout>
 
 <script>
-	import { API, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
+	import { API, SITE, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 	import iTrash from 'lucide-static/icons/trash-2.svg?raw';
-	// BarcodeDetector is still missing from Safari and Firefox, which is most of the
-	// phones a volunteer will actually be holding. A real decoder is the working choice.
-	import jsQR from 'jsqr';
 	// Same fallbacks the storefront uses, so the preview degrades identically.
 	import icApparel from 'lucide-static/icons/shirt.svg?raw';
 	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
@@ -928,222 +937,134 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		downloadCsv(`anvesha-collections-${today()}.csv`, rows);
 	}
 
-	// ---- distribution ----
-	type Scan = {
-		verdict: 'ok' | 'unpaid' | 'already_collected';
-		collectable: boolean;
-		order: {
-			order_id: string;
-			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
-			total_price_paise: number; payment_status: string;
-			collected: boolean; collected_at: string | null; created_at: string;
-		};
-		payment: { razorpay_transaction_id: string | null; transaction_info: Record<string, unknown> } | null;
-	};
+	// ---- distribution sessions ----
+	// The panel no longer scans. It opens a session and hands out the link; the scanning
+	// happens at /<session>/distribution, on whatever phone is actually at the counter.
+	type Session = { session_id: string; start_time: string; end_time: string | null };
 
-	let stream: MediaStream | null = null;
-	let scanTimer: number | undefined;
-	let scanning = false;
-	let scanned: Scan | null = null;
-	// The code the message on screen belongs to. A rejected QR is still sitting in front
-	// of the lens, so without this the loop re-decodes it every 100ms and every lookup
-	// clears the message before its own round trip puts it back — the notice blinks.
-	let rejected = '';
+	let session: Session | null = null;
+	let clockTimer: number | undefined;
 
-	/** Releases the camera. Called on every exit path — a live capture light left on
-	 *  after the dialog closes is alarming and drains a volunteer's phone. */
-	function stopCamera() {
-		scanning = false;
-		clearTimeout(scanTimer);
-		stream?.getTracks().forEach((t) => t.stop());
-		stream = null;
-		const v = $<HTMLVideoElement>('distVideo');
-		v.srcObject = null;
+	/** D1 stamps `datetime('now')`, which is UTC without a zone marker. Left as-is the
+	 *  browser reads it as local and the counter link looks 5h30m old the moment it
+	 *  opens, so the Z goes back on before parsing. */
+	const asDate = (sqlUtc: string) => new Date(sqlUtc.replace(' ', 'T') + 'Z');
+
+	const hhmmss = (d: Date) =>
+		[d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
+
+	/** How long the session has been open, in the coarsest unit that is still true. */
+	function elapsed(from: Date): string {
+		const secs = Math.max(0, Math.floor((Date.now() - from.getTime()) / 1000));
+		if (secs < 60) return `${secs}s`;
+		if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+		return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
 	}
 
-	async function startCamera() {
-		const video = $<HTMLVideoElement>('distVideo');
-		const state = $('distState');
-		try {
-			// facingMode 'environment' asks for the rear camera on a phone; on a laptop
-			// there is only one and the constraint is ignored rather than failing.
-			stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode: 'environment' },
-				audio: false,
-			});
-			video.srcObject = stream;
-			await video.play();
-			state.hidden = true;
-			scanning = true;
-			tick();
-		} catch (e) {
-			// No camera, denied permission, or an insecure origin. Manual entry is the
-			// documented fallback, so this is a notice rather than a failure.
-			state.hidden = false;
-			state.textContent =
-				(e as Error).name === 'NotAllowedError'
-					? 'Camera blocked — use the order id box below.'
-					: 'No camera available — use the order id box below.';
+	/** The link a volunteer opens. Deliberately the deployed site rather than
+	 *  location.origin — this link gets sent to someone else's phone, and a panel open
+	 *  on localhost would hand out a URL that resolves on nobody's device but this one.
+	 *
+	 *  The id goes in the fragment: browsers never send that to a server, so the one
+	 *  secret in this link stays out of access logs and Referer headers on the way to
+	 *  the counter — and /distribution stays a single static page. */
+	const linkFor = (id: string) => `${SITE}/distribution#${id}`;
+
+	function paintDistribution() {
+		const live = session !== null;
+		$('distIdle').hidden = live;
+		$('distLive').hidden = !live;
+		$('distStart').hidden = live;
+		$('distEnd').hidden = !live;
+		$('distTitle').textContent = live ? 'DISTRIBUTION — LIVE' : 'DISTRIBUTION';
+		if (live) $<HTMLInputElement>('distLink').value = linkFor(session!.session_id);
+		tickClock();
+	}
+
+	/** One second tick, shared by both states: the wall clock while idle, the session's
+	 *  own age once it is running. */
+	function tickClock() {
+		if ($('distModal').hidden) return;
+		if (session) {
+			const started = asDate(session.start_time);
+			$('distClockK').textContent = `STARTED ${hhmmss(started)}`;
+			$('distClockV').textContent = elapsed(started);
+		} else {
+			$('distClockK').textContent = 'TIME NOW';
+			$('distClockV').textContent = hhmmss(new Date());
 		}
 	}
 
-	/** Grabs a frame and looks for a QR in it. ~10/s is plenty and leaves the phone alone. */
-	async function tick() {
-		if (!scanning) return;
-		const video = $<HTMLVideoElement>('distVideo');
-
-		if (video.readyState === video.HAVE_ENOUGH_DATA) {
-			const canvas = document.createElement('canvas');
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-			const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
-			const found = jsQR(px.data, px.width, px.height, { inversionAttempts: 'dontInvert' });
-			// Anything but the code we already rejected: the lens stays live so pointing it
-			// at the next ticket just works, but the verdict on screen holds still.
-			if (found?.data && found.data.trim() !== rejected) {
-				scanning = false;
-				await lookup(found.data.trim());
-				return;
-			}
-		}
-		scanTimer = setTimeout(tick, 100) as unknown as number;
+	function distError(e: unknown) {
+		$('distErr').textContent = (e as Error).message;
+		$('distErr').hidden = false;
 	}
 
-	/** Looks an order up and shows the verdict. Shared by the camera and the manual box. */
-	async function lookup(orderId: string) {
-		const err = $('distErr');
-		err.hidden = true;
-		try {
-			const res = await adminFetch<Scan>('/api/admin/scan', {
-				method: 'POST',
-				body: JSON.stringify({ order_id: orderId }),
-			});
-			scanned = res;
-			rejected = '';
-			stopCamera();
-			showResult(res);
-		} catch (e) {
-			// A 404 is the "this is not one of ours" case and deserves plain words.
-			const msg = (e as Error).message;
-			err.textContent = /no such order/i.test(msg)
-				? `Not one of ours — no order ${orderId}`
-				: msg;
-			err.hidden = false;
-			rejected = orderId;
-			// Keep looking: the volunteer may just have caught a bad frame.
-			if (stream) { scanning = true; tick(); }
-		}
-	}
-
-	function showResult(s: Scan) {
-		const paid = s.order.payment_status === 'paid';
-		const info = s.payment?.transaction_info ?? {};
-		const buyer = {
-			name: String(info.name ?? ''),
-			email: String(info.email ?? ''),
-			phone: String(info.contact ?? ''),
-		};
-
-		const banner =
-			s.verdict === 'ok'
-				? `<p class="ds-verdict ok">Verified — hand it over</p>`
-				: s.verdict === 'already_collected'
-					? `<p class="ds-verdict warn">Merch has been collected` +
-						(s.order.collected_at ? ` · ${escape(stamp(s.order.collected_at))}` : '') +
-						`</p>`
-					: `<p class="ds-verdict warn">Not paid — do not hand over</p>`;
-
-		const lines = s.order.items
-			.map(
-				(l, i) =>
-					`<li class="dc-item">` +
-					`<i class="dc-item-n">${String(i + 1).padStart(2, '0')}</i>` +
-					`<span class="dc-item-name">${escape(l.name)}` +
-					(l.size ? `<em>${escape(l.size)}</em>` : '') +
-					`</span>` +
-					`<b class="dc-item-q">×${l.quantity}</b>` +
-					`</li>`,
-			)
-			.join('');
-
-		const tile = (k: string, v: string, mod = '') =>
-			`<div class="dc-tile ${mod}"><span class="dc-tile-k">${k}</span>` +
-			`<b class="dc-tile-v">${escape(v)}</b></div>`;
-
-		$('distResult').innerHTML =
-			banner +
-			`<div class="dc">` +
-			`<p class="dc-id">${escape(s.order.order_id)}</p>` +
-
-			`<div class="dc-tiles">` +
-			tile('Payment', s.order.payment_status.toUpperCase(), paid ? 'is-paid' : 'is-due') +
-			tile('Total', `₹${toRupees(s.order.total_price_paise)}`) +
-			tile('Placed', stamp(s.order.created_at)) +
-			`</div>` +
-
-			`<p class="dc-legend">Buyer</p>` +
-			`<div class="dc-buyer">` +
-			`<b class="dc-buyer-name">${escape(buyer.name) || 'Not recorded'}</b>` +
-			`<span class="dc-buyer-line">${escape(buyer.email) || '—'}</span>` +
-			`<span class="dc-buyer-line">${escape(buyer.phone) || '—'}</span>` +
-			`</div>` +
-
-			`<p class="dc-legend">Hand over</p>` +
-			`<ul class="dc-items">${lines}</ul>` +
-			`</div>`;
-
-		$('distScan').hidden = true;
-		$('distResult').hidden = false;
-		$('distFoot').hidden = false;
-		// The button only exists for a paid, uncollected order — an unpaid one must not
-		// offer a way to hand merch over at all.
-		$('distCollect').hidden = !(paid && s.collectable);
-	}
-
-	async function markCollected() {
-		if (!scanned) return;
-		const btn = $<HTMLButtonElement>('distCollect');
+	async function startDistribution() {
+		const btn = $<HTMLButtonElement>('distStart');
 		btn.disabled = true;
+		$('distErr').hidden = true;
 		try {
-			await adminFetch('/api/admin/collect', {
-				method: 'POST',
-				body: JSON.stringify({ order_id: scanned.order.order_id }),
-			});
-			$('distResult').innerHTML =
-				`<p class="ds-verdict ok">Collected — ${escape(scanned.order.order_id)}</p>` +
-				`<p class="ds-done">The order is now marked collected in the table.</p>`;
-			btn.hidden = true;
-			// The table behind is stale the moment this succeeds.
-			if (task === 'orders') loadOrders();
+			const res = await adminFetch<{ session: Session }>('/api/admin/distribution', { method: 'POST' });
+			session = res.session;
+			paintDistribution();
 		} catch (e) {
-			$('distResult').insertAdjacentHTML(
-				'afterbegin',
-				`<p class="a-err">${escape((e as Error).message)}</p>`,
-			);
+			distError(e);
 		} finally {
 			btn.disabled = false;
 		}
 	}
 
-	function resetDistribution() {
-		scanned = null;
-		rejected = '';
-		$('distResult').hidden = true;
-		$('distResult').innerHTML = '';
-		$('distScan').hidden = false;
-		$('distFoot').hidden = true;
-		$('distCollect').hidden = true;
+	async function endDistribution() {
+		const btn = $<HTMLButtonElement>('distEnd');
+		btn.disabled = true;
 		$('distErr').hidden = true;
-		$<HTMLInputElement>('distManual').value = '';
+		try {
+			await adminFetch('/api/admin/distribution', { method: 'DELETE' });
+			session = null;
+			paintDistribution();
+			// Volunteers have been marking orders collected all session; the table behind is stale.
+			if (task === 'orders') loadOrders();
+		} catch (e) {
+			distError(e);
+		} finally {
+			btn.disabled = false;
+		}
 	}
 
-	function openDistribution(on: boolean) {
-		openModal('distModal', on);
-		if (on) { resetDistribution(); startCamera(); }
-		else stopCamera();
+	async function copyLink() {
+		const input = $<HTMLInputElement>('distLink');
+		const btn = $('distCopy');
+		try {
+			await navigator.clipboard.writeText(input.value);
+		} catch {
+			// Clipboard access needs a secure origin, which a phone on the venue LAN may not
+			// have. Selecting the text leaves a long-press copy available instead.
+			input.select();
+		}
+		btn.textContent = 'COPIED';
+		setTimeout(() => { btn.textContent = 'COPY'; }, 1400);
 	}
+
+	async function openDistribution(on: boolean) {
+		openModal('distModal', on);
+		clearInterval(clockTimer);
+		if (!on) return;
+
+		$('distErr').hidden = true;
+		clockTimer = setInterval(tickClock, 1000) as unknown as number;
+		// Re-read rather than trust what this tab last saw: the session may have been
+		// started from another admin's laptop, or this one may simply have been reloaded.
+		try {
+			const res = await adminFetch<{ session: Session | null }>('/api/admin/distribution');
+			session = res.session;
+		} catch (e) {
+			session = null;
+			distError(e);
+		}
+		paintDistribution();
+	}
+
 
 	let pendingDelete: Order | null = null;
 
@@ -1728,15 +1649,9 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		// distribution
 		$('ordDistribute').onclick = () => openDistribution(true);
 		$('distClose').onclick = () => openDistribution(false);
-		$('distAgain').onclick = () => { resetDistribution(); startCamera(); };
-		$('distCollect').onclick = markCollected;
-		$<HTMLFormElement>('distManualForm').onsubmit = (e) => {
-			e.preventDefault();
-			const id = $<HTMLInputElement>('distManual').value.trim().toUpperCase();
-			// Typing it out is a deliberate retry, so the camera's skip does not apply.
-			rejected = '';
-			if (id) lookup(id);
-		};
+		$('distStart').onclick = startDistribution;
+		$('distEnd').onclick = endDistribution;
+		$('distCopy').onclick = copyLink;
 
 		// order tools
 		$('ordDownload').onclick = downloadOrders;
@@ -1752,8 +1667,8 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		$('delGo').onclick = confirmDelete;
 		// Clicking the backdrop dismisses, but only the backdrop — a click that started
 		// inside the panel and drifted out must not close it.
-		// The distribution dialog holds a camera, so it always closes through its own
-		// handler — openModal alone would hide it and leave the capture light on.
+		// The distribution dialog runs a clock, so it always closes through its own
+		// handler — openModal alone would hide it and leave the interval ticking.
 		const closeOverlay = (id: string) =>
 			id === 'distModal' ? openDistribution(false) : openModal(id, false);
 
@@ -1792,12 +1707,12 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 	let stopLive: (() => void) | null = null;
 
-	// Leaving the page must drop the socket and the camera, or every visit opens another
-	// one and the capture light stays on after navigating away.
+	// Leaving the page must drop the socket and the clock, or every visit opens another
+	// one and they all keep firing against nodes that are no longer in the document.
 	document.addEventListener('astro:before-swap', () => {
 		stopLive?.();
 		stopLive = null;
-		stopCamera();
+		clearInterval(clockTimer);
 	});
 	document.addEventListener('astro:page-load', initMerchAdmin);
 </script>
@@ -1917,139 +1832,42 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	/* ---- distribution ---- */
 	.ord-tool-go { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
 
-	.ds-stage {
-		position: relative; display: grid; place-items: center; overflow: hidden;
-		aspect-ratio: 4 / 3; margin-bottom: 16px;
+	/* The dialog is a stopwatch, not a form: one big reading, then the link it produced. */
+	.dz-clock {
+		display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+		margin-bottom: 18px; padding: 15px 16px;
 		background: var(--secondary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
-	.ds-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
-	/* A frame to aim through — the QR does not have to fill it, it just tells the
-	   volunteer where to point. */
-	.ds-reticle {
-		position: absolute; inset: 18% 22%;
-		border: 2px solid var(--primary); border-radius: var(--r);
-		box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--secondary) 55%, transparent);
-	}
-	.ds-state {
-		position: absolute; margin: 0; padding: 9px 12px;
+	.dz-clock-k {
 		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; letter-spacing: .1em; text-align: center;
-		color: var(--primary); background: var(--secondary);
-		border: 1.5px solid var(--primary); border-radius: var(--r);
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--primary) 55%, transparent);
+	}
+	/* Tabular figures: the seconds change every tick, and proportional digits make the
+	   whole reading jitter sideways as they do. */
+	.dz-clock-v {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 26px; letter-spacing: -.01em;
+		font-variant-numeric: tabular-nums; color: var(--primary);
 	}
 
-	.ds-or {
-		display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+	.dz-legend {
+		display: flex; align-items: center; gap: 10px; margin: 0 0 9px;
 		font-family: 'DM Mono', ui-monospace, monospace;
 		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
 	}
-	.ds-or::before, .ds-or::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
+	.dz-legend::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
 
-	.ds-manual { display: flex; gap: 8px; margin-bottom: 12px; }
-	.ds-manual .field-input {
-		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px;
-		text-transform: uppercase;
+	.dz-link { display: flex; gap: 8px; margin-bottom: 12px; }
+	.dz-link .field-input {
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
+		text-overflow: ellipsis;
 	}
-	.ds-manual .a-btn-secondary { flex: none; padding: 12px 14px; }
+	.dz-link .a-btn-secondary { flex: none; padding: 12px 16px; }
 
-	.ds-verdict {
-		display: flex; align-items: center; gap: 10px;
-		margin: 0 0 18px; padding: 14px 15px;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	/* A marker square, the same device the eyebrows use — it makes the banner read as
-	   a status line rather than a coloured slab. */
-	.ds-verdict::before {
-		content: ''; flex: none; width: 9px; height: 9px;
-		background: var(--primary); border-radius: var(--r);
-	}
-	.ds-verdict.ok { color: var(--primary); background: var(--secondary); }
-	/* Accent, not a new colour: the palette is three colours and a warning is still
-	   one of them. The wording carries the meaning. */
-	.ds-verdict.warn { color: var(--primary); background: var(--accent); border-color: var(--accent); }
-	.ds-done { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.dz-note { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
 
-	/* ---- scan result: a verification card, not a receipt ---- */
-	.dc { display: flex; flex-direction: column; gap: 16px; }
-
-	.dc-id {
-		margin: 0; padding: 11px 13px;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 12px; letter-spacing: .04em; word-break: break-all;
-		background: var(--sink);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-
-	/* Three facts, three boxes — the shape the panel uses everywhere else. */
-	.dc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-	.dc-tile {
-		display: flex; flex-direction: column; gap: 5px;
-		padding: 11px 12px; min-width: 0;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.dc-tile-k {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.dc-tile-v {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 14px; letter-spacing: -.01em;
-		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-	}
-	/* The payment tile is the one a volunteer reads first, so it is filled rather than
-	   outlined — and its two states are the only place the colour changes. */
-	.dc-tile.is-paid { background: var(--secondary); border-color: var(--secondary); }
-	.dc-tile.is-paid .dc-tile-k { color: color-mix(in srgb, var(--primary) 55%, transparent); }
-	.dc-tile.is-paid .dc-tile-v { color: var(--primary); }
-	.dc-tile.is-due { background: var(--accent); border-color: var(--accent); }
-	.dc-tile.is-due .dc-tile-k { color: color-mix(in srgb, var(--primary) 65%, transparent); }
-	.dc-tile.is-due .dc-tile-v { color: var(--primary); }
-
-	.dc-legend {
-		display: flex; align-items: center; gap: 10px; margin: 0 0 -6px;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.dc-legend::after { content: ''; flex: 1; height: 1.5px; background: var(--hair); }
-
-	.dc-buyer { display: flex; flex-direction: column; gap: 3px; }
-	.dc-buyer-name {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 19px; letter-spacing: -.01em;
-	}
-	.dc-buyer-line {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 11.5px; color: var(--ink-60); word-break: break-all;
-	}
-
-	.dc-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-	.dc-item {
-		display: flex; align-items: center; gap: 11px;
-		padding: 11px 12px;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.dc-item-n {
-		flex: none; display: grid; place-items: center;
-		min-width: 22px; height: 17px; padding: 0 5px;
-		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; font-style: normal;
-		color: var(--primary); background: var(--accent); border-radius: var(--r);
-	}
-	.dc-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
-	/* The size is what gets handed over wrong most often, so it is set apart rather
-	   than run into the name. */
-	.dc-item-name em {
-		font-style: normal; margin-left: 8px; padding: 2px 6px;
-		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9.5px; letter-spacing: .08em;
-		border: 1.5px solid var(--secondary); border-radius: var(--r);
-	}
-	.dc-item-q {
-		flex: none;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 16px;
-	}
 
 	/* ---- collections: a filed record ---- */
 	.ov-file { width: min(840px, 100%); position: relative; overflow: visible; }
