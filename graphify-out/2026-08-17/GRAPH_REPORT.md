@@ -1,11 +1,11 @@
 # Graph Report - Anvesha-'26  (2026-08-17)
 
 ## Corpus Check
-- 51 files · ~70,621 words
+- 52 files · ~70,539 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 460 nodes · 902 edges · 30 communities (24 shown, 6 thin omitted)
+- 464 nodes · 905 edges · 31 communities (24 shown, 7 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.65)
 - Token cost: 0 input · 0 output
 
@@ -35,6 +35,7 @@
 - lib/admin.ts
 - set-admin-password.mjs
 - CatalogueHub
+- vercel.json
 - ../assets/astro.svg
 - ../assets/background.svg
 - ../styles/theme.css
@@ -66,7 +67,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (30 total, 6 thin omitted)
+## Communities (31 total, 7 thin omitted)
 
 ### Community 0 - "tsconfig.json"
 Cohesion: 0.25
@@ -82,7 +83,7 @@ Nodes (74): adminCollect(), adminCreateMerch(), adminDeleteMerch(), adminDeleteO
 
 ### Community 4 - "admin/merch.astro"
 Cohesion: 0.08
-Nodes (47): onCatalogueChange(), toPaise(), toRupees(), addDraft(), asDate(), collections(), confirmDelete(), copyLink() (+39 more)
+Nodes (46): toPaise(), toRupees(), addDraft(), asDate(), collections(), confirmDelete(), copyLink(), disarmDelete() (+38 more)
 
 ### Community 6 - "pages/merch.astro"
 Cohesion: 0.09
@@ -105,7 +106,7 @@ Cohesion: 0.19
 Nodes (3): ADMIN_NAV, [], hasTools
 
 ### Community 13 - "distribution.astro"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (16): MOTES, escape(), initCounter(), initPage(), isDead(), lookup(), markCollected(), resetScan() (+8 more)
 
 ### Community 14 - "cart.ts"
@@ -129,32 +130,32 @@ Cohesion: 0.25
 Nodes (6): AUTH, post(), req(), sized, unsized, vars
 
 ### Community 22 - "lib/admin.ts"
-Cohesion: 0.22
-Nodes (10): initShell(), adminFetch(), AdminSession, clearSession(), getSession(), toLogin(), API, btn (+2 more)
+Cohesion: 0.20
+Nodes (11): initShell(), adminFetch(), AdminSession, clearSession(), getSession(), onCatalogueChange(), toLogin(), API (+3 more)
 
 ### Community 23 - "set-admin-password.mjs"
 Cohesion: 0.33
 Nodes (5): args, derive(), hash, salt, verify()
 
 ## Knowledge Gaps
-- **116 isolated node(s):** `name`, `type`, `version`, `node`, `dev` (+111 more)
+- **118 isolated node(s):** `name`, `type`, `version`, `node`, `dev` (+113 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `text()` connect `cart.ts` to `expo.astro`, `[]`?**
-  _High betweenness centrality (0.170) - this node is a cross-community bridge._
+  _High betweenness centrality (0.168) - this node is a cross-community bridge._
 - **Why does `[]` connect `[]` to `pages/merch.astro`, `pages/events.astro`, `distribution.astro`, `expo.astro`, `outreach.astro`, `sponsorships.astro`, `lib/admin.ts`?**
   _High betweenness centrality (0.130) - this node is a cross-community bridge._
 - **Why does `label()` connect `cart.ts` to `expo.astro`, `outreach.astro`?**
-  _High betweenness centrality (0.068) - this node is a cross-community bridge._
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
 - **What connects `name`, `type`, `version` to the rest of the system?**
-  _116 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _118 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
 - **Should `routes.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.08286554397219995 - nodes in this community are weakly interconnected._
 - **Should `admin/merch.astro` be split into smaller, more focused modules?**
-  _Cohesion score 0.08051948051948052 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08282828282828283 - nodes in this community are weakly interconnected._

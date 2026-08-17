@@ -9,6 +9,9 @@
  *   GET  /api/orders/:order_id          receipt + QR payload
  *   POST /api/distributor/scan          verify a scanned QR      [auth]
  *   POST /api/distributor/collect       mark handed over         [auth]
+ *   GET  /api/distribution/:id          is this counter link live?
+ *   POST /api/distribution/:id/scan     verify a scanned QR      [session in url]
+ *   POST /api/distribution/:id/collect  mark handed over         [session in url]
  */
 
 import {
@@ -23,6 +26,14 @@ import {
 	adminLogout,
 	adminUpdateMerch,
 } from './admin.ts';
+import {
+	checkSession,
+	endDistribution,
+	getDistribution,
+	sessionCollect,
+	sessionScan,
+	startDistribution,
+} from './distribution.ts';
 import {
 	checkout,
 	directPay,
@@ -68,6 +79,18 @@ export default {
 			if (method === 'POST' && pathname === '/api/distributor/collect')
 				return await distributorCollect(env, req, cors);
 
+			// ---- distribution sessions ----
+			// No Authorization header: the session id in the path is the credential, which
+			// is what lets a volunteer work from a copied link without an admin login.
+			const dist = pathname.match(/^\/api\/distribution\/([^/]+)(?:\/(scan|collect))?$/);
+			if (dist) {
+				const id = decodeURIComponent(dist[1]);
+				if (method === 'GET' && !dist[2]) return await checkSession(env, id, cors);
+				if (method === 'POST' && dist[2] === 'scan') return await sessionScan(env, id, req, cors);
+				if (method === 'POST' && dist[2] === 'collect')
+					return await sessionCollect(env, id, req, cors, ctx);
+			}
+
 			// interim counter payment; 404s unless DIRECT_PAY=1
 			if (method === 'POST' && pathname === '/api/pay') return await directPay(env, req, cors, ctx);
 
@@ -92,6 +115,12 @@ export default {
 			if (method === 'POST' && pathname === '/api/admin/scan') return await adminScan(env, req, cors);
 			if (method === 'POST' && pathname === '/api/admin/collect')
 				return await adminCollect(env, req, cors, ctx);
+
+			if (pathname === '/api/admin/distribution') {
+				if (method === 'GET') return await getDistribution(env, req, cors);
+				if (method === 'POST') return await startDistribution(env, req, cors);
+				if (method === 'DELETE') return await endDistribution(env, req, cors);
+			}
 
 			if (method === 'GET' && pathname === '/api/admin/orders') return await adminListOrders(env, req, cors);
 			const adminOrder = pathname.match(/^\/api\/admin\/orders\/([^/]+)$/);

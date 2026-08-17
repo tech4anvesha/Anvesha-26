@@ -15,7 +15,7 @@
     "semantic_hash": ""
   },
   "astro.config.mjs": {
-    "mtime": 1786977484.4628103,
+    "mtime": 1786342441.723946,
     "ast_hash": "587a294a5ddda08529949ecb2763e9cd",
     "semantic_hash": "587a294a5ddda08529949ecb2763e9cd"
   },
@@ -205,8 +205,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/merch.astro": {
-    "mtime": 1786977522.8554554,
-    "ast_hash": "20f705693db87c95d1c002eb41973554",
+    "mtime": 1786976304.3353674,
+    "ast_hash": "7c2b13ba66e0a9fcf9f7f71c3abe8c3b",
     "semantic_hash": ""
   },
   "src/pages/creator.astro": {
@@ -215,8 +215,13 @@
     "semantic_hash": ""
   },
   "src/pages/distribution.astro": {
-    "mtime": 1786977515.057229,
-    "ast_hash": "c808408d030c221fce752646db01c715",
+    "mtime": 1786976447.2730896,
+    "ast_hash": "0e0fb0a5c509a33c0565ce8396740eaa",
+    "semantic_hash": ""
+  },
+  "vercel.json": {
+    "mtime": 1786976451.5978594,
+    "ast_hash": "01eb53a6346f223684de7077d75aa0fd",
     "semantic_hash": ""
   },
   "worker/scripts/set-admin-password.mjs": {

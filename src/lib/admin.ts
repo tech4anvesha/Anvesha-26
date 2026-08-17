@@ -8,7 +8,7 @@
 
 import { API } from './api';
 
-export { API };
+export { API, SITE } from './api';
 
 const KEY = 'anvesha_admin_session';
 

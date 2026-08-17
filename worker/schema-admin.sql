@@ -41,3 +41,21 @@ CREATE TABLE IF NOT EXISTS admin_login (
 -- The auth check runs on every admin request, so it must not be a table scan.
 CREATE INDEX IF NOT EXISTS idx_admin_session ON admin_login (session_token);
 CREATE INDEX IF NOT EXISTS idx_admin_login_time ON admin_login (login_time);
+
+-- ---------- distribution sessions ----------
+-- A time-boxed pass for the merch counter. An admin opens one, copies the link, and
+-- whoever holds that link can scan and hand over until the admin ends it. The session
+-- id in the URL IS the credential, so it carries the same 128 bits as an order id and
+-- every scan re-reads this row — revoking a volunteer's access has to be one click,
+-- not a request to close a tab.
+CREATE TABLE IF NOT EXISTS distributions (
+  session_id TEXT PRIMARY KEY,
+  start_time TEXT NOT NULL DEFAULT (datetime('now')),
+  -- NULL means still running. Set when an admin clicks END DISTRIBUTION.
+  end_time   TEXT
+);
+
+-- Partial: the only query that is not by primary key is "is anything open right now",
+-- and a full index would be almost entirely closed sessions the query never reads.
+CREATE INDEX IF NOT EXISTS idx_distributions_open
+  ON distributions (start_time) WHERE end_time IS NULL;
