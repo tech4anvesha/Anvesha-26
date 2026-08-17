@@ -47,13 +47,21 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id           TEXT PRIMARY KEY,
   -- Snapshot of the cart at purchase time: name and unit price are copied in, not
   -- referenced. A later price change must not rewrite what someone already paid.
-  order_info         TEXT    NOT NULL,          -- JSON: [{merch_id,name,quantity,size,unit_price_paise,line_total_paise}]
+  -- JSON: [{merch_id,name,quantity,size,unit_price_paise,line_total_paise,collected}].
+  -- `collected` (0|1) lives per line, not just on the row below — collection happens
+  -- one item at a time at the counter, so the row's own status alone cannot say which
+  -- items are still outstanding.
+  order_info         TEXT    NOT NULL,
   total_price_paise  INTEGER NOT NULL CHECK (total_price_paise > 0),
   payment_status     TEXT    NOT NULL DEFAULT 'unpaid'
                        CHECK (payment_status IN ('unpaid', 'paid', 'failed')),
-  collection_status  INTEGER NOT NULL DEFAULT 0 CHECK (collection_status IN (0, 1)),
+  -- 'partial' is what makes this three states and not a boolean: an order with five
+  -- items and two collected is neither "pending" nor "collected", and the counter UI
+  -- needs to tell that apart from both to know which items are still owed.
+  collection_status  TEXT    NOT NULL DEFAULT 'pending'
+                       CHECK (collection_status IN ('pending', 'partial', 'collected')),
   razorpay_order_id  TEXT,                      -- order_xxx, from Razorpay
-  collected_at       TEXT,
+  collected_at       TEXT,                      -- set only once collection_status reaches 'collected'
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
 );
@@ -75,7 +83,17 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_payments_order ON payments (order_id);
+-- UNIQUE, not a plain index. An order can have at most one successful payment: the
+-- webhook only inserts on capture, and directPay only inserts when the order was not
+-- already paid. Both guard the *order* row with a conditional UPDATE, which stops the
+-- money being counted twice — but two concurrent requests would still have landed two
+-- payment rows, and the LEFT JOIN in adminListOrders would then show that order twice.
+-- With UNIQUE the loser's INSERT OR IGNORE becomes the no-op it was always meant to be.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_order ON payments (order_id);
+
+-- adminListOrders is ORDER BY created_at DESC over the whole table. Unindexed that is
+-- a full sort on every panel load, which is free at 60 rows and not at fest scale.
+CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at DESC);
 
 -- ---------- webhook audit ----------
 -- Every verified webhook lands here before anything is mutated. When a payment is

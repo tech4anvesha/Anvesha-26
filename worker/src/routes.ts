@@ -1,6 +1,6 @@
 /** Endpoint handlers. Each one throws ApiError; index.ts turns that into a response. */
 
-import { type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
+import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
 import { parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import {
@@ -83,7 +83,31 @@ export async function listMerch(env: Env, cors: Cors): Promise<Response> {
 // ============================================================
 // 2. GET /api/merch/:id/image — stream one image out of R2
 // ============================================================
-export async function merchImage(env: Env, id: string, cors: Cors, index = 0): Promise<Response> {
+export async function merchImage(
+	env: Env,
+	id: string,
+	cors: Cors,
+	index = 0,
+	req?: Request,
+	ctx?: ExecutionContext,
+): Promise<Response> {
+	// Edge cache first. Without this every thumbnail on the storefront costs a D1 query
+	// AND an R2 GET on every cold browser cache — the catalogue grid is the most
+	// requested thing on the site, and none of that work changes between requests.
+	// Keyed on the request URL, which already encodes the item and the view index.
+	const cache = caches.default;
+	const cacheKey = req ? new Request(new URL(req.url).toString(), { method: 'GET' }) : null;
+	if (cacheKey) {
+		const hit = await cache.match(cacheKey);
+		// CORS is per-origin and must not be served from a shared cache, so the cached
+		// copy carries none — the live headers are merged back on the way out.
+		if (hit) {
+			const headers = new Headers(hit.headers);
+			for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+			return new Response(hit.body, { headers, status: hit.status });
+		}
+	}
+
 	let path: string | undefined;
 
 	if (index === 0) {
@@ -119,7 +143,16 @@ export async function merchImage(env: Env, id: string, cors: Cors, index = 0): P
 	object.writeHttpMetadata(headers); // Content-Type etc. as uploaded
 	headers.set('etag', object.httpEtag);
 	headers.set('Cache-Control', 'public, max-age=86400');
-	return new Response(object.body, { headers });
+
+	const response = new Response(object.body, { headers });
+
+	// clone(), not arrayBuffer(): the body stays a stream, so the browser starts
+	// receiving bytes immediately instead of waiting for the whole image to buffer.
+	// The cached copy keeps whichever origin's CORS headers this request had, which is
+	// why the hit path above overwrites them rather than trusting what it finds.
+	if (cacheKey && ctx) ctx.waitUntil(cache.put(cacheKey, response.clone()));
+
+	return response;
 }
 
 // ============================================================
@@ -154,7 +187,7 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 	await env.DB.prepare(
 		`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
 		                     collection_status, razorpay_order_id)
-		 VALUES (?, ?, ?, 'unpaid', 0, ?)`,
+		 VALUES (?, ?, ?, 'unpaid', 'pending', ?)`,
 	)
 		.bind(orderId, JSON.stringify(priced.lines), priced.total_price_paise, rzp?.id ?? null)
 		.run();
@@ -189,13 +222,27 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 export async function razorpayWebhook(env: Env, req: Request): Promise<Response> {
 	// Raw text, not req.json(): the HMAC is over the exact bytes Razorpay sent.
 	const raw = await req.text();
+	// Cap before hashing: HMAC over an unbounded body is CPU an unauthenticated caller
+	// would otherwise get to spend for free, since the signature check comes after it.
+	if (raw.length > 128_000) {
+		console.warn('razorpay webhook: oversized body', raw.length);
+		return json({ error: 'payload_too_large' }, { status: 413 });
+	}
 	const ok = await verifyWebhookSignature(env, raw, req.headers.get('X-Razorpay-Signature'));
 	if (!ok) {
 		console.warn('razorpay webhook: bad signature');
 		return json({ error: 'invalid_signature' }, { status: 401 });
 	}
 
-	const body = JSON.parse(raw) as WebhookEvent;
+	// 400, not a thrown 500: a malformed body is not something a retry can fix, and a
+	// 5xx makes Razorpay redeliver the same broken event for days.
+	let body: WebhookEvent;
+	try {
+		body = JSON.parse(raw) as WebhookEvent;
+	} catch {
+		console.warn('razorpay webhook: body is not valid JSON');
+		return json({ error: 'invalid_json' }, { status: 400 });
+	}
 	const entity = paymentFromEvent(body);
 
 	// Audit first, act second — so a crash below still leaves a record of what arrived.
@@ -206,10 +253,10 @@ export async function razorpayWebhook(env: Env, req: Request): Promise<Response>
 	if (!entity) return json({ ok: true, ignored: 'no payment entity' });
 
 	const order = await env.DB.prepare(
-		`SELECT order_id, payment_status FROM orders WHERE razorpay_order_id = ?`,
+		`SELECT order_id, payment_status, total_price_paise FROM orders WHERE razorpay_order_id = ?`,
 	)
 		.bind(entity.order_id)
-		.first<{ order_id: string; payment_status: string }>();
+		.first<{ order_id: string; payment_status: string; total_price_paise: number }>();
 
 	// 200, not 404. A non-2xx makes Razorpay retry this event for days, and an
 	// unknown order is not something a retry can fix.
@@ -219,6 +266,19 @@ export async function razorpayWebhook(env: Env, req: Request): Promise<Response>
 	}
 
 	const paid = body.event === 'payment.captured' || entity.status === 'captured';
+
+	// What was actually captured has to match what was owed. A valid signature only
+	// proves Razorpay sent the event, not that the right amount arrived — without this
+	// a ₹1 capture against a ₹1200 order would mark it paid and print a collection QR.
+	// Short-paid orders are left unpaid and flagged rather than failed: the money did
+	// arrive, so this needs a human to reconcile, not an automatic rejection.
+	if (paid && entity.amount !== order.total_price_paise) {
+		console.error(
+			`razorpay webhook: AMOUNT MISMATCH on ${order.order_id} — captured ${entity.amount}, owed ${order.total_price_paise}`,
+		);
+		return json({ ok: true, ignored: 'amount mismatch', order_id: order.order_id });
+	}
+
 	const status = paid ? 'paid' : 'failed';
 
 	// Already settled — Razorpay redelivering an event must not rewrite it.
@@ -265,7 +325,7 @@ export async function getOrder(env: Env, orderId: string, cors: Cors): Promise<R
 			order_info: string;
 			total_price_paise: number;
 			payment_status: string;
-			collection_status: number;
+			collection_status: CollectionStatus;
 			created_at: string;
 		}>();
 	if (!order) throw notFound('No such order');
@@ -291,7 +351,7 @@ export async function getOrder(env: Env, orderId: string, cors: Cors): Promise<R
 			items: JSON.parse(order.order_info),
 			total_price_paise: order.total_price_paise,
 			payment_status: order.payment_status,
-			collected: order.collection_status === 1,
+			collection_status: order.collection_status,
 			created_at: order.created_at,
 			razorpay_transaction_id: payment?.razorpay_transaction_id ?? null,
 			// Non-identifying summary only — the full entity stays server-side.
@@ -302,6 +362,10 @@ export async function getOrder(env: Env, orderId: string, cors: Cors): Promise<R
 		cors,
 	);
 }
+
+/** The three states an order's hand-over can be in. Lives here because both
+ *  scanOrder and collectItems need it and neither owns the other. */
+export type CollectionStatus = 'pending' | 'partial' | 'collected';
 
 // ============================================================
 // 6. POST /api/distributor/scan — what the volunteer sees after scanning
@@ -315,8 +379,12 @@ export async function distributorScan(env: Env, req: Request, cors: Cors): Promi
 /**
  * The scan itself, with no opinion about who is asking. Split out so the admin panel
  * can run the same check under its own session rather than shipping the shared
- * distributor token to a browser — and so there is exactly one definition of what
- * "collectable" means.
+ * distributor token to a browser — and so there is exactly one definition of what a
+ * volunteer sees.
+ *
+ * No `verdict`/`collectable` summary field any more: with per-item collection there
+ * is no single "can I hand this over" bit, so the caller reads payment_status and
+ * collection_status directly instead of trusting a flag computed from them.
  */
 export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise<Response> {
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
@@ -332,7 +400,7 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 			order_info: string;
 			total_price_paise: number;
 			payment_status: string;
-			collection_status: number;
+			collection_status: CollectionStatus;
 			collected_at: string | null;
 			created_at: string;
 		}>();
@@ -344,22 +412,20 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 		.bind(orderId)
 		.first<{ razorpay_transaction_id: string | null; transaction_info: string; created_at: string }>();
 
-	// A single explicit verdict, so the UI never has to infer "can I hand this over?"
-	// from a combination of flags and get it wrong.
-	let verdict: 'ok' | 'unpaid' | 'already_collected' = 'ok';
-	if (order.payment_status !== 'paid') verdict = 'unpaid';
-	else if (order.collection_status === 1) verdict = 'already_collected';
-
 	return json(
 		{
-			verdict,
-			collectable: verdict === 'ok',
 			order: {
 				order_id: order.order_id,
-				items: JSON.parse(order.order_info),
+				// Every line carries its own `collected` flag — see PricedLine. An order
+				// placed before this feature existed never had one written; default it to 0
+				// on the way out rather than rewriting every historical row for it.
+				items: (JSON.parse(order.order_info) as PricedLine[]).map((l) => ({
+					...l,
+					collected: l.collected === 1 ? 1 : 0,
+				})),
 				total_price_paise: order.total_price_paise,
 				payment_status: order.payment_status,
-				collected: order.collection_status === 1,
+				collection_status: order.collection_status,
 				collected_at: order.collected_at,
 				created_at: order.created_at,
 			},
@@ -377,41 +443,97 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 }
 
 // ============================================================
-// 7. POST /api/distributor/collect — mark handed over
+// 7. POST /api/distributor/collect — strike items off, hand them over
 // ============================================================
 export async function distributorCollect(env: Env, req: Request, cors: Cors): Promise<Response> {
 	requireDistributor(env, req);
-	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
-	return collectOrder(env, orderId, cors);
+	const { order_id: orderId, lines } = await readJson<{ order_id?: string; lines?: unknown }>(req);
+	return collectItems(env, orderId, lines, cors);
 }
 
-/** The hand-over itself. Shared with the admin panel — see scanOrder above. */
-export async function collectOrder(env: Env, orderId: unknown, cors: Cors): Promise<Response> {
+/**
+ * Strikes the given line indexes off an order and recomputes its collection_status.
+ * Shared with the admin panel and the counter session routes — see scanOrder above.
+ *
+ * `lines` omitted means "everything still outstanding" — what the panel's own
+ * "Mark All as collected" button sends, and what an external caller of the old
+ * whole-order collect contract gets by not passing the field at all.
+ *
+ * A line, once struck off, cannot be struck back on through this endpoint — the
+ * merge below only ever turns 0 into 1. There is no undo in the counter UI, so there
+ * is none here either.
+ */
+export async function collectItems(env: Env, orderId: unknown, lines: unknown, cors: Cors): Promise<Response> {
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
-	// The guard lives in the WHERE clause, not in an if-statement above it. Two
-	// volunteers scanning the same QR at once would both pass a read-then-write
-	// check and both hand out a bag; here the second UPDATE matches no rows.
-	const res = await env.DB.prepare(
-		`UPDATE orders
-		    SET collection_status = 1, collected_at = datetime('now'), updated_at = datetime('now')
-		  WHERE order_id = ? AND payment_status = 'paid' AND collection_status = 0`,
-	)
+	const row = await env.DB.prepare(`SELECT order_info, payment_status, collection_status FROM orders WHERE order_id = ?`)
 		.bind(orderId)
-		.run();
-
-	if (res.meta.changes === 1) return json({ ok: true, order_id: orderId, collected: true }, {}, cors);
-
-	// Nothing changed — say precisely why rather than a bare failure.
-	const row = await env.DB.prepare(
-		`SELECT payment_status, collection_status, collected_at FROM orders WHERE order_id = ?`,
-	)
-		.bind(orderId)
-		.first<{ payment_status: string; collection_status: number; collected_at: string | null }>();
+		.first<{ order_info: string; payment_status: string; collection_status: CollectionStatus }>();
 
 	if (!row) throw notFound('No such order');
 	if (row.payment_status !== 'paid') throw new ApiError(409, 'unpaid', 'Order is not paid');
-	throw new ApiError(409, 'already_collected', `Already collected at ${row.collected_at}`);
+	if (row.collection_status === 'collected')
+		throw new ApiError(409, 'already_collected', 'Every item on this order is already collected');
+
+	const items = (JSON.parse(row.order_info) as PricedLine[]).map((l) => ({
+		...l,
+		collected: (l.collected === 1 ? 1 : 0) as 0 | 1,
+	}));
+
+	const targets =
+		lines === undefined
+			? items.flatMap((l, i) => (l.collected === 0 ? [i] : []))
+			: parseLineIndexes(lines, items.length);
+	if (targets.length === 0) throw bad('no_items', 'Nothing was selected to collect');
+
+	const newItems = items.map((l, i) => (targets.includes(i) ? { ...l, collected: 1 as const } : l));
+	const allCollected = newItems.every((l) => l.collected === 1);
+	const newStatus: CollectionStatus = allCollected ? 'collected' : 'partial';
+	const newOrderInfo = JSON.stringify(newItems);
+
+	// order_info is repeated in the WHERE clause as an optimistic-concurrency check:
+	// if two scans of the same ticket ever race, whichever write lands second finds
+	// the row already changed underneath it and gets a clean 409 instead of silently
+	// clobbering the first volunteer's selection.
+	const res = await env.DB.prepare(
+		`UPDATE orders
+		    SET order_info = ?, collection_status = ?,
+		        collected_at = CASE WHEN ? = 'collected' THEN datetime('now') ELSE collected_at END,
+		        updated_at = datetime('now')
+		  WHERE order_id = ? AND payment_status = 'paid' AND collection_status != 'collected' AND order_info = ?`,
+	)
+		.bind(newOrderInfo, newStatus, newStatus, orderId, row.order_info)
+		.run();
+
+	if (res.meta.changes === 1)
+		return json({ ok: true, order_id: orderId, collection_status: newStatus, items: newItems }, {}, cors);
+
+	// Nothing changed — the row moved under us since it was read above. Re-read to say
+	// precisely why rather than a bare failure.
+	const current = await env.DB.prepare(
+		`SELECT payment_status, collection_status, collected_at FROM orders WHERE order_id = ?`,
+	)
+		.bind(orderId)
+		.first<{ payment_status: string; collection_status: CollectionStatus; collected_at: string | null }>();
+
+	if (!current) throw notFound('No such order');
+	if (current.payment_status !== 'paid') throw new ApiError(409, 'unpaid', 'Order is not paid');
+	if (current.collection_status === 'collected')
+		throw new ApiError(409, 'already_collected', `Already collected at ${current.collected_at}`);
+	throw new ApiError(409, 'stale', 'This order changed since it was scanned — rescan it');
+}
+
+/** `lines` off the wire: must be a non-empty array of distinct in-range indexes. */
+function parseLineIndexes(lines: unknown, itemCount: number): number[] {
+	if (!Array.isArray(lines) || lines.length === 0 || lines.length > MAX_LINES)
+		throw bad('bad_lines', 'lines must be a non-empty array of item indexes');
+	const seen = new Set<number>();
+	for (const v of lines) {
+		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) >= itemCount)
+			throw bad('bad_lines', `${String(v)} is not a valid item index for this order`);
+		seen.add(v as number);
+	}
+	return [...seen];
 }
 
 // ============================================================

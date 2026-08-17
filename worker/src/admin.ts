@@ -13,7 +13,7 @@
  */
 
 import { type PricedLine } from './cart.ts';
-import { collectOrder, scanOrder } from './routes.ts';
+import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
 import {
 	ApiError,
 	type Env,
@@ -74,32 +74,41 @@ export async function requireAdmin(env: Env, req: Request): Promise<AdminSession
 	const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 	if (!token) throw unauthorized('Not signed in');
 
+	// One round trip, not two: this runs on every authenticated request, and the session
+	// lookup and the kill-switch read were two sequential awaits against the same
+	// database. CROSS JOIN because login_validation is a single fixed row — there is no
+	// key relating it to a session, and it must be read on every request rather than
+	// cached, or flipping `active` to 0 would not lock out open sessions.
+	//
 	// Expiry lives in the WHERE clause: a session that has aged out simply stops
 	// matching, so there is no separate sweep job to forget to run.
-	const session = await env.DB.prepare(
-		`SELECT id, name, roll_number, collegemail
-		   FROM admin_login
-		  WHERE session_token = ?
-		    AND logout_time IS NULL
-		    AND login_time > datetime('now', '-${SESSION_HOURS} hours')`,
+	const row = await env.DB.prepare(
+		`SELECT a.id, a.name, a.roll_number, a.collegemail, v.active
+		   FROM admin_login a, login_validation v
+		  WHERE a.session_token = ?
+		    AND a.logout_time IS NULL
+		    AND a.login_time > datetime('now', ?)
+		    AND v.id = 1`,
 	)
-		.bind(token)
-		.first<AdminSession>();
-	if (!session) throw unauthorized('Session expired — sign in again');
+		.bind(token, `-${SESSION_HOURS} hours`)
+		.first<AdminSession & { active: number }>();
 
-	const gate = await env.DB.prepare(`SELECT active FROM login_validation WHERE id = 1`).first<{
-		active: number;
-	}>();
-	if (!gate || gate.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
+	// A missing row is either a bad/expired token or an unconfigured gate; both mean
+	// "not signed in" and neither should say which, so the caller learns nothing about
+	// whether a token was valid.
+	if (!row) throw unauthorized('Session expired — sign in again');
+	if (row.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
 
-	return session;
+	return { id: row.id, name: row.name, roll_number: row.roll_number, collegemail: row.collegemail };
 }
 
 // ============================================================
 // POST /api/admin/login
 // ============================================================
 export async function adminLogin(env: Env, req: Request, cors: Cors): Promise<Response> {
-	const body = await req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+	// readJson, not req.json(): this route is reachable unauthenticated, so the body
+	// needs the same hard size cap as every other public entry point.
+	const body = await readJson<Record<string, unknown>>(req);
 
 	const name = String(body.name ?? '').trim().replace(/\s+/g, ' ');
 	const rollNumber = String(body.roll_number ?? '').trim().toUpperCase();
@@ -222,7 +231,7 @@ export async function adminUpdateMerch(
 	const existing = await env.DB.prepare(`SELECT id FROM merch WHERE id = ?`).bind(id).first();
 	if (!existing) throw new ApiError(404, 'not_found', 'No such item');
 
-	const body = await req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+	const body = await readJson<Record<string, unknown>>(req);
 
 	const name = String(body.name ?? '').trim();
 	const description = String(body.description ?? '').trim();
@@ -288,7 +297,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 		order_info: string;
 		total_price_paise: number;
 		payment_status: string;
-		collection_status: number;
+		collection_status: CollectionStatus;
 		collected_at: string | null;
 		created_at: string;
 		razorpay_transaction_id: string | null;
@@ -324,7 +333,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 					transaction_id: o.razorpay_transaction_id,
 					total_price_paise: o.total_price_paise,
 					payment_status: o.payment_status,
-					collected: o.collection_status === 1,
+					collection_status: o.collection_status,
 					collected_at: o.collected_at,
 					created_at: o.created_at,
 				};
@@ -342,7 +351,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
  * The distributor routes do the same thing behind the shared `DISTRIBUTOR_TOKEN`.
  * These exist so the panel can work from the session an admin already has, rather than
  * putting that shared secret into a browser. Both call the same implementation, so
- * "collectable" cannot come to mean two different things.
+ * what a scan shows cannot come to mean two different things.
  */
 export async function adminScan(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireAdmin(env, req);
@@ -351,7 +360,7 @@ export async function adminScan(env: Env, req: Request, cors: Cors): Promise<Res
 }
 
 // ============================================================
-// POST /api/admin/collect — mark handed over
+// POST /api/admin/collect — strike items off, hand them over
 // ============================================================
 export async function adminCollect(
 	env: Env,
@@ -360,13 +369,13 @@ export async function adminCollect(
 	ctx?: ExecutionContext,
 ): Promise<Response> {
 	const session = await requireAdmin(env, req);
-	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
+	const { order_id: orderId, lines } = await readJson<{ order_id?: string; lines?: unknown }>(req);
 
-	// collectOrder throws on anything but a clean hand-over, so reaching the next line
-	// means the row really did flip.
-	const res = await collectOrder(env, orderId, cors);
+	// collectItems throws on anything but a clean write, so reaching the next line
+	// means the row really did change.
+	const res = await collectItems(env, orderId, lines, cors);
 
-	console.log(`admin: ${session.collegemail} (${session.roll_number}) collected ${String(orderId)}`);
+	console.log(`admin: ${session.collegemail} (${session.roll_number}) collected from ${String(orderId)}`);
 	const live = broadcastChange(env, 'orders', `collected ${String(orderId)}`);
 	if (ctx) ctx.waitUntil(live);
 

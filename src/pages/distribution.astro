@@ -61,7 +61,8 @@ import '../styles/admin-controls.css';
 			<div id="distResult" hidden></div>
 
 			<div class="dp-foot" id="distFoot" hidden>
-				<button class="btn a-btn-primary" id="distCollect" type="button" hidden>MARK COLLECTED</button>
+				<button class="btn a-btn-primary" id="distDone" type="button" hidden disabled>DONE</button>
+				<button class="btn a-btn-secondary" id="distAll" type="button" hidden>MARK ALL AS COLLECTED</button>
 				<button class="btn a-btn-secondary" id="distAgain" type="button">SCAN ANOTHER</button>
 			</div>
 		</div>
@@ -90,14 +91,16 @@ import '../styles/admin-controls.css';
 
 	const toRupees = (paise: number) => (paise / 100).toFixed(2);
 
+	type OrderLine = {
+		name: string; size: string | null; quantity: number; line_total_paise: number; collected: 0 | 1;
+	};
 	type Scan = {
-		verdict: 'ok' | 'unpaid' | 'already_collected';
-		collectable: boolean;
 		order: {
 			order_id: string;
-			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
+			items: OrderLine[];
 			total_price_paise: number; payment_status: string;
-			collected: boolean; collected_at: string | null; created_at: string;
+			collection_status: 'pending' | 'partial' | 'collected';
+			collected_at: string | null; created_at: string;
 		};
 		payment: { razorpay_transaction_id: string | null; transaction_info: Record<string, unknown> } | null;
 	};
@@ -224,8 +227,48 @@ import '../styles/admin-controls.css';
 		}
 	}
 
+	/** One `<li>` per line. `interactive` items still owed get a live checkbox; a
+	 *  struck-off item keeps a checked, disabled one — a fixed mark rather than a
+	 *  vanished control, so the list doesn't visibly shrink as things get handed over. */
+	function itemsHtml(items: OrderLine[], interactive: boolean): string {
+		return items
+			.map((l, i) => {
+				const done = l.collected === 1;
+				const box = interactive
+					? `<label class="a-check dc-item-check">` +
+						`<input type="checkbox" data-idx="${i}" ${done ? 'checked disabled' : ''} />` +
+						`</label>`
+					: '';
+				return (
+					`<li class="dc-item${done ? ' is-done' : ''}">` +
+					box +
+					`<i class="dc-item-n">${String(i + 1).padStart(2, '0')}</i>` +
+					`<span class="dc-item-name">${escape(l.name)}` +
+					(l.size ? `<em>${escape(l.size)}</em>` : '') +
+					`</span>` +
+					`<b class="dc-item-q">×${l.quantity}</b>` +
+					`</li>`
+				);
+			})
+			.join('');
+	}
+
+	/** DONE stays disabled until at least one not-yet-collected box gets freshly
+	 *  checked — there is nothing to submit otherwise. */
+	function syncDoneButton() {
+		const fresh = document.querySelectorAll<HTMLInputElement>(
+			'#distItems input[type=checkbox]:not(:disabled):checked',
+		);
+		$<HTMLButtonElement>('distDone').disabled = fresh.length === 0;
+	}
+
 	function showResult(s: Scan) {
 		const paid = s.order.payment_status === 'paid';
+		const status = s.order.collection_status;
+		// Nothing left to strike off once every line is collected, and nothing to
+		// strike off at all on an order that was never paid for.
+		const interactive = paid && status !== 'collected';
+		const remaining = s.order.items.filter((l) => l.collected === 0).length;
 		const info = s.payment?.transaction_info ?? {};
 		const buyer = {
 			name: String(info.name ?? ''),
@@ -233,27 +276,17 @@ import '../styles/admin-controls.css';
 			phone: String(info.contact ?? ''),
 		};
 
-		const banner =
-			s.verdict === 'ok'
-				? `<p class="ds-verdict ok">Verified — hand it over</p>`
-				: s.verdict === 'already_collected'
-					? `<p class="ds-verdict warn">Merch has been collected` +
-						(s.order.collected_at ? ` · ${escape(stamp(s.order.collected_at))}` : '') +
-						`</p>`
-					: `<p class="ds-verdict warn">Not paid — do not hand over</p>`;
+		const banner = !paid
+			? `<p class="ds-verdict warn">Not paid — do not hand over</p>`
+			: status === 'collected'
+				? `<p class="ds-verdict ok">Merch has been collected` +
+					(s.order.collected_at ? ` · ${escape(stamp(s.order.collected_at))}` : '') +
+					`</p>`
+				: status === 'partial'
+					? `<p class="ds-verdict warn">Partially collected — ${remaining} item${remaining === 1 ? '' : 's'} left</p>`
+					: `<p class="ds-verdict ok">Verified — hand it over</p>`;
 
-		const lines = s.order.items
-			.map(
-				(l, i) =>
-					`<li class="dc-item">` +
-					`<i class="dc-item-n">${String(i + 1).padStart(2, '0')}</i>` +
-					`<span class="dc-item-name">${escape(l.name)}` +
-					(l.size ? `<em>${escape(l.size)}</em>` : '') +
-					`</span>` +
-					`<b class="dc-item-q">×${l.quantity}</b>` +
-					`</li>`,
-			)
-			.join('');
+		const lines = itemsHtml(s.order.items, interactive);
 
 		const tile = (k: string, v: string, mod = '') =>
 			`<div class="dc-tile ${mod}"><span class="dc-tile-k">${k}</span>` +
@@ -277,31 +310,37 @@ import '../styles/admin-controls.css';
 			`<span class="dc-buyer-line">${escape(buyer.phone) || '—'}</span>` +
 			`</div>` +
 
-			`<p class="dc-legend">Hand over</p>` +
-			`<ul class="dc-items">${lines}</ul>` +
+			`<p class="dc-legend">${interactive ? 'Strike off as handed over' : 'Hand over'}</p>` +
+			`<ul class="dc-items" id="distItems">${lines}</ul>` +
 			`</div>`;
 
 		$('distScan').hidden = true;
 		$('distResult').hidden = false;
 		$('distFoot').hidden = false;
-		// The button only exists for a paid, uncollected order — an unpaid one must not
-		// offer a way to hand merch over at all.
-		$('distCollect').hidden = !(paid && s.collectable);
+		$('distDone').hidden = !interactive;
+		$('distAll').hidden = !interactive;
+		syncDoneButton();
 	}
 
-	async function markCollected() {
+	/** `lines` omitted collects everything still outstanding — what MARK ALL sends. */
+	async function collect(lines: number[] | undefined) {
 		if (!scanned) return;
-		const btn = $<HTMLButtonElement>('distCollect');
-		btn.disabled = true;
+		const doneBtn = $<HTMLButtonElement>('distDone');
+		const allBtn = $<HTMLButtonElement>('distAll');
+		doneBtn.disabled = true;
+		allBtn.disabled = true;
 		try {
-			await api('/collect', {
+			const body: Record<string, unknown> = { order_id: scanned.order.order_id };
+			if (lines) body.lines = lines;
+			await api('/collect', { method: 'POST', body: JSON.stringify(body) });
+			// Re-scan for the canonical row — payment info, the exact collected_at,
+			// everything — rather than hand-patching the local copy after a partial write.
+			const res = await api<Scan>('/scan', {
 				method: 'POST',
 				body: JSON.stringify({ order_id: scanned.order.order_id }),
 			});
-			$('distResult').innerHTML =
-				`<p class="ds-verdict ok">Collected — ${escape(scanned.order.order_id)}</p>` +
-				`<p class="ds-done">The order is now marked collected.</p>`;
-			btn.hidden = true;
+			scanned = res;
+			showResult(res);
 		} catch (e) {
 			if (isDead(e)) return;
 			$('distResult').insertAdjacentHTML(
@@ -309,9 +348,15 @@ import '../styles/admin-controls.css';
 				`<p class="a-err">${escape((e as Error).message)}</p>`,
 			);
 		} finally {
-			btn.disabled = false;
+			allBtn.disabled = false;
+			syncDoneButton();
 		}
 	}
+
+	const selectedIndexes = () =>
+		[...document.querySelectorAll<HTMLInputElement>('#distItems input[type=checkbox]:not(:disabled)')]
+			.filter((b) => b.checked)
+			.map((b) => Number(b.dataset.idx));
 
 	function resetScan() {
 		scanned = null;
@@ -320,7 +365,9 @@ import '../styles/admin-controls.css';
 		$('distResult').innerHTML = '';
 		$('distScan').hidden = false;
 		$('distFoot').hidden = true;
-		$('distCollect').hidden = true;
+		$('distDone').hidden = true;
+		$('distDone').disabled = true;
+		$('distAll').hidden = true;
 		$('distErr').hidden = true;
 		$<HTMLInputElement>('distManual').value = '';
 	}
@@ -370,7 +417,13 @@ import '../styles/admin-controls.css';
 
 	function initPage() {
 		$('distAgain').onclick = () => { resetScan(); startCamera(); };
-		$('distCollect').onclick = markCollected;
+		$('distDone').onclick = () => collect(selectedIndexes());
+		$('distAll').onclick = () => collect(undefined);
+		// Delegated: the checklist is replaced wholesale on every render, so binding to
+		// individual boxes would mean re-binding after every showResult call.
+		$('distResult').addEventListener('change', (e) => {
+			if ((e.target as HTMLElement).matches('#distItems input[type=checkbox]')) syncDoneButton();
+		});
 		$<HTMLFormElement>('distManualForm').onsubmit = (e) => {
 			e.preventDefault();
 			const id = $<HTMLInputElement>('distManual').value.trim().toUpperCase();
@@ -591,4 +644,9 @@ import '../styles/admin-controls.css';
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 800; font-size: 16px;
 	}
+	.dc-item-check { flex: none; }
+	/* Struck-off items stay in the list rather than disappearing — a shrinking list
+	   mid-handover reads as items going missing, not as progress. */
+	.dc-item.is-done { opacity: .55; }
+	.dc-item.is-done .dc-item-name, .dc-item.is-done .dc-item-q { text-decoration: line-through; }
 </style>

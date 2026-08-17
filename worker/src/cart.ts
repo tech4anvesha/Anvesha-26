@@ -29,7 +29,12 @@ export interface MerchRow {
 	has_size: number; // SQLite has no bool: 0 | 1
 }
 
-/** A priced line, snapshotted into `orders.order_info`. */
+/** A priced line, snapshotted into `orders.order_info`.
+ *
+ *  `collected` lives on the line, not just on the order, because collection happens
+ *  per line at the counter — one line struck off does not mean the whole order was
+ *  handed over. It starts at 0 here and is the only field of a line that ever
+ *  changes after checkout; see collectItems in routes.ts. */
 export interface PricedLine {
 	merch_id: string;
 	name: string;
@@ -37,6 +42,7 @@ export interface PricedLine {
 	size: Size | null;
 	unit_price_paise: number;
 	line_total_paise: number;
+	collected: 0 | 1;
 }
 
 export interface PricedCart {
@@ -121,6 +127,7 @@ export function priceCart(lines: CartLineInput[], rows: MerchRow[]): PricedCart 
 			size,
 			unit_price_paise: item.price_paise,
 			line_total_paise,
+			collected: 0,
 		});
 	}
 

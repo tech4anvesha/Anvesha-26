@@ -64,7 +64,7 @@ export default {
 			// /image is the primary view; /image/:n indexes into the carousel (0 = primary).
 			const image = pathname.match(/^\/api\/merch\/([^/]+)\/image(?:\/(\d+))?$/);
 			if (method === 'GET' && image)
-				return await merchImage(env, decodeURIComponent(image[1]), cors, Number(image[2] ?? 0));
+				return await merchImage(env, decodeURIComponent(image[1]), cors, Number(image[2] ?? 0), req, ctx);
 
 			if (method === 'POST' && pathname === '/api/checkout') return await checkout(env, req, cors);
 

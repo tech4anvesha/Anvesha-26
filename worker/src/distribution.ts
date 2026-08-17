@@ -15,8 +15,8 @@
  */
 
 import { requireAdmin } from './admin.ts';
-import { collectOrder, scanOrder } from './routes.ts';
-import { ApiError, type Env, broadcastChange, json, randomId, readJson } from './util.ts';
+import { collectItems, scanOrder } from './routes.ts';
+import { ApiError, type Env, broadcastChange, json, randomId, readJson, requireBudget } from './util.ts';
 
 /** Its own code, not the generic `notFound()` — a scan inside a dead session and a
  *  scan of an order that just doesn't exist are both 404s, and the counter page has to
@@ -120,6 +120,10 @@ export async function checkSession(env: Env, sessionId: string, cors: Cors): Pro
 // POST /api/distribution/:id/scan
 // ============================================================
 export async function sessionScan(env: Env, sessionId: string, req: Request, cors: Cors): Promise<Response> {
+	// Rate limited before the session is even looked up. These two routes are the only
+	// unauthenticated write path into the orders table — the URL is the whole credential
+	// — so a leaked link should cost an attacker a budget, not unlimited D1 reads.
+	await requireBudget(env, req, 'dist-scan');
 	await requireOpenSession(env, sessionId);
 	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
 	return scanOrder(env, orderId, cors);
@@ -135,12 +139,13 @@ export async function sessionCollect(
 	cors: Cors,
 	ctx?: ExecutionContext,
 ): Promise<Response> {
+	await requireBudget(env, req, 'dist-collect');
 	await requireOpenSession(env, sessionId);
-	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
+	const { order_id: orderId, lines } = await readJson<{ order_id?: string; lines?: unknown }>(req);
 
-	// collectOrder throws on anything but a clean hand-over, so reaching the next line
-	// means the row really did flip.
-	const res = await collectOrder(env, orderId, cors);
+	// collectItems throws on anything but a clean write, so reaching the next line
+	// means the row really did change.
+	const res = await collectItems(env, orderId, lines, cors);
 
 	console.log(`distribution ${sessionId}: collected ${String(orderId)}`);
 	const live = broadcastChange(env, 'orders', `collected ${String(orderId)}`);

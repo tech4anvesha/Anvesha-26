@@ -173,14 +173,15 @@ Other things worth knowing:
   withholds — this is the authenticated view, so it joins them back in and flattens
   them rather than making the panel parse a JSON blob. The join is a LEFT JOIN: an
   unpaid order has no payment row but must still be listed.
-- **Distribution** opens a QR scanner in the panel. It calls `/api/admin/scan` and
-  `/api/admin/collect`, which are thin auth wrappers around the *same* `scanOrder` /
-  `collectOrder` used by the distributor routes — so "collectable" has one definition
-  and the double-collection SQL guard is not reimplemented. The panel uses the admin's
-  own session rather than shipping the shared `DISTRIBUTOR_TOKEN` into a browser.
-  Decoding is done with `jsqr` rather than the native `BarcodeDetector`, which Safari
-  and Firefox still lack — that is most of the phones a volunteer will be holding.
-  Manual order-id entry is always available as a fallback.
+- **Distribution** in the panel only starts and ends a counter *session* — the QR
+  scanner itself lives on `/distribution#<session-id>`, a page with no admin login, so
+  a volunteer's phone never needs the panel password. `/api/admin/scan` and
+  `/api/admin/collect` still exist as thin auth wrappers around the same `scanOrder` /
+  `collectItems` the counter page and the distributor routes call, so what counts as
+  "collectable" has exactly one definition. Decoding is done with `jsqr` rather than
+  the native `BarcodeDetector`, which Safari and Firefox still lack — that is most of
+  the phones a volunteer will be holding. Manual order-id entry is always available as
+  a fallback.
 - **Deleting an order** removes it and its payment row in one batch, so a half-deleted
   order cannot exist. It is confirmed through a modal, not an armed button — money
   changed hands for these, and the server log is the only trace left afterwards.
@@ -255,14 +256,31 @@ Rejections: `unknown_merch`, `size_required`, `size_not_allowed`, `bad_size`,
 ### `POST /api/distributor/scan`
 
 ```jsonc
-{ "verdict": "ok" | "unpaid" | "already_collected",
-  "collectable": true,
-  "order":   { "order_id", "items", "total_price_paise", "payment_status", "collected", "collected_at" },
+{ "order": {
+    "order_id", "total_price_paise", "payment_status", "collected_at", "created_at",
+    // 'pending' | 'partial' | 'collected' — three states, not a boolean, because
+    // collection happens one line at a time.
+    "collection_status": "pending",
+    // Each line snapshotted at checkout, plus the one field that changes after:
+    // `collected`, 0 or 1, flipped by /collect below.
+    "items": [{ "merch_id", "name", "quantity", "size", "unit_price_paise", "line_total_paise", "collected": 0 }],
+  },
   "payment": { "razorpay_transaction_id", "transaction_info", "recorded_at" } }
 ```
 
-`verdict` is a single field on purpose — the UI should never have to combine
-`payment_status` and `collection_status` itself and risk getting it wrong.
+No `verdict`/`collectable` summary field — with per-item collection there is no
+single "can I hand this over" bit, so the caller reads `payment_status` and
+`collection_status` directly.
+
+### `POST /api/distributor/collect`
+
+Body: `{ "order_id": "ORD_…", "lines"?: [0, 2] }` — indexes into `order.items`.
+`lines` omitted collects everything still outstanding (what a "Mark all as collected"
+button sends). A line already collected cannot be un-collected through this endpoint.
+
+```jsonc
+{ "ok": true, "order_id", "collection_status": "partial" | "collected", "items": [...] }
+```
 
 ---
 

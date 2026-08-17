@@ -642,10 +642,10 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		order_id: string; name: string; email: string; phone: string;
 		items: {
 			merch_id: string; name: string; size: string | null;
-			quantity: number; line_total_paise: number;
+			quantity: number; line_total_paise: number; collected: 0 | 1;
 		}[];
 		transaction_id: string | null; total_price_paise: number; payment_status: string;
-		collected: boolean; collected_at: string | null; created_at: string;
+		collection_status: 'pending' | 'partial' | 'collected'; collected_at: string | null; created_at: string;
 	};
 
 	let orders: Order[] = [];
@@ -685,9 +685,11 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 				`</td>` +
 				`<td class="mono">${escape(stamp(o.created_at))}</td>` +
 				`<td>${
-					o.collected
+					o.collection_status === 'collected'
 						? `<span class="ord-pill on">COLLECTED</span>`
-						: `<span class="ord-pill">PENDING</span>`
+						: o.collection_status === 'partial'
+							? `<span class="ord-pill partial">PARTIAL</span>`
+							: `<span class="ord-pill">PENDING</span>`
 				}</td>` +
 				`<td><button type="button" class="btn ord-del" data-del aria-label="Delete order">` +
 				`${iTrash}</button></td>`;
@@ -765,7 +767,14 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 			`<div class="rc-sec">` +
 			row('PAYMENT', o.payment_status.toUpperCase()) +
 			row('TXN', o.transaction_id ?? '') +
-			row('COLLECTED', o.collected ? stamp(o.collected_at ?? '') : 'NOT YET') +
+			row(
+				'COLLECTED',
+				o.collection_status === 'collected'
+					? stamp(o.collected_at ?? '')
+					: o.collection_status === 'partial'
+						? 'PARTIAL'
+						: 'NOT YET',
+			) +
 			`</div>` +
 
 			`<p class="rc-foot">© ${new Date().getFullYear()} Anvesha · IISER Thiruvananthapuram<br />All rights reserved</p>` +
@@ -779,7 +788,15 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	 * zip writer and a spreadsheet schema for something every tool already reads.
 	 */
 	function downloadCsv(filename: string, rows: (string | number)[][]) {
-		const cell = (v: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+		// The leading apostrophe is a formula guard, not decoration. Buyer names come
+		// from the checkout form, so a student called `=HYPERLINK(...)` or `+cmd|...`
+		// would otherwise be executed by Excel the moment an admin opens this export.
+		// Quoting alone does not stop that; forcing the cell to text does.
+		const cell = (v: string | number) => {
+			const s = String(v ?? '');
+			const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+			return `"${safe.replace(/"/g, '""')}"`;
+		};
 		const csv = rows.map((r) => r.map(cell).join(',')).join('\r\n');
 		// The BOM is load-bearing: without it Excel reads the file as its local codepage
 		// and every ₹ and non-ASCII name arrives mangled.
@@ -804,7 +821,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 				o.order_id, o.name, o.email, o.phone, summarise(o), o.transaction_id ?? '',
 				// A plain number, not "₹1,234" — a spreadsheet should be able to sum it.
 				(o.total_price_paise / 100).toFixed(2),
-				o.payment_status, o.created_at, o.collected ? 'Collected' : 'Pending',
+				o.payment_status, o.created_at, o.collection_status,
 			]);
 		downloadCsv(`anvesha-orders-${today()}.csv`, rows);
 	}
@@ -1809,6 +1826,9 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		border: 1.5px solid var(--ink-40); color: var(--ink-40); border-radius: var(--r);
 	}
 	.ord-pill.on { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
+	/* Its own colour, not the same fill as COLLECTED: partial is a different fact
+	   (some of the ticket is still owed), not a dimmer version of done. */
+	.ord-pill.partial { color: var(--primary); background: var(--accent); border-color: var(--accent); }
 	.ord-tag {
 		margin-left: 7px; padding: 2px 6px;
 		font-family: 'DM Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: .08em;
