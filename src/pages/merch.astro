@@ -171,6 +171,15 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				       maxlength="80" required />
 			</label>
 			<label class="field">
+				<span class="field-label">Roll number</span>
+				{/* The pattern spells IMS out per-character rather than using a case
+				    insensitive flag, which HTML patterns do not have. Typing is uppercased
+				    on the way in, so the box shows the same form the server stores. */}
+				<input class="field-input roll-input" id="fRoll" name="roll_number" type="text"
+				       autocomplete="off" spellcheck="false" maxlength="8" placeholder="IMS24101"
+				       pattern="[Ii][Mm][Ss][0-9]{5}" title="IMS followed by 5 digits, e.g. IMS24101" required />
+			</label>
+			<label class="field">
 				<span class="field-label">Phone</span>
 				<input class="field-input" id="fPhone" name="phone" type="tel" inputmode="numeric"
 				       autocomplete="tel" placeholder="10-digit mobile" required />
@@ -850,7 +859,16 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		const processingEl = $('processing'), payProgress = $('payProgress');
 		const segs = [...payProgress.querySelectorAll<HTMLElement>('.seg')];
 		const fName = $<HTMLInputElement>('fName'), fPhone = $<HTMLInputElement>('fPhone');
-		const fEmail = $<HTMLInputElement>('fEmail');
+		const fEmail = $<HTMLInputElement>('fEmail'), fRoll = $<HTMLInputElement>('fRoll');
+
+		// Uppercased as it is typed, so what the student sees matches what is stored and
+		// what the counter will type back in. Caret is restored because assigning .value
+		// sends it to the end, which makes editing the middle of the roll impossible.
+		fRoll.addEventListener('input', () => {
+			const at = fRoll.selectionStart;
+			fRoll.value = fRoll.value.toUpperCase();
+			fRoll.setSelectionRange(at, at);
+		});
 		const qrCanvas = $<HTMLCanvasElement>('qrCanvas');
 
 		let segTimer = 0;
@@ -876,7 +894,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		type ReceiptData = {
 			order_id: string; transaction_id: string; total_price_paise: number;
 			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
-			name: string;
+			name: string; roll_number: string;
 		};
 		let lastReceipt: ReceiptData | null = null;
 
@@ -975,6 +993,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 					body: JSON.stringify({
 						order_id: currentOrder,
 						name: fName.value,
+						roll_number: fRoll.value,
 						phone: fPhone.value,
 						email: fEmail.value,
 					}),
@@ -999,7 +1018,8 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 						`<b>${rupees(l.line_total_paise)}</b></li>`)
 					.join('');
 				lastReceipt = { order_id: data.order_id, transaction_id: data.transaction_id,
-					total_price_paise: data.total_price_paise, items: data.items, name: data.customer?.name ?? '' };
+					total_price_paise: data.total_price_paise, items: data.items,
+					name: data.customer?.name ?? '', roll_number: data.customer?.rollNumber ?? '' };
 				drawQR(qrCanvas, data.order_id);
 
 				// The order is settled server-side; clear the bag so a refresh cannot
@@ -1076,7 +1096,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			// Heights are fixed per block, so the canvas can be sized before anything is
 			// drawn — the one place this layout has to agree with itself twice.
 			const HEAD = 46;
-			const BODY = 16 + 13 + 26 + 8 + receipt.items.length * 18 + 16 + 38 + 16;
+			// ...+ 52 + ... is the bearer block: label at +10, name at +28, roll at +42.
+			// It was 38 before the roll number was added; the perforation is drawn at
+			// T + HEAD + BODY, so under-counting here tears straight through the roll.
+			const BODY = 16 + 13 + 26 + 8 + receipt.items.length * 18 + 16 + 52 + 16;
 			const STUB = 16 + Math.max(qrW, 96) + 16;
 			const TH = HEAD + BODY + STUB;
 			const H = PAGE + TH + PAGE + 26;
@@ -1153,6 +1176,11 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			const totalW = ctx.measureText(rupees(receipt.total_price_paise)).width;
 			ctx.font = mono(12);
 			ctx.fillText(fit(receipt.name, TW - 32 - totalW - 16), L + 16, y + 28);
+			// The roll sits under the name: it is what the counter types in when a student
+			// turns up with no QR, so the pass has to show it back to them.
+			ctx.fillStyle = INK40; ctx.font = mono(10);
+			ctx.fillText(receipt.roll_number, L + 16, y + 42);
+			ctx.fillStyle = INK;
 			ctx.textAlign = 'right';
 			ctx.fillStyle = INK40; ctx.font = mono(9);
 			ctx.fillText('PAID', R - 16, y + 10);
@@ -1877,6 +1905,14 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	   which is exactly where the popup's overflow clipped the inputs' right border off.
 	   Scoped to the controls that actually declare width: 100%. */
 	.field-input, .paybtn, .qrdl, .orderback, .checkout { box-sizing: border-box; }
+
+	/* An id, so it reads as one: monospace and tracked out, matching how order ids are
+	   set everywhere else. The JS uppercases the value itself — text-transform alone
+	   only changes how it looks, and the raw lowercase would still be what got sent. */
+	.roll-input {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		letter-spacing: .1em; text-transform: uppercase;
+	}
 
 	.field-input {
 		appearance: none; -webkit-appearance: none;

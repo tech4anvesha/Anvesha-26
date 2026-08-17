@@ -48,13 +48,24 @@ import '../styles/admin-controls.css';
 					<p class="ds-state" id="distState">Starting camera…</p>
 				</div>
 
-				<p class="ds-or">or enter the order id</p>
+				<p class="ds-or">or enter the roll number</p>
 				<form class="ds-manual" id="distManualForm">
+					{/* Roll number, not order id: a student without their QR knows their roll
+					    and will never know a 26-character order id. The camera still reads
+					    order ids straight off the pass. */}
 					<input class="field-input" id="distManual" type="text" autocomplete="off"
-					       spellcheck="false" placeholder="ORD_…" />
+					       spellcheck="false" maxlength="8" placeholder="IMS24101"
+					       aria-label="Student roll number" />
 					<button class="btn a-btn-secondary" id="distGo" type="submit">LOOK UP</button>
 				</form>
 				<p class="a-err" id="distErr" hidden></p>
+
+				{/* Shown only when one roll has several orders — picking for the volunteer
+				    would mean handing over the wrong bag with no way to notice. */}
+				<div id="distPick" hidden>
+					<p class="dc-legend">More than one order — pick one</p>
+					<ul class="dp-picks" id="distPickList"></ul>
+				</div>
 			</div>
 
 			<!-- RESULT -->
@@ -97,6 +108,7 @@ import '../styles/admin-controls.css';
 	type Scan = {
 		order: {
 			order_id: string;
+			roll_number: string | null;
 			items: OrderLine[];
 			total_price_paise: number; payment_status: string;
 			collection_status: 'pending' | 'partial' | 'collected';
@@ -200,6 +212,67 @@ import '../styles/admin-controls.css';
 			}
 		}
 		scanTimer = setTimeout(tick, 100) as unknown as number;
+	}
+
+	type RollHit = {
+		order_id: string; items: OrderLine[]; total_price_paise: number;
+		payment_status: string; collection_status: 'pending' | 'partial' | 'collected';
+		created_at: string;
+	};
+
+	/**
+	 * Roll number -> order. One match goes straight through to the checklist; several
+	 * render a pick-list, because choosing on the volunteer's behalf is how the wrong
+	 * bag gets handed over.
+	 *
+	 * Case is not normalised here — the server uppercases and matches COLLATE NOCASE,
+	 * so `ims24101` and `IMS24101` are the same lookup either way.
+	 */
+	async function lookupRoll(roll: string) {
+		const err = $('distErr');
+		err.hidden = true;
+		$('distPick').hidden = true;
+		try {
+			const res = await api<{ roll_number: string; orders: RollHit[] }>('/lookup', {
+				method: 'POST',
+				body: JSON.stringify({ roll_number: roll }),
+			});
+			if (res.orders.length === 1) {
+				stopCamera();
+				await lookup(res.orders[0].order_id);
+				return;
+			}
+			showPicks(res.roll_number, res.orders);
+		} catch (e) {
+			if (isDead(e)) return;
+			const msg = (e as Error).message;
+			err.textContent = /no order for/i.test(msg) ? `Nothing found for ${roll.toUpperCase()}` : msg;
+			err.hidden = false;
+		}
+	}
+
+	function showPicks(roll: string, orders: RollHit[]) {
+		const status = (o: RollHit) =>
+			o.payment_status !== 'paid'
+				? 'UNPAID'
+				: o.collection_status === 'collected'
+					? 'COLLECTED'
+					: o.collection_status === 'partial'
+						? 'PARTIAL'
+						: 'READY';
+
+		$('distPickList').innerHTML = orders
+			.map(
+				(o) =>
+					`<li><button type="button" class="btn dp-pick" data-order="${escape(o.order_id)}">` +
+					`<span class="dp-pick-top"><b>${escape(roll)}</b>` +
+					`<i class="dp-pick-tag">${status(o)}</i></span>` +
+					`<span class="dp-pick-sub">${o.items.length} item${o.items.length === 1 ? '' : 's'} · ` +
+					`₹${toRupees(o.total_price_paise)} · ${escape(stamp(o.created_at))}</span>` +
+					`</button></li>`,
+			)
+			.join('');
+		$('distPick').hidden = false;
 	}
 
 	/** Looks an order up and shows the verdict. Shared by the camera and the manual box. */
@@ -306,6 +379,7 @@ import '../styles/admin-controls.css';
 			`<p class="dc-legend">Buyer</p>` +
 			`<div class="dc-buyer">` +
 			`<b class="dc-buyer-name">${escape(buyer.name) || 'Not recorded'}</b>` +
+			`<span class="dc-buyer-line">${escape(s.order.roll_number ?? '') || '—'}</span>` +
 			`<span class="dc-buyer-line">${escape(buyer.email) || '—'}</span>` +
 			`<span class="dc-buyer-line">${escape(buyer.phone) || '—'}</span>` +
 			`</div>` +
@@ -369,6 +443,7 @@ import '../styles/admin-controls.css';
 		$('distDone').disabled = true;
 		$('distAll').hidden = true;
 		$('distErr').hidden = true;
+		$('distPick').hidden = true;
 		$<HTMLInputElement>('distManual').value = '';
 	}
 
@@ -426,11 +501,19 @@ import '../styles/admin-controls.css';
 		});
 		$<HTMLFormElement>('distManualForm').onsubmit = (e) => {
 			e.preventDefault();
-			const id = $<HTMLInputElement>('distManual').value.trim().toUpperCase();
+			const roll = $<HTMLInputElement>('distManual').value.trim();
 			// Typing it out is a deliberate retry, so the camera's skip does not apply.
 			rejected = '';
-			if (id) lookup(id);
+			if (roll) lookupRoll(roll);
 		};
+		// Delegated: the pick-list is rebuilt on every lookup.
+		$('distPick').addEventListener('click', (e) => {
+			const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-order]');
+			if (!btn) return;
+			$('distPick').hidden = true;
+			stopCamera();
+			lookup(btn.dataset.order!);
+		});
 		initCounter();
 	}
 
@@ -543,7 +626,30 @@ import '../styles/admin-controls.css';
 	.ds-manual { display: flex; gap: 8px; margin-bottom: 12px; }
 	.ds-manual .field-input {
 		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px;
-		text-transform: uppercase;
+		letter-spacing: .1em; text-transform: uppercase;
+	}
+
+	/* ---- pick-list: one roll, several orders ---- */
+	.dp-picks { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+	.dp-pick {
+		width: 100%; box-sizing: border-box;
+		display: flex; flex-direction: column; gap: 4px; align-items: stretch;
+		padding: 11px 12px; text-align: left;
+	}
+	.dp-pick-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+	.dp-pick-top b {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; letter-spacing: .08em;
+	}
+	.dp-pick-tag {
+		flex: none; padding: 2px 6px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; font-style: normal; letter-spacing: .12em;
+		border: 1.5px solid var(--ink-40); color: var(--ink-40); border-radius: var(--r);
+	}
+	.dp-pick-sub {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; color: var(--ink-60);
 	}
 	.ds-manual .a-btn-secondary { flex: none; padding: 12px 14px; }
 
