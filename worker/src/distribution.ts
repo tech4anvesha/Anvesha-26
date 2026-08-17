@@ -16,7 +16,12 @@
 
 import { requireAdmin } from './admin.ts';
 import { collectOrder, scanOrder } from './routes.ts';
-import { ApiError, type Env, broadcastChange, json, notFound, randomId, readJson } from './util.ts';
+import { ApiError, type Env, broadcastChange, json, randomId, readJson } from './util.ts';
+
+/** Its own code, not the generic `notFound()` — a scan inside a dead session and a
+ *  scan of an order that just doesn't exist are both 404s, and the counter page has to
+ *  tell them apart to know whether to keep scanning or show "this link is dead". */
+const noSuchSession = () => new ApiError(404, 'no_such_session', 'No such distribution session');
 
 type Cors = Record<string, string>;
 
@@ -36,7 +41,7 @@ export const looksLikeSessionId = (v: unknown): v is string =>
  * distribution has ended" instead of "no such link".
  */
 export async function requireOpenSession(env: Env, sessionId: unknown): Promise<DistributionSession> {
-	if (!looksLikeSessionId(sessionId)) throw notFound('No such distribution session');
+	if (!looksLikeSessionId(sessionId)) throw noSuchSession();
 
 	const row = await env.DB.prepare(
 		`SELECT session_id, start_time, end_time FROM distributions WHERE session_id = ?`,
@@ -44,7 +49,7 @@ export async function requireOpenSession(env: Env, sessionId: unknown): Promise<
 		.bind(sessionId)
 		.first<DistributionSession>();
 
-	if (!row) throw notFound('No such distribution session');
+	if (!row) throw noSuchSession();
 	if (row.end_time) throw new ApiError(410, 'session_ended', `This distribution ended at ${row.end_time}`);
 	return row;
 }

@@ -112,8 +112,9 @@ import '../styles/admin-controls.css';
 	 */
 	const SESSION = decodeURIComponent(location.hash.slice(1)).trim().toUpperCase();
 
-	/** fetch against this session's routes. A 401/403/404/410 means the link is dead —
-	 *  ended, mistyped, or never real — and all four end the same way: stop scanning. */
+	/** fetch against this session's routes. `no_such_session` and `session_ended` mean
+	 *  the *link* is dead; every other error (a mistyped order id, for instance) is
+	 *  also a 404 but must not be read the same way — see isDead below. */
 	async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
 		const res = await fetch(`${API}/api/distribution/${SESSION}${path}`, {
 			...init,
@@ -122,7 +123,7 @@ import '../styles/admin-controls.css';
 		const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
 		if (!res.ok) {
 			const err = new Error(data.message ?? `Request failed (${res.status})`);
-			(err as Error & { status?: number }).status = res.status;
+			(err as Error & { code?: string }).code = data.error;
 			throw err;
 		}
 		return data as T;
@@ -328,11 +329,11 @@ import '../styles/admin-controls.css';
 	/** Shows the dead-link screen and shuts everything down. Returns true if it handled
 	 *  the error, so callers can bail rather than also printing their own message. */
 	function isDead(e: unknown): boolean {
-		const status = (e as Error & { status?: number }).status;
-		if (status !== 404 && status !== 410) return false;
+		const code = (e as Error & { code?: string }).code;
+		if (code !== 'no_such_session' && code !== 'session_ended') return false;
 		stopCamera();
 		showGate(
-			status === 410
+			code === 'session_ended'
 				? 'This distribution has ended. Ask an admin to start a new one.'
 				: 'This link is not valid. Ask an admin for a fresh one.',
 		);
