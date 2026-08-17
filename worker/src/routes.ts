@@ -1,7 +1,7 @@
 /** Endpoint handlers. Each one throws ApiError; index.ts turns that into a response. */
 
 import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
-import { parseCustomer } from './customer.ts';
+import { normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import {
 	createRazorpayOrder,
@@ -391,7 +391,7 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 
 	const order = await env.DB.prepare(
 		`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
-		        collected_at, created_at
+		        roll_number, collected_at, created_at
 		   FROM orders WHERE order_id = ?`,
 	)
 		.bind(orderId)
@@ -401,6 +401,7 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 			total_price_paise: number;
 			payment_status: string;
 			collection_status: CollectionStatus;
+			roll_number: string | null;
 			collected_at: string | null;
 			created_at: string;
 		}>();
@@ -416,6 +417,9 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 		{
 			order: {
 				order_id: order.order_id,
+				// NULL on orders placed before roll numbers were collected — the counter
+				// shows a dash rather than pretending it knows.
+				roll_number: order.roll_number,
 				// Every line carries its own `collected` flag — see PricedLine. An order
 				// placed before this feature existed never had one written; default it to 0
 				// on the way out rather than rewriting every historical row for it.
@@ -523,6 +527,68 @@ export async function collectItems(env: Env, orderId: unknown, lines: unknown, c
 	throw new ApiError(409, 'stale', 'This order changed since it was scanned — rescan it');
 }
 
+// ============================================================
+// Roll-number lookup — the counter's path when there is no QR to scan
+// ============================================================
+/**
+ * Every order belonging to one roll number, newest first.
+ *
+ * A list, not a single order: a student can buy more than once, and silently picking
+ * "the latest" would hand over the wrong bag with no way for the volunteer to tell.
+ * The caller shows the list and scans whichever order the student is actually here for.
+ *
+ * Matching is case-insensitive at both ends — normaliseRoll uppercases the input, and
+ * COLLATE NOCASE covers anything that reached the column by another route.
+ */
+export async function lookupByRoll(env: Env, roll: unknown, cors: Cors): Promise<Response> {
+	const rollNumber = normaliseRoll(roll);
+
+	const { results } = await env.DB.prepare(
+		`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
+		        collected_at, created_at
+		   FROM orders
+		  WHERE roll_number = ? COLLATE NOCASE
+		  ORDER BY created_at DESC, order_id DESC`,
+	)
+		.bind(rollNumber)
+		.all<{
+			order_id: string;
+			order_info: string;
+			total_price_paise: number;
+			payment_status: string;
+			collection_status: CollectionStatus;
+			collected_at: string | null;
+			created_at: string;
+		}>();
+
+	// 404 rather than an empty list: "no such roll" is the same dead end as "no such
+	// order", and the counter page already knows how to word that.
+	if (results.length === 0) throw notFound(`No order for ${rollNumber}`);
+
+	return json(
+		{
+			roll_number: rollNumber,
+			orders: results.map((o) => {
+				const items = (JSON.parse(o.order_info) as PricedLine[]).map((l) => ({
+					...l,
+					collected: l.collected === 1 ? 1 : 0,
+				}));
+				return {
+					order_id: o.order_id,
+					items,
+					total_price_paise: o.total_price_paise,
+					payment_status: o.payment_status,
+					collection_status: o.collection_status,
+					collected_at: o.collected_at,
+					created_at: o.created_at,
+				};
+			}),
+		},
+		{},
+		cors,
+	);
+}
+
 /** `lines` off the wire: must be a non-empty array of distinct in-range indexes. */
 function parseLineIndexes(lines: unknown, itemCount: number): number[] {
 	if (!Array.isArray(lines) || lines.length === 0 || lines.length > MAX_LINES)
@@ -600,9 +666,9 @@ export async function directPay(
 	// Same transaction shape as the webhook: order flips and the payment lands together.
 	await env.DB.batch([
 		env.DB.prepare(
-			`UPDATE orders SET payment_status = 'paid', updated_at = datetime('now')
+			`UPDATE orders SET payment_status = 'paid', roll_number = ?, updated_at = datetime('now')
 			  WHERE order_id = ? AND payment_status = 'unpaid'`,
-		).bind(order.order_id),
+		).bind(customer.rollNumber, order.order_id),
 		env.DB.prepare(
 			`INSERT OR IGNORE INTO payments (payment_id, order_id, razorpay_transaction_id, transaction_info)
 			 VALUES (?, ?, ?, ?)`,

@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS orders (
   collection_status  TEXT    NOT NULL DEFAULT 'pending'
                        CHECK (collection_status IN ('pending', 'partial', 'collected')),
   razorpay_order_id  TEXT,                      -- order_xxx, from Razorpay
+  -- IMS + 5 digits, uppercase. NULL until the buyer's details are taken at payment:
+  -- the row is created at checkout, before anyone has been asked who they are. This is
+  -- what the counter looks an order up by when a student has no QR to show.
+  roll_number        TEXT,
   collected_at       TEXT,                      -- set only once collection_status reaches 'collected'
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
@@ -94,6 +98,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_order ON payments (order_id);
 -- adminListOrders is ORDER BY created_at DESC over the whole table. Unindexed that is
 -- a full sort on every panel load, which is free at 60 rows and not at fest scale.
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at DESC);
+
+-- COLLATE NOCASE so the index is actually usable by the counter's lookup, which
+-- compares case-insensitively. Values are normalised to uppercase on the way in, so
+-- this is belt-and-braces against anything inserted by hand — but without the matching
+-- collation here, `WHERE roll_number = ? COLLATE NOCASE` would fall back to a scan.
+CREATE INDEX IF NOT EXISTS idx_orders_roll ON orders (roll_number COLLATE NOCASE);
 
 -- ---------- webhook audit ----------
 -- Every verified webhook lands here before anything is mutated. When a payment is

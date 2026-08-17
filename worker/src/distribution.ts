@@ -15,7 +15,7 @@
  */
 
 import { requireAdmin } from './admin.ts';
-import { collectItems, scanOrder } from './routes.ts';
+import { collectItems, lookupByRoll, scanOrder } from './routes.ts';
 import { ApiError, type Env, broadcastChange, json, randomId, readJson, requireBudget } from './util.ts';
 
 /** Its own code, not the generic `notFound()` — a scan inside a dead session and a
@@ -127,6 +127,16 @@ export async function sessionScan(env: Env, sessionId: string, req: Request, cor
 	await requireOpenSession(env, sessionId);
 	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
 	return scanOrder(env, orderId, cors);
+}
+
+// ============================================================
+// POST /api/distribution/:id/lookup — find a student's orders by roll number
+// ============================================================
+export async function sessionLookup(env: Env, sessionId: string, req: Request, cors: Cors): Promise<Response> {
+	await requireBudget(env, req, 'dist-lookup');
+	await requireOpenSession(env, sessionId);
+	const { roll_number: roll } = await readJson<{ roll_number?: string }>(req);
+	return lookupByRoll(env, roll, cors);
 }
 
 // ============================================================

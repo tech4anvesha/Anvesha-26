@@ -5,12 +5,23 @@ import { describe, it } from 'node:test';
 
 import { parseCustomer } from '../src/customer.ts';
 
-const ok = { name: 'Ananya Rao', phone: '9876543210', email: 'ananya@iisertvm.ac.in' };
+const ok = { name: 'Ananya Rao', phone: '9876543210', email: 'ananya@iisertvm.ac.in', roll_number: 'IMS24101' };
 
 describe('parseCustomer', () => {
 	it('accepts a clean record', () => {
 		const c = parseCustomer(ok);
-		assert.deepEqual(c, ok);
+		assert.deepEqual(c, {
+			name: ok.name, phone: ok.phone, email: ok.email, rollNumber: ok.roll_number,
+		});
+	});
+
+	it('uppercases the roll number and strips stray spacing', () => {
+		assert.equal(parseCustomer({ ...ok, roll_number: ' ims 24101 ' }).rollNumber, 'IMS24101');
+	});
+
+	it('rejects a roll number that is not IMS + 5 digits', () => {
+		for (const roll of ['IMS2410', 'IMS241012', 'IMSABCDE', 'IM24101', '24101', 'BSMS24101', '', null])
+			assert.throws(() => parseCustomer({ ...ok, roll_number: roll }), /roll number/i, `accepted ${String(roll)}`);
 	});
 
 	it('collapses whitespace in the name', () => {

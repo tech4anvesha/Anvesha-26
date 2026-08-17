@@ -272,6 +272,18 @@ No `verdict`/`collectable` summary field — with per-item collection there is n
 single "can I hand this over" bit, so the caller reads `payment_status` and
 `collection_status` directly.
 
+### `POST /api/distribution/:session/lookup`
+
+Body: `{ "roll_number": "IMS24101" }` — the counter's path when a student has no QR.
+Case-insensitive: normalised to uppercase and matched `COLLATE NOCASE`.
+
+```jsonc
+{ "roll_number": "IMS24101",
+  // A LIST, newest first: one student can order more than once, and picking for the
+  // volunteer is how the wrong bag gets handed over. 404 when the roll has no orders.
+  "orders": [{ "order_id", "items", "total_price_paise", "payment_status", "collection_status", "created_at" }] }
+```
+
 ### `POST /api/distributor/collect`
 
 Body: `{ "order_id": "ORD_…", "lines"?: [0, 2] }` — indexes into `order.items`.

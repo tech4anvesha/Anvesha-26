@@ -1007,6 +1007,14 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				cart = {}; saveCart(); renderCart();
 				payForm.reset();
 				setFace('paid');
+
+				// Save the pass to the student's device without waiting to be asked — the
+				// QR is the only proof of purchase, and a closed tab loses it. Deliberately
+				// not awaited: a failed or blocked download must not surface as a payment
+				// error on an order that already succeeded. The DOWNLOAD button stays as
+				// the retry, and on iOS Safari (which ignores `download`) it is the real
+				// path — there the image opens in a tab to be long-pressed instead.
+				saveReceipt().catch((e) => console.warn('receipt auto-save failed', e));
 			} catch (err) {
 				// Back to the form with the details intact, so a rejected phone or email can
 				// be corrected and resubmitted against the same order.
@@ -1186,15 +1194,40 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			return canvas;
 		}
 
-		$('qrDownload').onclick = async () => {
+		/** `anvesha_order_20260818_024312.png` — local time, since the only person who
+		 *  reads this filename is the student whose phone it lands on. Colons and spaces
+		 *  are out: they are illegal in filenames on Windows and get mangled on Android. */
+		function receiptFilename(): string {
+			const d = new Date();
+			const p = (n: number) => String(n).padStart(2, '0');
+			const stamp =
+				`${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+				`_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+			return `anvesha_order_${stamp}.png`;
+		}
+
+		/** Renders the pass and hands it to the browser as a download.
+		 *
+		 *  A Blob URL rather than a data: URL — Safari refuses to download a data: URL
+		 *  above a few hundred KB, and this card is a full-bleed PNG. */
+		async function saveReceipt(): Promise<void> {
 			if (!lastReceipt) return;
 			await document.fonts.ready; // canvas text only renders correctly once webfonts are loaded
 			const card = buildReceiptCard(lastReceipt);
+			const blob = await new Promise<Blob | null>((res) => card.toBlob(res, 'image/png'));
+			if (!blob) return;
+
+			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
-			a.href = card.toDataURL('image/png');
-			a.download = `anvesha-${lastReceipt.order_id}.png`;
+			a.href = url;
+			a.download = receiptFilename();
 			a.click();
-		};
+			// Revoked on the next tick, not immediately: Safari reads the href
+			// asynchronously and a URL revoked in the same frame downloads nothing.
+			setTimeout(() => URL.revokeObjectURL(url), 10_000);
+		}
+
+		$('qrDownload').onclick = saveReceipt;
 
 		// ---- mobile shop ----
 		function renderMCats() {

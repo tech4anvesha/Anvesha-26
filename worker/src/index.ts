@@ -31,6 +31,7 @@ import {
 	endDistribution,
 	getDistribution,
 	sessionCollect,
+	sessionLookup,
 	sessionScan,
 	startDistribution,
 } from './distribution.ts';
@@ -82,11 +83,12 @@ export default {
 			// ---- distribution sessions ----
 			// No Authorization header: the session id in the path is the credential, which
 			// is what lets a volunteer work from a copied link without an admin login.
-			const dist = pathname.match(/^\/api\/distribution\/([^/]+)(?:\/(scan|collect))?$/);
+			const dist = pathname.match(/^\/api\/distribution\/([^/]+)(?:\/(scan|collect|lookup))?$/);
 			if (dist) {
 				const id = decodeURIComponent(dist[1]);
 				if (method === 'GET' && !dist[2]) return await checkSession(env, id, cors);
 				if (method === 'POST' && dist[2] === 'scan') return await sessionScan(env, id, req, cors);
+				if (method === 'POST' && dist[2] === 'lookup') return await sessionLookup(env, id, req, cors);
 				if (method === 'POST' && dist[2] === 'collect')
 					return await sessionCollect(env, id, req, cors, ctx);
 			}

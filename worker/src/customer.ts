@@ -11,6 +11,20 @@ export interface Customer {
 	name: string;
 	phone: string;
 	email: string;
+	rollNumber: string;
+}
+
+/** IMS + 5 digits, e.g. IMS24101. Case-insensitive in, always uppercase out — the
+ *  counter looks orders up by this, and two casings of one roll must never be two
+ *  different-looking students. */
+export const ROLL_PATTERN = /^IMS\d{5}$/i;
+
+/** Shared with the roll-number lookup so the counter and the checkout agree on what a
+ *  valid roll looks like, and on the single normalised form stored and queried. */
+export function normaliseRoll(v: unknown): string {
+	const roll = String(v ?? '').trim().replace(/\s+/g, '').toUpperCase();
+	if (!ROLL_PATTERN.test(roll)) throw bad('bad_roll_number', 'Enter your roll number as IMS followed by 5 digits');
+	return roll;
 }
 
 /**
@@ -37,5 +51,7 @@ export function parseCustomer(body: unknown): Customer {
 	if (email.length > 120 || !/^[^\s@]+@iisertvm\.ac\.in$/.test(email))
 		throw bad('bad_email', 'Enter your @iisertvm.ac.in email address');
 
-	return { name, phone, email };
+	const rollNumber = normaliseRoll(b.roll_number);
+
+	return { name, phone, email, rollNumber };
 }

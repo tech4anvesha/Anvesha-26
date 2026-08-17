@@ -287,7 +287,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 
 	const { results } = await env.DB.prepare(
 		`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status,
-		        o.collection_status, o.collected_at, o.created_at,
+		        o.collection_status, o.roll_number, o.collected_at, o.created_at,
 		        p.razorpay_transaction_id, p.transaction_info
 		   FROM orders o
 		   LEFT JOIN payments p ON p.order_id = o.order_id
@@ -298,6 +298,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 		total_price_paise: number;
 		payment_status: string;
 		collection_status: CollectionStatus;
+		roll_number: string | null;
 		collected_at: string | null;
 		created_at: string;
 		razorpay_transaction_id: string | null;
@@ -329,6 +330,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 					name,
 					email,
 					phone,
+					roll_number: o.roll_number,
 					items: JSON.parse(o.order_info) as PricedLine[],
 					transaction_id: o.razorpay_transaction_id,
 					total_price_paise: o.total_price_paise,
