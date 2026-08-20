@@ -20,7 +20,7 @@ export const API = raw.replace(/\/$/, '');
  * domain changes — the fallback is only there so an unconfigured build still emits a
  * reachable link rather than a broken one.
  */
-export const SITE = (import.meta.env.PUBLIC_SITE_URL ?? 'https://anvesha-26.vercel.app').replace(
+export const SITE = (import.meta.env.PUBLIC_SITE_URL ?? 'https://anvesha26.in').replace(
 	/\/$/,
 	'',
 );

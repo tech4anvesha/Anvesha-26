@@ -21,7 +21,6 @@ import {
 	notFound,
 	readJson,
 	requireBudget,
-	requireDistributor,
 } from './util.ts';
 
 type Cors = Record<string, string>;
@@ -29,7 +28,29 @@ type Cors = Record<string, string>;
 // ============================================================
 // 1. GET /api/merch — the catalogue
 // ============================================================
-export async function listMerch(env: Env, cors: Cors): Promise<Response> {
+export async function listMerch(
+	env: Env,
+	cors: Cors,
+	req?: Request,
+	ctx?: ExecutionContext,
+): Promise<Response> {
+	// The most requested route on the site: every storefront load pays two D1 round
+	// trips for a catalogue that changes a few times a week. Cached at the edge, and
+	// purged by purgeCatalogue() the moment an admin writes, so the short max-age is
+	// only the ceiling for colos the purge did not reach.
+	const cache = caches.default;
+	const cacheKey = req ? new Request(new URL(req.url).toString(), { method: 'GET' }) : null;
+	if (cacheKey) {
+		const hit = await cache.match(cacheKey);
+		// The cached copy carries whichever origin's CORS headers filled it, so they are
+		// overwritten with this request's rather than trusted — same as merchImage.
+		if (hit) {
+			const headers = new Headers(hit.headers);
+			for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+			return new Response(hit.body, { headers, status: hit.status });
+		}
+	}
+
 	const { results } = await env.DB.prepare(
 		`SELECT id, name, description, designer, category, price_paise, has_size, r2_path
 		   FROM merch WHERE is_active = 1 ORDER BY category, id`,
@@ -49,7 +70,7 @@ export async function listMerch(env: Env, cors: Cors): Promise<Response> {
 	const viewsFor = new Map<string, string[]>();
 	for (const e of extras) (viewsFor.get(e.merch_id) ?? viewsFor.set(e.merch_id, []).get(e.merch_id)!).push(e.label);
 
-	return json(
+	const body = json(
 		{
 			merch: results.map((m) => {
 				const labels = viewsFor.get(m.id) ?? [];
@@ -78,6 +99,10 @@ export async function listMerch(env: Env, cors: Cors): Promise<Response> {
 		{},
 		cors,
 	);
+
+	body.headers.set('Cache-Control', 'public, max-age=60');
+	if (cacheKey && ctx) ctx.waitUntil(cache.put(cacheKey, body.clone()));
+	return body;
 }
 
 // ============================================================
@@ -367,14 +392,6 @@ export async function getOrder(env: Env, orderId: string, cors: Cors): Promise<R
  *  scanOrder and collectItems need it and neither owns the other. */
 export type CollectionStatus = 'pending' | 'partial' | 'collected';
 
-// ============================================================
-// 6. POST /api/distributor/scan — what the volunteer sees after scanning
-// ============================================================
-export async function distributorScan(env: Env, req: Request, cors: Cors): Promise<Response> {
-	requireDistributor(env, req);
-	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
-	return scanOrder(env, orderId, cors);
-}
 
 /**
  * The scan itself, with no opinion about who is asking. Split out so the admin panel
@@ -389,10 +406,17 @@ export async function distributorScan(env: Env, req: Request, cors: Cors): Promi
 export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise<Response> {
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
+	// One round trip, not two. A scan is the single most repeated action at the counter,
+	// and D1 lives one region away — reading the payment in the same query halves the
+	// wait between a volunteer scanning and the checklist appearing. LEFT JOIN because an
+	// unpaid order has no payment row, and it cannot fan out: payments.order_id is UNIQUE.
 	const order = await env.DB.prepare(
-		`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
-		        roll_number, collected_at, created_at
-		   FROM orders WHERE order_id = ?`,
+		`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status, o.collection_status,
+		        o.roll_number, o.collected_at, o.created_at,
+		        p.razorpay_transaction_id, p.transaction_info, p.created_at AS payment_created_at
+		   FROM orders o
+		   LEFT JOIN payments p ON p.order_id = o.order_id
+		  WHERE o.order_id = ?`,
 	)
 		.bind(orderId)
 		.first<{
@@ -404,14 +428,15 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 			roll_number: string | null;
 			collected_at: string | null;
 			created_at: string;
+			razorpay_transaction_id: string | null;
+			transaction_info: string | null;
+			payment_created_at: string | null;
 		}>();
 	if (!order) throw notFound('No such order');
 
-	const payment = await env.DB.prepare(
-		`SELECT razorpay_transaction_id, transaction_info, created_at FROM payments WHERE order_id = ?`,
-	)
-		.bind(orderId)
-		.first<{ razorpay_transaction_id: string | null; transaction_info: string; created_at: string }>();
+	// transaction_info is NOT NULL on the payments table, so a null here means the LEFT
+	// JOIN found no row at all — an unpaid order — rather than a payment missing a field.
+	const payment = order.transaction_info === null ? null : order;
 
 	return json(
 		{
@@ -436,8 +461,8 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 			payment: payment
 				? {
 						razorpay_transaction_id: payment.razorpay_transaction_id,
-						transaction_info: JSON.parse(payment.transaction_info),
-						recorded_at: payment.created_at,
+						transaction_info: JSON.parse(payment.transaction_info!),
+						recorded_at: payment.payment_created_at,
 					}
 				: null,
 		},
@@ -446,14 +471,6 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 	);
 }
 
-// ============================================================
-// 7. POST /api/distributor/collect — strike items off, hand them over
-// ============================================================
-export async function distributorCollect(env: Env, req: Request, cors: Cors): Promise<Response> {
-	requireDistributor(env, req);
-	const { order_id: orderId, lines } = await readJson<{ order_id?: string; lines?: unknown }>(req);
-	return collectItems(env, orderId, lines, cors);
-}
 
 /**
  * Strikes the given line indexes off an order and recomputes its collection_status.

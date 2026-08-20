@@ -1,0 +1,162 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+import iMail from 'lucide-static/icons/mail.svg?raw';
+import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+import iPalette from 'lucide-static/icons/palette.svg?raw';
+import iCode from 'lucide-static/icons/code.svg?raw';
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
+import iHandshake from 'lucide-static/icons/handshake.svg?raw';
+import iMegaphone from 'lucide-static/icons/megaphone.svg?raw';
+import iTruck from 'lucide-static/icons/truck.svg?raw';
+import iClapper from 'lucide-static/icons/clapperboard.svg?raw';
+import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
+
+// One array, no per-card markup. `mail` is the local part only — the domain is
+// appended once below, so a domain change is a single edit rather than nine.
+const TEAMS = [
+	{
+		name: 'Design', icon: iPalette, mail: 'design',
+		text: 'Every poster, badge, banner and merch print. Owns the visual language the rest of the fest is dressed in.',
+		does: ['Identity & print', 'Merch artwork', 'Stage and signage'],
+	},
+	{
+		name: 'Web & Tech', icon: iCode, mail: 'tech',
+		text: 'This site, the merch store, the registration flows and whatever is holding the livestream together on the day.',
+		does: ['Site & storefront', 'Registrations', 'On-site AV support'],
+	},
+	{
+		name: 'Events', icon: iCalendar, mail: 'events',
+		text: 'Programming across three days — talks, workshops and competitions — and the schedule that keeps them from colliding.',
+		does: ['Speaker outreach', 'Competitions', 'Scheduling'],
+	},
+	{
+		name: 'Expo', icon: iFlask, mail: 'expo',
+		text: 'The research floor. Handles submissions, allocates halls, and pairs every project with a slot and a table.',
+		does: ['Project intake', 'Hall allocation', 'Judging panels'],
+	},
+	{
+		name: 'Sponsorship', icon: iHandshake, mail: 'sponsors',
+		text: 'Partnerships and the budget they pay for. Anvesha is free to attend because this team makes it so.',
+		does: ['Partner outreach', 'Deck & deliverables', 'Budgeting'],
+	},
+	{
+		name: 'Outreach', icon: iMegaphone, mail: 'outreach',
+		text: 'The year-round half of Anvesha — school visits, demo kits, and lab sessions in places that have never had one.',
+		does: ['School programmes', 'Demo kits', 'Volunteer training'],
+	},
+	{
+		name: 'Media & PR', icon: iClapper, mail: 'media',
+		text: 'Photo, video, social and press. Everything anyone sees of the fest who could not be in the room.',
+		does: ['Coverage & edits', 'Social', 'Press accreditation'],
+	},
+	{
+		name: 'Logistics', icon: iTruck, mail: 'logistics',
+		text: 'Venues, transport, accommodation, food and the merch counter. The team you only notice when something is missing.',
+		does: ['Venue & transport', 'Hospitality', 'Merch distribution'],
+	},
+];
+
+const DOMAIN = 'anvesha26.in';
+---
+
+<SiteLayout title="Teams · Anvesha '26">
+	<div class="page">
+		<header class="page-head" data-reveal>
+			<p class="eyebrow">Who runs Anvesha '26</p>
+			<h1 class="page-title">Teams</h1>
+			<p class="lede">
+				Anvesha is put together entirely by students at IISER Thiruvananthapuram, split
+				across eight teams. If you want to reach one of them, write to it directly — every
+				team below has its own address.
+			</p>
+		</header>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">The teams</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>{TEAMS.length}</b> teams</span>
+			</div>
+
+			<div class="tiles teams">
+				{TEAMS.map((t, i) => (
+					<article class="tile team">
+						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
+						<span class="tile-icon" set:html={t.icon} />
+						<div class="tile-title">{t.name}</div>
+						<p class="tile-text">{t.text}</p>
+
+						<ul class="team-does">
+							{t.does.map((d) => <li>{d}</li>)}
+						</ul>
+
+						<a class="team-mail mono" href={`mailto:${t.mail}@${DOMAIN}`}>
+							<span set:html={iMail} />
+							<span>{t.mail}@{DOMAIN}</span>
+						</a>
+					</article>
+				))}
+			</div>
+		</section>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Join us</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">Rolling</span>
+			</div>
+			<p class="lede" style="margin-top:0">
+				Recruitment opens to IISER TVM students each semester, and most teams take people
+				with no prior experience — the ones that don't will say so. Tell us which team
+				interests you and what you would want to work on.
+			</p>
+			<a class="cta" href={`mailto:hello@${DOMAIN}?subject=${encodeURIComponent('Joining a team')}`}
+			   style="margin-top:22px">
+				<span set:html={iMail} />
+				<span>WRITE TO US</span>
+				<span set:html={iArrowRight} />
+			</a>
+		</section>
+	</div>
+</SiteLayout>
+
+<style is:global>
+	.teams { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
+	/* padding-bottom, not a gap: the mail line is pinned to the bottom edge so the
+	   addresses line up across a row of cards of unequal text length. */
+	.team { padding-bottom: 54px; }
+
+	.team-does {
+		list-style: none; margin: 2px 0 0; padding: 13px 0 0;
+		border-top: 1.5px solid var(--hair);
+		display: flex; flex-wrap: wrap; gap: 6px;
+	}
+	.team-does li {
+		padding: 4px 8px;
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-60);
+	}
+
+	.team-mail {
+		position: absolute; left: 20px; right: 20px; bottom: 18px;
+		display: flex; align-items: center; gap: 8px;
+		font-size: 11px; letter-spacing: .01em;
+		color: var(--ink-40); text-decoration: none;
+		transition: color .14s ease;
+	}
+	.team-mail span:first-child { display: grid; place-items: center; flex: none; line-height: 0; }
+	.team-mail svg { width: 13px; height: 13px; stroke-width: 2; }
+	/* The address is the only interactive thing on the card, so it is the only thing
+	   that reacts — the card itself is not a link. */
+	.team-mail:hover { color: var(--accent); }
+	.team-mail span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+	.team:hover { box-shadow: var(--pop); transform: translate(-2px, -2px); }
+	.team { transition: transform .12s ease, box-shadow .12s ease; }
+	@media (prefers-reduced-motion: reduce) {
+		.team { transition: none; }
+		.team:hover { transform: none; }
+	}
+</style>

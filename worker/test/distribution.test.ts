@@ -6,16 +6,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { looksLikeSessionId, requireOpenSession, type DistributionSession } from '../src/distribution.ts';
+import { looksLikeSessionId, requireOpenSession, type OpenSession } from '../src/distribution.ts';
 import { ApiError, type Env, randomId } from '../src/util.ts';
 
 const LIVE = randomId('DST_');
 
 /** Just enough D1 to answer the one SELECT the gate makes. */
-const dbWith = (row: DistributionSession | null) =>
+const dbWith = (row: OpenSession | null) =>
 	({ DB: { prepare: () => ({ bind: () => ({ first: async () => row }) }) } }) as unknown as Env;
 
-const session = (end: string | null): DistributionSession => ({
+const session = (end: string | null): OpenSession => ({
 	session_id: LIVE,
 	start_time: '2026-08-17 12:00:00',
 	end_time: end,

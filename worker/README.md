@@ -75,9 +75,8 @@ routes get independent budgets (keyed `checkout:<ip>` / `pay:<ip>`), so a burst 
 legitimate checkouts can't lock a student out of paying. A tripped limit returns a plain
 `429 { error: "rate_limited" }`, the same `ApiError` shape as every other rejection.
 
-This only covers the two routes that write money-relevant rows. `GET /api/merch` and the
-distributor routes are unlimited — the former is cheap and read-only, the latter already
-requires the distributor Bearer token.
+This only covers the two routes that write money-relevant rows, plus the counter's
+session routes. `GET /api/merch` is unlimited — it is cheap, read-only and edge-cached.
 
 **Bindings are not inherited into named environments** — the same trap `DIRECT_PAY` has.
 `MONEY_RL` is declared both at the top level and inside `env.production`; if you add
@@ -96,8 +95,6 @@ silently without it.
 | `POST` | `/api/checkout` | — | Prices the cart, creates the order + Razorpay order |
 | `POST` | `/api/webhooks/razorpay` | HMAC | Razorpay → us. The only writer of `payment_status` |
 | `GET` | `/api/orders/:order_id` | capability | Receipt + QR payload for the student |
-| `POST` | `/api/distributor/scan` | Bearer | Verify a scanned QR, return what to hand over |
-| `POST` | `/api/distributor/collect` | Bearer | Mark handed over |
 | `GET` | `/api/health` | — | Liveness |
 | `POST` | `/api/pay` | — | **Interim.** Counter payment: takes name/phone/email, mints a `TXN_` id, settles the order. 404s unless `DIRECT_PAY=1` |
 | `POST` | `/api/admin/login` | password | Name + roll number + college email + shared password → session token |
@@ -106,8 +103,8 @@ silently without it.
 | `POST` | `/api/admin/merch` | Bearer | Create an item. `multipart/form-data`, optional `image` file |
 | `PUT` | `/api/admin/merch/:id` | Bearer | Edit name, description, designer, category, price, `has_size`, `is_active` |
 | `DELETE` | `/api/admin/merch/:id` | Bearer | Remove an item, its `merch_images` rows and its R2 objects |
-| `POST` | `/api/admin/scan` | Bearer | Same verdict as the distributor scan, under an admin session |
-| `POST` | `/api/admin/collect` | Bearer | Same hand-over as the distributor collect, under an admin session |
+| `POST` | `/api/admin/scan` | Bearer | Same lookup as the counter's session scan, under an admin session |
+| `POST` | `/api/admin/collect` | Bearer | Same hand-over as the counter's session collect, under an admin session |
 | `GET` | `/api/admin/orders` | Bearer | Every order, joined with the buyer's name/mail/phone |
 | `DELETE` | `/api/admin/orders/:order_id` | Bearer | Remove an order and its payment row |
 | `GET` | `/api/live` | — | WebSocket. Pushes `{type:"catalogue"}` whenever the catalogue changes |
@@ -177,7 +174,7 @@ Other things worth knowing:
   scanner itself lives on `/distribution#<session-id>`, a page with no admin login, so
   a volunteer's phone never needs the panel password. `/api/admin/scan` and
   `/api/admin/collect` still exist as thin auth wrappers around the same `scanOrder` /
-  `collectItems` the counter page and the distributor routes call, so what counts as
+  `collectItems` the counter page and the admin panel call, so what counts as
   "collectable" has exactly one definition. Decoding is done with `jsqr` rather than
   the native `BarcodeDetector`, which Safari and Firefox still lack — that is most of
   the phones a volunteer will be holding. Manual order-id entry is always available as
@@ -253,7 +250,7 @@ Other things worth knowing:
 Rejections: `unknown_merch`, `size_required`, `size_not_allowed`, `bad_size`,
 `bad_quantity`, `empty_cart`, `too_many_lines`.
 
-### `POST /api/distributor/scan`
+### `POST /api/distribution/:session/scan`
 
 ```jsonc
 { "order": {
@@ -284,7 +281,7 @@ Case-insensitive: normalised to uppercase and matched `COLLATE NOCASE`.
   "orders": [{ "order_id", "items", "total_price_paise", "payment_status", "collection_status", "created_at" }] }
 ```
 
-### `POST /api/distributor/collect`
+### `POST /api/distribution/:session/collect`
 
 Body: `{ "order_id": "ORD_…", "lines"?: [0, 2] }` — indexes into `order.items`.
 `lines` omitted collects everything still outstanding (what a "Mark all as collected"
@@ -314,7 +311,6 @@ button sends). A line already collected cannot be un-collected through this endp
    npx wrangler secret put RAZORPAY_KEY_ID
    npx wrangler secret put RAZORPAY_KEY_SECRET
    npx wrangler secret put RAZORPAY_WEBHOOK_SECRET
-   npx wrangler secret put DISTRIBUTOR_TOKEN     # openssl rand -hex 32
    ```
 4. **Razorpay** — Dashboard → Webhooks → add
    `https://<worker>/api/webhooks/razorpay`, subscribe to `payment.captured` and
@@ -347,7 +343,7 @@ proof of purchase, like a paper ticket — which is why the id must never be seq
 **The QR carries the order id and nothing else** — not the transaction info you
 sketched. Two reasons: `transaction_info` holds the payer's email and phone, which
 should not sit in an image the student screenshots and shows to a volunteer; and the
-distributor endpoint reads every detail from the database anyway, so anything extra in
+counter endpoint reads every detail from the database anyway, so anything extra in
 the QR is data the scanner would have to be told to distrust. Easy to change if you
 want it — `qr_payload` in `getOrder`.
 
@@ -377,8 +373,9 @@ separately.
 
 - **No stock control.** Nothing stops overselling; add a `stock` column and decrement
   inside the checkout transaction when you need it.
-- **One shared distributor token.** Fine for a fest; per-volunteer tokens would give
-  you an audit trail of who handed out what.
+- **A distribution session is shared, not per-volunteer.** Everyone at the counter
+  works from one link, so a hand-over is attributable to the session — and to the admin
+  who opened it, via `started_by_roll` — but not to the individual who scanned it.
 - **No refund/cancel path.** `payment.failed` marks the order failed, but a refund
   webhook is not handled.
 - **`GET /api/orders/:id` is a capability URL.** Anyone with the id sees the receipt.

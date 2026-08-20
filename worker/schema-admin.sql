@@ -52,7 +52,13 @@ CREATE TABLE IF NOT EXISTS distributions (
   session_id TEXT PRIMARY KEY,
   start_time TEXT NOT NULL DEFAULT (datetime('now')),
   -- NULL means still running. Set when an admin clicks END DISTRIBUTION.
-  end_time   TEXT
+  end_time   TEXT,
+  -- Who opened it. Copied from the admin's session rather than joined to admin_login:
+  -- the password is shared, so a session row can be logged out and its token cleared,
+  -- and this has to stay readable afterwards. NULL on sessions started before this
+  -- existed — there is nothing to derive them from.
+  started_by_roll TEXT,
+  started_by_name TEXT
 );
 
 -- Partial: the only query that is not by primary key is "is anything open right now",

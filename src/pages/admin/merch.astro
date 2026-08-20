@@ -224,6 +224,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 								<tr>
 									<th>Order id</th>
 									<th>Name</th>
+									<th>Roll no</th>
 									<th>Mail</th>
 									<th>Phone</th>
 									<th>Order info</th>
@@ -328,6 +329,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 						Send it to whoever is at the counter. Ending the session kills the link
 						at once, and starting a new one replaces it.
 					</p>
+					<p class="dz-by" id="distBy" hidden></p>
 				</div>
 
 				<p class="a-err" id="distErr" hidden></p>
@@ -639,7 +641,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 	// ---- orders ----
 	type Order = {
-		order_id: string; name: string; email: string; phone: string;
+		order_id: string; name: string; roll_number: string | null; email: string; phone: string;
 		items: {
 			merch_id: string; name: string; size: string | null;
 			quantity: number; line_total_paise: number; collected: 0 | 1;
@@ -676,6 +678,9 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 			tr.innerHTML =
 				`<td class="mono">${escape(o.order_id)}</td>` +
 				`<td>${escape(o.name) || '<span class="ord-none">—</span>'}</td>` +
+				// Null on orders placed before roll numbers were collected — a dash, not a
+				// blank, so the column reads as "not recorded" rather than a rendering slip.
+				`<td class="mono">${escape(o.roll_number ?? '') || '<span class="ord-none">—</span>'}</td>` +
 				`<td class="mono">${escape(o.email) || '<span class="ord-none">—</span>'}</td>` +
 				`<td class="mono">${escape(o.phone) || '<span class="ord-none">—</span>'}</td>` +
 				`<td><button type="button" class="ord-info" data-info>${escape(summarise(o))}</button></td>` +
@@ -751,6 +756,7 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 			`<div class="rc-sec">` +
 			row('NAME', o.name) +
+			row('ROLL NO', o.roll_number ?? '') +
 			row('MAIL', o.email) +
 			row('PHONE', o.phone) +
 			`</div>` +
@@ -813,12 +819,12 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 
 	function downloadOrders() {
 		const rows: (string | number)[][] = [
-			['Order ID', 'Name', 'Mail', 'Phone', 'Order info', 'Transaction ID',
+			['Order ID', 'Name', 'Roll no', 'Mail', 'Phone', 'Order info', 'Transaction ID',
 			 'Amount paid (INR)', 'Payment status', 'Order time', 'Collection status'],
 		];
 		for (const o of orders)
 			rows.push([
-				o.order_id, o.name, o.email, o.phone, summarise(o), o.transaction_id ?? '',
+				o.order_id, o.name, o.roll_number ?? '', o.email, o.phone, summarise(o), o.transaction_id ?? '',
 				// A plain number, not "₹1,234" — a spreadsheet should be able to sum it.
 				(o.total_price_paise / 100).toFixed(2),
 				o.payment_status, o.created_at, o.collection_status,
@@ -957,7 +963,10 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	// ---- distribution sessions ----
 	// The panel no longer scans. It opens a session and hands out the link; the scanning
 	// happens at /<session>/distribution, on whatever phone is actually at the counter.
-	type Session = { session_id: string; start_time: string; end_time: string | null };
+	type Session = {
+		session_id: string; start_time: string; end_time: string | null;
+		started_by_roll: string | null; started_by_name: string | null;
+	};
 
 	let session: Session | null = null;
 	let clockTimer: number | undefined;
@@ -995,6 +1004,11 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		$('distEnd').hidden = !live;
 		$('distTitle').textContent = live ? 'DISTRIBUTION — LIVE' : 'DISTRIBUTION';
 		if (live) $<HTMLInputElement>('distLink').value = linkFor(session!.session_id);
+		// Who opened it. Null on sessions started before this was recorded, so the line
+		// hides rather than claiming nobody did.
+		const by = live && session!.started_by_name ? session! : null;
+		$('distBy').hidden = !by;
+		if (by) $('distBy').textContent = `Started by ${by.started_by_name} (${by.started_by_roll ?? '—'})`;
 		tickClock();
 	}
 
@@ -1887,6 +1901,11 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	.dz-link .a-btn-secondary { flex: none; padding: 12px 16px; }
 
 	.dz-note { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	/* Attribution, not instruction — sits quieter than the note above it. */
+	.dz-by {
+		margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line);
+		font-size: 12px; letter-spacing: .02em; color: var(--ink-40);
+	}
 
 
 	/* ---- collections: a filed record ---- */

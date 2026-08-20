@@ -10,7 +10,6 @@ export interface Env {
 	RAZORPAY_KEY_ID?: string;
 	RAZORPAY_KEY_SECRET?: string;
 	RAZORPAY_WEBHOOK_SECRET?: string;
-	DISTRIBUTOR_TOKEN?: string;
 	// Confirmation email. Unset means no mail is sent — the order still completes.
 	RESEND_API_KEY?: string;
 	MAIL_FROM?: string;
@@ -37,6 +36,38 @@ export async function broadcastChange(
 		await hub.broadcast(JSON.stringify({ type, reason, at: Date.now() }));
 	} catch (e) {
 		console.error('hub: broadcast failed', e);
+	}
+}
+
+/**
+ * Drop the edge-cached catalogue, and one item's images when `id` is given.
+ *
+ * The catalogue and every image are served from `caches.default`; without this an admin
+ * edit stays invisible until the TTL runs out — 24 hours, for a replaced picture. Pass
+ * `id` whenever that item's imagery may have changed.
+ *
+ * Only purges the colo this request landed in, which is why the cached copies still
+ * carry a short max-age: the admin's own region updates at once, everywhere else heals
+ * on expiry. Runs on admin writes only, so the extra COUNT costs nothing in practice.
+ */
+export async function purgeCatalogue(env: Env, req: Request, id?: string): Promise<void> {
+	try {
+		const { origin } = new URL(req.url);
+		const keys = [`${origin}/api/merch`];
+		if (id) {
+			const item = encodeURIComponent(id);
+			const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM merch_images WHERE merch_id = ?`)
+				.bind(id)
+				.first<{ n: number }>();
+			// Index 0 is the primary image, then one key per extra view. The bare
+			// /image URL is a separate cache entry from /image/0 and needs its own purge.
+			keys.push(`${origin}/api/merch/${item}/image`);
+			for (let i = 0; i <= (row?.n ?? 0); i++) keys.push(`${origin}/api/merch/${item}/image/${i}`);
+		}
+		await Promise.all(keys.map((k) => caches.default.delete(k)));
+	} catch (e) {
+		// A stale cache entry is not worth failing an admin save that already committed.
+		console.error('cache: purge failed', e);
 	}
 }
 
@@ -91,16 +122,19 @@ export const looksLikeOrderId = (v: unknown): v is string =>
 export function corsHeaders(env: Env, req: Request): Record<string, string> {
 	const origin = req.headers.get('Origin') ?? '';
 	const allowed = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
-	// Echo the origin only when it is on the list — never reflect an arbitrary one,
-	// and never use '*' here, since the distributor routes carry an Authorization header.
-	const allow = allowed.includes(origin) ? origin : allowed[0] ?? '';
-	return {
-		'Access-Control-Allow-Origin': allow,
+	const base = {
 		'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type,Authorization',
 		'Access-Control-Max-Age': '86400',
 		Vary: 'Origin',
 	};
+	// Echo the origin only when it is on the list — never reflect an arbitrary one, and
+	// never '*', since the admin routes carry an Authorization header.
+	// An unlisted origin gets NO Allow-Origin header at all rather than a fallback: a
+	// header naming some *other* site is what the browser must reject, so emitting one
+	// only obscured which origins are actually configured.
+	if (!allowed.includes(origin)) return base;
+	return { ...base, 'Access-Control-Allow-Origin': origin };
 }
 
 export function json(data: unknown, init: ResponseInit = {}, cors: Record<string, string> = {}) {
@@ -149,13 +183,6 @@ export function timingSafeEqual(a: string, b: string): boolean {
 	return diff === 0;
 }
 
-export function requireDistributor(env: Env, req: Request): void {
-	const expected = env.DISTRIBUTOR_TOKEN;
-	if (!expected) throw new ApiError(503, 'not_configured', 'DISTRIBUTOR_TOKEN is not set');
-	const header = req.headers.get('Authorization') ?? '';
-	const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-	if (!timingSafeEqual(token, expected)) throw unauthorized('Bad distributor token');
-}
 
 /** Body parser with a hard size cap, so a huge POST cannot be used to burn CPU. */
 export async function readJson<T>(req: Request, maxBytes = 32_768): Promise<T> {

@@ -29,7 +29,16 @@ export interface DistributionSession {
 	session_id: string;
 	start_time: string;
 	end_time: string | null;
+	started_by_roll: string | null;
+	started_by_name: string | null;
 }
+
+/**
+ * What the counter page is allowed to see. Deliberately not the whole row: /api/distribution/:id
+ * is unauthenticated — the link IS the credential — so it must not hand the volunteer
+ * holding it the name and roll number of the admin who opened the session.
+ */
+export type OpenSession = Omit<DistributionSession, 'started_by_roll' | 'started_by_name'>;
 
 /** Cheap shape check before a DB round trip — same alphabet as an order id. */
 export const looksLikeSessionId = (v: unknown): v is string =>
@@ -40,14 +49,14 @@ export const looksLikeSessionId = (v: unknown): v is string =>
  * is still open; a closed one is 410 rather than 404 so the page can say "this
  * distribution has ended" instead of "no such link".
  */
-export async function requireOpenSession(env: Env, sessionId: unknown): Promise<DistributionSession> {
+export async function requireOpenSession(env: Env, sessionId: unknown): Promise<OpenSession> {
 	if (!looksLikeSessionId(sessionId)) throw noSuchSession();
 
 	const row = await env.DB.prepare(
 		`SELECT session_id, start_time, end_time FROM distributions WHERE session_id = ?`,
 	)
 		.bind(sessionId)
-		.first<DistributionSession>();
+		.first<OpenSession>();
 
 	if (!row) throw noSuchSession();
 	if (row.end_time) throw new ApiError(410, 'session_ended', `This distribution ended at ${row.end_time}`);
@@ -65,10 +74,15 @@ export async function startDistribution(env: Env, req: Request, cors: Cors): Pro
 	// and so a failure leaves the old session running rather than none at all.
 	await env.DB.batch([
 		env.DB.prepare(`UPDATE distributions SET end_time = datetime('now') WHERE end_time IS NULL`),
-		env.DB.prepare(`INSERT INTO distributions (session_id) VALUES (?)`).bind(sessionId),
+		env.DB.prepare(
+			`INSERT INTO distributions (session_id, started_by_roll, started_by_name) VALUES (?, ?, ?)`,
+		).bind(sessionId, admin.roll_number, admin.name),
 	]);
 
-	const row = await env.DB.prepare(`SELECT session_id, start_time, end_time FROM distributions WHERE session_id = ?`)
+	const row = await env.DB.prepare(
+		`SELECT session_id, start_time, end_time, started_by_roll, started_by_name
+		   FROM distributions WHERE session_id = ?`,
+	)
 		.bind(sessionId)
 		.first<DistributionSession>();
 
@@ -101,7 +115,8 @@ export async function getDistribution(env: Env, req: Request, cors: Cors): Promi
 	// The panel reloads and the dialog has to come back showing the same link. Without
 	// this an admin who refreshed could only recover it by starting a second session.
 	const row = await env.DB.prepare(
-		`SELECT session_id, start_time, end_time FROM distributions
+		`SELECT session_id, start_time, end_time, started_by_roll, started_by_name
+		   FROM distributions
 		  WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1`,
 	).first<DistributionSession>();
 

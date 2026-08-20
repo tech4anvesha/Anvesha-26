@@ -7,8 +7,6 @@
  *   POST /api/pay                       interim counter payment (no gateway)
  *   POST /api/webhooks/razorpay         payment result (Razorpay -> us)
  *   GET  /api/orders/:order_id          receipt + QR payload
- *   POST /api/distributor/scan          verify a scanned QR      [auth]
- *   POST /api/distributor/collect       mark handed over         [auth]
  *   GET  /api/distribution/:id          is this counter link live?
  *   POST /api/distribution/:id/scan     verify a scanned QR      [session in url]
  *   POST /api/distribution/:id/collect  mark handed over         [session in url]
@@ -38,8 +36,6 @@ import {
 import {
 	checkout,
 	directPay,
-	distributorCollect,
-	distributorScan,
 	getOrder,
 	listMerch,
 	merchImage,
@@ -60,7 +56,7 @@ export default {
 		const method = req.method;
 
 		try {
-			if (method === 'GET' && pathname === '/api/merch') return await listMerch(env, cors);
+			if (method === 'GET' && pathname === '/api/merch') return await listMerch(env, cors, req, ctx);
 
 			// /image is the primary view; /image/:n indexes into the carousel (0 = primary).
 			const image = pathname.match(/^\/api\/merch\/([^/]+)\/image(?:\/(\d+))?$/);
@@ -76,9 +72,6 @@ export default {
 			const order = pathname.match(/^\/api\/orders\/([^/]+)$/);
 			if (method === 'GET' && order) return await getOrder(env, decodeURIComponent(order[1]), cors);
 
-			if (method === 'POST' && pathname === '/api/distributor/scan') return await distributorScan(env, req, cors);
-			if (method === 'POST' && pathname === '/api/distributor/collect')
-				return await distributorCollect(env, req, cors);
 
 			// ---- distribution sessions ----
 			// No Authorization header: the session id in the path is the credential, which

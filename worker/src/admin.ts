@@ -22,6 +22,7 @@ import {
 	json,
 	looksLikeOrderId,
 	newMerchId,
+	purgeCatalogue,
 	randomId,
 	readJson,
 	timingSafeEqual,
@@ -265,7 +266,10 @@ export async function adminUpdateMerch(
 
 	// After the write, never before: a browser that refetched on an early signal could
 	// read the old row back and look like the save failed.
-	const live = broadcastChange(env, 'catalogue', `updated ${id}`);
+	const live = Promise.all([
+		broadcastChange(env, 'catalogue', `updated ${id}`),
+		purgeCatalogue(env, req, id),
+	]);
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, id }, {}, cors);
@@ -350,10 +354,10 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 // POST /api/admin/scan — look up a scanned QR
 // ============================================================
 /**
- * The distributor routes do the same thing behind the shared `DISTRIBUTOR_TOKEN`.
- * These exist so the panel can work from the session an admin already has, rather than
- * putting that shared secret into a browser. Both call the same implementation, so
- * what a scan shows cannot come to mean two different things.
+ * The counter's own session routes do the same thing behind a distribution session id.
+ * These exist so the panel can scan from the login an admin already has, without an
+ * admin having to open a counter link. Both call the same implementation, so what a
+ * scan shows cannot come to mean two different things.
  */
 export async function adminScan(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireAdmin(env, req);
@@ -459,7 +463,10 @@ export async function adminDeleteMerch(
 
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) DELETED ${id}`);
 
-	const live = broadcastChange(env, 'catalogue', `deleted ${id}`);
+	const live = Promise.all([
+		broadcastChange(env, 'catalogue', `deleted ${id}`),
+		purgeCatalogue(env, req, id),
+	]);
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, id }, {}, cors);
@@ -579,7 +586,10 @@ export async function adminCreateMerch(
 
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) created ${id}`);
 
-	const live = broadcastChange(env, 'catalogue', `created ${id}`);
+	const live = Promise.all([
+		broadcastChange(env, 'catalogue', `created ${id}`),
+		purgeCatalogue(env, req, id),
+	]);
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, id }, { status: 201 }, cors);

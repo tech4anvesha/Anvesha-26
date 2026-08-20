@@ -17,7 +17,9 @@ import iEvents from 'lucide-static/icons/calendar-days.svg?raw';
 import iMerch from 'lucide-static/icons/shopping-bag.svg?raw';
 import iOutreach from 'lucide-static/icons/megaphone.svg?raw';
 import iExpo from 'lucide-static/icons/flask-conical.svg?raw';
-import iSponsors from 'lucide-static/icons/handshake.svg?raw';
+import iTeams from 'lucide-static/icons/users.svg?raw';
+import iSrijana from 'lucide-static/icons/mail-plus.svg?raw';
+import iOut from 'lucide-static/icons/arrow-up-right.svg?raw';
 import iMenu from 'lucide-static/icons/menu.svg?raw';
 import iClose from 'lucide-static/icons/x.svg?raw';
 
@@ -44,8 +46,14 @@ const SITE_NAV: NavItem[] = [
 	{ href: '/merch', label: 'Merch', icon: iMerch },
 	{ href: '/outreach', label: 'Outreach', icon: iOutreach },
 	{ href: '/expo', label: 'Expo', icon: iExpo },
-	{ href: '/sponsorships', label: 'Sponsorships', icon: iSponsors },
+	{ href: '/teams', label: 'Teams', icon: iTeams },
 ];
+
+// Deliberately NOT in SITE_NAV: Srijana is a separate tool on someone else's origin,
+// not a section of this site. Keeping it out of the array is what stops it inheriting
+// the tab styling and the aria-current logic, both of which would be wrong for a link
+// that leaves the site.
+const SRIJANA = 'https://pragunnepal.github.io/Srijana/';
 
 const { title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag } = Astro.props;
 const NAV = nav;
@@ -70,6 +78,10 @@ const hasTools = Astro.slots.has('tools');
 			rel="stylesheet"
 			href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Expanded:wght@700;800;900&family=DM+Mono:wght@400;500&display=swap"
 		/>
+		{/* Forwards a page's own <Fragment slot="head"> up into <head>. Without this a
+		    page passing one is silently dropped, because the slot="head" above consumes
+		    the name for this layout's own content rather than relaying the child's. */}
+		<slot name="head" />
 	</Fragment>
 
 	<div id="app">
@@ -96,6 +108,14 @@ const hasTools = Astro.slots.has('tools');
 							<span class="menu-label">{n.label}</span>
 						</a>
 					))}
+
+					<span class="menu-sep" aria-hidden="true"></span>
+
+					<a class="btn menu-link menu-out" href={SRIJANA} target="_blank" rel="noopener noreferrer">
+						<span class="menu-icon" set:html={iSrijana} />
+						<span class="menu-label">Srijana</span>
+						<span class="menu-out-mark" set:html={iOut} />
+					</a>
 				</nav>
 
 				{hasTools && <div class="tools" transition:name="tools"><slot name="tools" /></div>}
@@ -130,6 +150,14 @@ const hasTools = Astro.slots.has('tools');
 							<span class="navmenu-label">{n.label}</span>
 						</a>
 					))}
+
+					<a class="btn navmenu-link navmenu-out" href={SRIJANA}
+					   target="_blank" rel="noopener noreferrer">
+						<span class="navmenu-icon" set:html={iSrijana} />
+						<span class="navmenu-label">Srijana</span>
+						<span class="navmenu-out-tag">TOOL</span>
+						<span class="navmenu-out-mark" set:html={iOut} />
+					</a>
 				</nav>
 			</div>
 		</div>
@@ -349,6 +377,28 @@ const hasTools = Astro.slots.has('tools');
 	/* current page uses the same black-fill selection language as the rest of the site */
 	.menu-link[aria-current='page'] { background: var(--secondary); color: var(--primary); }
 
+	/* ---- Srijana: a tool, not a section ----
+	   The tabs are all one site; this one leaves it. A blue box around the usual white
+	   ground is what separates it from both a resting tab (black box) and the current
+	   page (black fill), so it can never be read as "you are here", and the rule to its
+	   left breaks the row into site | tool. */
+	.menu-sep { flex: none; width: 2px; height: 20px; background: var(--secondary); margin: 0 5px; }
+	.menu-out {
+		background: var(--primary);
+		border-color: var(--accent);
+		color: var(--secondary);
+	}
+	.menu-out .menu-out-mark {
+		display: grid; place-items: center; margin-left: -2px;
+		/* The one blue mark on the face, so the eye still lands on "this goes elsewhere" —
+		   and it moves the way the cursor is about to. */
+		color: var(--accent);
+		transition: transform .16s ease;
+	}
+	.menu-out .menu-out-mark svg { width: 12px; height: 12px; stroke-width: 2.6; }
+	.menu-out:hover .menu-out-mark { transform: translate(1.5px, -1.5px); }
+
+
 	.tools { justify-self: end; }
 
 	/* ============ PAGE FURNITURE ============
@@ -565,5 +615,22 @@ const hasTools = Astro.slots.has('tools');
 		.navmenu-icon { display: grid; place-items: center; flex: none; }
 		.navmenu-icon svg { width: 17px; height: 17px; stroke-width: 2; }
 		.navmenu-link[aria-current='page'] { background: var(--secondary); color: var(--primary); }
+
+		/* Same distinction as the desktop row, plus a word for it — a phone menu has the
+		   width to say TOOL outright, and the icon alone carries less here. */
+		.navmenu-out {
+			margin-top: 6px;
+			background: var(--primary); border-color: var(--accent); color: var(--secondary);
+		}
+		.navmenu-out .navmenu-out-mark { color: var(--accent); }
+		.navmenu-out .navmenu-label { flex: 1; }
+		.navmenu-out-tag {
+			font-family: 'DM Mono', ui-monospace, monospace;
+			font-size: 9px; font-weight: 500; letter-spacing: .14em;
+			padding: 3px 6px; border-radius: var(--r);
+			color: var(--primary); background: var(--accent);
+		}
+		.navmenu-out-mark { display: grid; place-items: center; flex: none; }
+		.navmenu-out-mark svg { width: 15px; height: 15px; stroke-width: 2.6; }
 	}
 </style>

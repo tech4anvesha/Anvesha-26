@@ -3,35 +3,116 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
-import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
-import iMegaphone from 'lucide-static/icons/megaphone.svg?raw';
 import iHandshake from 'lucide-static/icons/handshake.svg?raw';
-import iBag from 'lucide-static/icons/shopping-bag.svg?raw';
+import iMail from 'lucide-static/icons/mail.svg?raw';
+import iImage from 'lucide-static/icons/image.svg?raw';
+import iHistory from 'lucide-static/icons/history.svg?raw';
+import iChart from 'lucide-static/icons/bar-chart-3.svg?raw';
+import iTrophy from 'lucide-static/icons/trophy.svg?raw';
 
-const CARDS = [
-	{ name: 'Events', href: '/events', icon: iCalendar,
-	  text: 'Twelve talks, workshops and competitions across three days. Most need nothing but showing up.' },
-	{ name: 'Expo', href: '/expo', icon: iFlask,
-	  text: 'The science fair floor — 120 student projects across six halls, explained by the people who built them.' },
-	{ name: 'Outreach', href: '/outreach', icon: iMegaphone,
-	  text: 'What we do the rest of the year, mostly in schools that have never had a working lab.' },
-	{ name: 'Sponsorships', href: '/sponsorships', icon: iHandshake,
-	  text: 'Four partnership tiers, and the reach figures behind them. Custom packages on request.' },
-	{ name: 'Merch', href: '/merch', icon: iBag,
-	  text: 'Seventeen pieces designed by the team. Pick up at the fest desk, no shipping to worry about.' },
+// ============================================================
+// PLACEHOLDER CONTENT — swap the copy, keep the shape.
+// Everything below is scaffolding with plausible numbers in it, not researched fact.
+// Each array drives one block of the scrolling story; adding or removing an entry
+// needs no markup change.
+// ============================================================
+
+// TODO(anvesha): real years, real titles, real one-liners.
+const MILESTONES = [
+	{ year: '2016', title: 'First edition',
+	  text: 'Two halls, forty projects and a printer that gave out on the morning of day one.' },
+	{ year: '2019', title: 'The Expo opens up',
+	  text: 'Submissions opened beyond IISER TVM for the first time; the floor tripled in a year.' },
+	{ year: '2021', title: 'Held online',
+	  text: 'A fest run entirely over stream, which is where the outreach programme started.' },
+	{ year: '2023', title: 'Outreach goes year-round',
+	  text: 'School visits stopped being a fest-week activity and became the thing we do between them.' },
+	{ year: '2026', title: 'Anvesha \'26', now: true,
+	  text: 'Three days, six halls, and the largest programme the fest has run.' },
+];
+
+// TODO(anvesha): replace with the real 2025 figures before this goes public.
+const STATS = [
+	{ value: 18000, suffix: '+', label: 'Footfall across three days' },
+	{ value: 140,   suffix: '+', label: 'Institutions represented' },
+	{ value: 120,   suffix: '',  label: 'Projects on the Expo floor' },
+	{ value: 8,     suffix: '',  label: 'Student teams running it' },
+];
+
+// TODO(anvesha): drop in real partners as they sign. `open` slots render as an
+// invitation rather than a logo, so the grid never looks broken while it fills up.
+const SPONSORS = [
+	{ name: 'Partner slot', tier: 'Title' },
+	{ name: 'Partner slot', tier: 'Gold' },
+	{ name: 'Partner slot', tier: 'Gold' },
+	{ name: '', tier: 'Silver', open: true },
+	{ name: '', tier: 'Silver', open: true },
+	{ name: '', tier: 'Community', open: true },
+];
+
+// Lucide removed its brand marks, so these are drawn here in the same 24px stroke
+// style as every other icon on the site rather than pulled from a second icon set.
+// TODO(anvesha): point these at the real profiles.
+const SOCIALS = [
+	{ name: 'Instagram', href: 'https://instagram.com/',
+	  svg: `<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>` },
+	{ name: 'LinkedIn', href: 'https://linkedin.com/',
+	  svg: `<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>` },
+	{ name: 'YouTube', href: 'https://youtube.com/',
+	  svg: `<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>` },
+	{ name: 'X', href: 'https://x.com/',
+	  svg: `<path d="M4 4l16 16M20 4L4 20"/>` },
+];
+
+
+const WORD = 'ANVESHA';
+
+// Ticker content. Repeated four times in the markup below so the strip is wider than
+// any realistic viewport and can loop on a matching frame with no visible seam.
+const TICKER = [
+	'06—08 FEBRUARY 2026',
+	'IISER THIRUVANANTHAPURAM',
+	'120 EXPO PROJECTS',
+	'FREE TO ATTEND',
+	'12 EVENTS',
+	'OPEN TO EVERYONE',
 ];
 ---
 
 <SiteLayout title="Anvesha '26">
-	<div class="page">
-		<header class="page-head home-head" data-reveal>
-			<p class="eyebrow">Science fest · 06—08 February 2026</p>
-			<h1 class="page-title home-title">? Anvesha<span>'26</span></h1>
-			<p class="lede">
+	<Fragment slot="head">
+		{/* Hides the real wordmark before first paint, so it cannot flash in finished and
+		    then be replaced by the particle build. Mirrors the shell's own [data-anim]
+		    gate — and like that one, it only exists once JS has run, so a browser with
+		    scripting off simply shows the heading.
+		    The timeout is the failsafe: if the module never arrives, or throws before it
+		    can hand over, the wordmark still appears on its own. */}
+		<script is:inline>
+			document.documentElement.dataset.hw = 'on';
+			setTimeout(function () { document.documentElement.removeAttribute('data-hw'); }, 5000);
+		</script>
+	</Fragment>
+
+	<div class="page home-page">
+		<header class="page-head home-head">
+			<p class="eyebrow" data-reveal>Science fest · 06—08 February 2026</p>
+
+			<h1 class="home-word" id="homeWord">
+				<span class="hw-stage">
+					{/* The real type. Never removed — it is what a screen reader reads, what
+					    search engines index, and what shows if any of the script below
+					    fails. The canvas is only ever a curtain in front of it. */}
+					<span class="hw-text">{WORD}</span>
+					<span class="hw-year">'26</span>
+					<canvas class="hw-canvas" aria-hidden="true"></canvas>
+				</span>
+			</h1>
+
+			<p class="lede" data-reveal>
 				Three days of talks, workshops and competitions, wrapped around an expo floor of
 				student research you can walk up to and ask about. Free to attend, open to everyone.
 			</p>
-			<div class="home-actions">
+			<div class="home-actions" data-reveal>
 				<a class="cta" href="/expo">
 					<span set:html={iFlask} />
 					<span>SEE THE EXPO</span>
@@ -41,34 +122,629 @@ const CARDS = [
 			</div>
 		</header>
 
-		<section class="section" data-reveal>
-			<div class="sechead">
-				<span class="sechead-label">Where to start</span>
-				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{CARDS.length}</b> sections</span>
-			</div>
-
-			<div class="tiles">
-				{CARDS.map((c, i) => (
-					<a class="tile home-card" href={c.href}>
-						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
-						<span class="tile-icon" set:html={c.icon} />
-						<div class="tile-title">{c.name}</div>
-						<p class="tile-text">{c.text}</p>
-						<span class="home-card-go" set:html={iArrowRight} />
-					</a>
+		{/* Marquee strip: the one piece of continuous motion left on the page once the
+		    wordmark has settled, and the thing that stops the hero ending on a hard rule. */}
+		<div class="home-ticker" aria-hidden="true">
+			<div class="home-ticker-track">
+				{[0, 1, 2, 3].map(() => (
+					<span class="home-ticker-run">
+						{TICKER.map((t) => (
+							<>
+								<span class="home-ticker-item">{t}</span>
+								<span class="home-ticker-dot"></span>
+							</>
+						))}
+					</span>
 				))}
 			</div>
-		</section>
+		</div>
+
+		{/* ---- the scrolling middle ----
+		    Alternating rows: text one side, illustration the other, flipping each time.
+		    `data-side` drives the flip in CSS AND the direction each half slides in from,
+		    so adding a row needs no new rule. Only this pane scrolls. */}
+		<div class="home-scroll scroll-y" id="homeScroll">
+			<div class="flow">
+
+				<section class="fl" data-side="left" data-ab>
+					<div class="fl-copy">
+						<span class="fl-kick mono">History</span>
+						<h2 class="fl-h">Ten years of it</h2>
+						<p class="fl-p">
+							Anvesha started as a two-hall science fair and has been run by a new set of
+							students almost every year since. What follows is the short version.
+						</p>
+						<ol class="tl">
+							{MILESTONES.map((m) => (
+								<li class:list={['tl-row', m.now && 'is-now']}>
+									<span class="tl-year mono">{m.year}</span>
+									<span class="tl-dot" aria-hidden="true"></span>
+									<div class="tl-body">
+										<h3 class="tl-title">{m.title}</h3>
+										<p class="tl-text">{m.text}</p>
+									</div>
+								</li>
+							))}
+						</ol>
+					</div>
+
+					{/* TODO(anvesha): swap the frame's contents for a real photo. */}
+					<figure class="art">
+						<div class="art-frame">
+							<div class="art-fill">
+								<span class="art-ico" set:html={iHistory} />
+								<span class="art-tag mono">Archive photo</span>
+							</div>
+						</div>
+						<figcaption class="art-cap mono">
+							<span set:html={iImage} /><span>The 2019 Expo floor</span>
+						</figcaption>
+					</figure>
+				</section>
+
+				<section class="fl" data-side="right" data-ab>
+					<div class="fl-copy">
+						<span class="fl-kick mono">By the numbers</span>
+						<h2 class="fl-h">Last year, in figures</h2>
+						<p class="fl-p">
+							Placeholder figures from the 2025 edition — swap them once this year's are in.
+						</p>
+						<div class="stats">
+							{STATS.map((st) => (
+								<div class="stat">
+									{/* The rendered text is the final value, so a reader with no JS or a
+									    dead counter sees the number rather than a zero. */}
+									<div class="stat-v" data-count={st.value} data-suffix={st.suffix}>
+										{st.value.toLocaleString('en-IN')}{st.suffix}
+									</div>
+									<div class="stat-l">{st.label}</div>
+								</div>
+							))}
+						</div>
+					</div>
+
+					<figure class="art">
+						<div class="art-frame">
+							<div class="art-fill">
+								<span class="art-ico" set:html={iChart} />
+								<span class="art-tag mono">Crowd shot</span>
+							</div>
+						</div>
+						<figcaption class="art-cap mono">
+							<span set:html={iImage} /><span>Opening day, main hall</span>
+						</figcaption>
+					</figure>
+				</section>
+
+				<section class="fl" data-side="left" data-ab>
+					<div class="fl-copy">
+						<span class="fl-kick mono">Sponsors</span>
+						<h2 class="fl-h">Who keeps the doors open</h2>
+						<p class="fl-p">
+							Anvesha is free to attend because partners cover the halls, the equipment and
+							the outreach that runs between fests. Slots are still open.
+						</p>
+						<ul class="sp-list">
+							{SPONSORS.map((sp) => (
+								<li class:list={['sp', sp.open && 'is-open']}>
+									<span class="sp-tier mono">{sp.tier}</span>
+									{sp.open
+										? <span class="sp-slot">Slot open</span>
+										: <span class="sp-name">{sp.name}</span>}
+								</li>
+							))}
+						</ul>
+						<a class="cta fl-cta" href="mailto:sponsors@anvesha26.in">
+							<span set:html={iHandshake} />
+							<span>REQUEST THE DECK</span>
+							<span set:html={iArrowRight} />
+						</a>
+					</div>
+
+					<figure class="art">
+						<div class="art-frame">
+							<div class="art-fill">
+								<span class="art-ico" set:html={iTrophy} />
+								<span class="art-tag mono">Partner wall</span>
+							</div>
+						</div>
+						<figcaption class="art-cap mono">
+							<span set:html={iImage} /><span>Sponsor banners, 2025</span>
+						</figcaption>
+					</figure>
+				</section>
+
+
+			</div>
+		</div>
+
+		<footer class="home-foot">
+			<nav class="foot-social" aria-label="Anvesha on social media">
+				{SOCIALS.map((so) => (
+					<a class="foot-ico" href={so.href} target="_blank" rel="noopener noreferrer"
+					   aria-label={so.name} title={so.name}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+						     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+						     set:html={so.svg} />
+					</a>
+				))}
+			</nav>
+
+			<a class="foot-mail mono" href="mailto:hello@anvesha26.in">
+				<span set:html={iMail} />
+				<span>hello@anvesha26.in</span>
+			</a>
+		</footer>
 	</div>
 </SiteLayout>
 
-<style is:global>
-	.home-head { padding-bottom: clamp(34px, 4.5vw, 60px); }
-	.home-title { font-size: clamp(46px, 9vw, 132px); }
-	.home-title span { color: var(--accent); font-size: .28em; vertical-align: super; margin-left: 8px; }
+<script>
+	const WORD = 'ANVESHA';
 
-	.home-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+	/**
+	 * The wordmark: dust gathering into type, then blowing off it.
+	 *
+	 *   1. GATHER    particles fly in from every direction and land on the letterforms
+	 *   2. HOLD      the word sits, drawn entirely out of dust
+	 *   3. HAND OFF  the real type fades up underneath while the dust scatters off it
+	 *
+	 * The letter positions are not authored — the word is rendered once to an offscreen
+	 * canvas in the page's own font and its ink is sampled, so the particles land on
+	 * whatever Archivo Expanded actually draws at whatever size the viewport gives it.
+	 *
+	 * ponytail: one rAF loop over a flat array, not ~2000 tweens. Every particle runs the
+	 * same three-phase function against one clock, so a frame costs a loop and a
+	 * fillRect, and the canvas is thrown away the moment it has nothing left to draw.
+	 */
+	function wordmark() {
+		const root = document.getElementById('homeWord');
+		const done = () => {
+			document.documentElement.removeAttribute('data-hw');
+			root?.setAttribute('data-state', 'done');
+		};
+		if (!root) return done();
+
+		const canvas = root.querySelector<HTMLCanvasElement>('.hw-canvas');
+		const text = root.querySelector<HTMLElement>('.hw-text');
+		if (!canvas || !text) return done();
+
+		// Reduced motion gets the finished wordmark and nothing that moves.
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return done();
+
+		// Covers a client-side navigation back to this page, where the inline head script
+		// does not run again but the animation should still play from the start.
+		root.setAttribute('data-state', 'run');
+		document.documentElement.dataset.hw = 'on';
+
+		// Fonts before metrics. Sampling before Archivo Expanded lands would build the
+		// word out of the fallback's letterforms and put every particle in the wrong place.
+		const ready = document.fonts?.ready ?? Promise.resolve();
+		ready.then(() => build(root, canvas, text, done)).catch(done);
+	}
+
+	function build(root: HTMLElement, canvas: HTMLCanvasElement, text: HTMLElement, done: () => void) {
+		const rect = text.getBoundingClientRect();
+		const w = Math.ceil(rect.width);
+		const h = Math.ceil(rect.height);
+		const ctx = canvas.getContext('2d');
+		if (!ctx || w < 2 || h < 2) return done();
+
+		// Capped at 2: past that the extra pixels are invisible and the fill rate is not.
+		const dpr = Math.min(window.devicePixelRatio || 1, 2);
+		canvas.width = Math.round(w * dpr);
+		canvas.height = Math.round(h * dpr);
+		canvas.style.width = `${w}px`;
+		canvas.style.height = `${h}px`;
+		ctx.scale(dpr, dpr);
+
+		// The offscreen pass is the source of truth for where the ink is: same font, same
+		// size, same tracking as the DOM node the canvas sits on top of.
+		const cs = getComputedStyle(text);
+		const off = document.createElement('canvas');
+		off.width = w;
+		off.height = h;
+		const octx = off.getContext('2d', { willReadFrequently: true });
+		if (!octx) return done();
+
+		octx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+		// Not supported everywhere; without it the sampled word is fractionally wider than
+		// the DOM one, which the cross-fade absorbs.
+		try { octx.letterSpacing = cs.letterSpacing; } catch { /* older browsers */ }
+		octx.textAlign = 'center';
+		octx.fillStyle = '#000';
+
+		// Put the canvas baseline exactly where CSS puts the DOM one, rather than eyeballing
+		// it with textBaseline:'middle' — that centres the em square, which is not where a
+		// browser draws. CSS centres the font's content area (ascent + descent) inside the
+		// line box and sets the baseline one half-leading plus one ascent down from the top.
+		// Same arithmetic here, off the same font metrics, so the dust lands on the type
+		// instead of a couple of pixels above it.
+		const m = octx.measureText(WORD);
+		const fa = m.fontBoundingBoxAscent;
+		const fd = m.fontBoundingBoxDescent;
+		if (typeof fa === 'number' && typeof fd === 'number') {
+			octx.textBaseline = 'alphabetic';
+			octx.fillText(WORD, w / 2, (h - (fa + fd)) / 2 + fa);
+		} else {
+			// Pre-2022 Safari has no font metrics. ANVESHA is all caps with no descenders,
+			// so centring the em square is close, and the cross-fade absorbs the rest.
+			octx.textBaseline = 'middle';
+			octx.fillText(WORD, w / 2, h / 2);
+		}
+
+		let pixels: Uint8ClampedArray;
+		try {
+			pixels = octx.getImageData(0, 0, w, h).data;
+		} catch {
+			return done(); // tainted or zero-sized canvas — nothing to sample
+		}
+
+		// The step scales with the wordmark, so a phone and a desktop get a similar
+		// particle COUNT rather than a similar density — one grain per 4px on a 190px
+		// title would be a quarter of a million of them.
+		const step = Math.max(2, Math.round(Math.min(w, 1500) / 240));
+		const found: number[][] = [];
+		for (let y = 0; y < h; y += step) {
+			for (let x = 0; x < w; x += step) {
+				// Alpha only: the offscreen word is solid black on transparent.
+				if (pixels[(y * w + x) * 4 + 3] > 128) found.push([x, y]);
+			}
+		}
+		if (!found.length) return done();
+
+		const P = found.map(([tx, ty]) => {
+			const a = Math.random() * Math.PI * 2;
+			const spread = 0.55 + Math.random();
+			return {
+				tx, ty,
+				// Off every edge, not from one side: the word should look assembled, not
+				// slid in. Scaled by the canvas so the travel reads the same at any size.
+				sx: w / 2 + Math.cos(a) * w * spread,
+				sy: h / 2 + Math.sin(a) * h * spread * 2.6,
+				// Where it goes when it blows off — outward from wherever it landed.
+				bx: (tx - w / 2) * 0.55 + (Math.random() - 0.5) * 90,
+				by: (ty - h / 2) * 0.9 + (Math.random() - 0.5) * 70 - 40,
+				delay: Math.random() * 0.35,
+				dur: 0.7 + Math.random() * 0.45,
+				size: 1 + Math.random() * 1.6,
+			};
+		});
+
+		// Derived, not guessed: the hold has to begin when the SLOWEST particle lands, or
+		// the word never actually sits complete — the last grains would still be arriving
+		// as the scatter starts. Reads off the same random values the loop animates.
+		const GATHER = P.reduce((m, p) => Math.max(m, p.delay + p.dur), 0);
+		const HOLD = 0.45;    // the word sits, drawn entirely out of dust
+		const SCATTER = 0.85; // dust blows off while the real type comes up
+
+		// The dust is drawn in whatever colour the real type is, read off the element
+		// itself. Hardcoding --secondary painted black grains onto the dark hero, i.e.
+		// nothing at all; this way the two can never disagree.
+		ctx.fillStyle = getComputedStyle(text).color || '#fff';
+
+		const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+		const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
+
+		let raf = 0;
+		const start = performance.now();
+		let handedOver = false;
+
+		const frame = (now: number) => {
+			const t = (now - start) / 1000;
+			ctx.clearRect(0, 0, w, h);
+
+			const scatter = clamp01((t - (GATHER + HOLD)) / SCATTER);
+			const se = easeOut(scatter);
+
+			// The real type comes up as the dust starts to leave, so there is never a
+			// frame with no wordmark on screen.
+			if (!handedOver && scatter > 0) {
+				handedOver = true;
+				done();
+			}
+
+			for (const p of P) {
+				const local = clamp01((t - p.delay) / p.dur);
+				const e = easeOut(local);
+				const x = p.sx + (p.tx - p.sx) * e + p.bx * se;
+				const y = p.sy + (p.ty - p.sy) * e + p.by * se;
+				// Fade in on approach, out on departure. min() stops a late particle
+				// arriving at full opacity after the scatter has already begun.
+				ctx.globalAlpha = Math.min(1, local * 2.4) * (1 - scatter);
+				ctx.fillRect(x, y, p.size, p.size);
+			}
+
+			if (scatter < 1) {
+				raf = requestAnimationFrame(frame);
+			} else {
+				// Nothing left to draw: drop the bitmap rather than leave a full-size
+				// transparent canvas composited over the heading for the rest of the visit.
+				canvas.width = canvas.height = 0;
+				done();
+			}
+		};
+
+		raf = requestAnimationFrame(frame);
+
+		// ClientRouter swaps the DOM out from under a running loop; without this the rAF
+		// keeps firing against a detached canvas until the tab is closed.
+		document.addEventListener('astro:before-swap', () => cancelAnimationFrame(raf), { once: true });
+	}
+
+	document.addEventListener('astro:page-load', wordmark);
+
+	/**
+	 * Scroll choreography for the flow below the hero.
+	 *
+	 * Two things run off the middle pane: rows reveal once as they enter, and the
+	 * illustrations drift inside their frames as it scrolls. The card scrolls
+	 * INTERNALLY, so neither can use the window — an observer with the default root
+	 * would call every row visible on load, and a window scroll listener would never
+	 * fire at all.
+	 *
+	 * ponytail: class toggles driving CSS transitions plus one rAF-throttled scroll
+	 * handler, not a tween per element. The observer unobserves on first hit.
+	 */
+	function story() {
+		const scroller = document.getElementById('homeScroll');
+		const rows = document.querySelectorAll<HTMLElement>('[data-ab]');
+		if (!rows.length) return;
+
+		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		const show = (el: HTMLElement) => {
+			el.classList.add('is-in');
+			// Counters belong to the row they live in, so they start with its cascade.
+			el.querySelectorAll<HTMLElement>('[data-count]').forEach(countUp);
+		};
+
+		if (!('IntersectionObserver' in window) || reduced) {
+			rows.forEach(show);
+			return;
+		}
+
+		const io = new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) {
+					if (!e.isIntersecting) continue;
+					show(e.target as HTMLElement);
+					io.unobserve(e.target);
+				}
+			},
+			// The bottom margin trims the trigger line up off the fold, so a row starts
+			// moving as it appears rather than once it is already fully in view.
+			{ root: scroller, rootMargin: '0px 0px -14% 0px', threshold: 0.12 },
+		);
+		rows.forEach((r) => io.observe(r));
+
+		if (scroller && !reduced) parallax(scroller);
+	}
+
+	/**
+	 * Drifts each illustration inside its frame as the pane scrolls.
+	 *
+	 * The fill is taller than the frame and the frame clips, so moving the fill reads as
+	 * depth rather than as a box sliding around. One handler for all of them, rAF-gated
+	 * so a fast scroll cannot queue more work than it can paint.
+	 */
+	function parallax(scroller: HTMLElement) {
+		const fills = Array.from(document.querySelectorAll<HTMLElement>('.art-fill'));
+		if (!fills.length) return;
+		const RANGE = 16; // px of travel at the extremes; more than this reads as a glitch
+		let queued = false;
+
+		const update = () => {
+			queued = false;
+			const pane = scroller.getBoundingClientRect();
+			const mid = pane.top + pane.height / 2;
+			for (const fill of fills) {
+				const r = fill.getBoundingClientRect();
+				// Skip anything off-pane: its transform cannot be seen, and reading a rect
+				// per frame for every frame on the page is the only real cost here.
+				if (r.bottom < pane.top - 100 || r.top > pane.bottom + 100) continue;
+				// -1 above the middle, +1 below it.
+				const t = ((r.top + r.height / 2) - mid) / (pane.height / 2 + r.height / 2);
+				fill.style.setProperty('--par', `${(Math.max(-1, Math.min(1, t)) * -RANGE).toFixed(1)}px`);
+			}
+		};
+
+		scroller.addEventListener(
+			'scroll',
+			() => {
+				if (queued) return;
+				queued = true;
+				requestAnimationFrame(update);
+			},
+			{ passive: true },
+		);
+		update();
+	}
+
+	document.addEventListener('astro:page-load', story);
+</script>
+
+<style is:global>
+	/* Two tokens the hero owns. Kept here rather than in theme.css: nothing else on the
+	   site is drawn on a dark ground, and the three-colour rule still holds everywhere
+	   the shell is white. */
+	/* --sky is measured, not picked: over the brightest cloud in the art under the
+	   thinnest part of the scrim, #0047ff lands at 1.08:1 and #7ea6ff at 2.84:1. This
+	   clears 3.5:1 there and 8:1 under the wordmark, so the year and the eyebrow rules
+	   stay legible wherever the image happens to be bright. */
+	.home-page { --night: #060a19; --sky: #9dbaff; }
+
+	/* ============ PAGE FRAME ============
+	   Four panes in the card: hero, ticker, scroller, footer. Only the third moves, so
+	   the wordmark and the strip stay put while the story runs past them. .page is
+	   normally the scroller, hence the override — two nested scrollers would fight. */
+	.home-page { overflow: hidden; }
+	.home-head, .home-ticker, .home-foot { flex: none; }
+	.home-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+	/* Three fixed panes plus the nav come to roughly 480px before the story gets a single
+	   pixel. On a short window that leaves a scroller too small to scroll, so below this
+	   the page gives up the fixed layout and behaves like every other page on the site —
+	   one scroller, everything in it. Degrading beats a 30px-tall viewport. */
+	@media (max-height: 720px) {
+		.home-page { overflow-y: auto; }
+		.home-scroll { flex: none; min-height: 0; overflow: visible; }
+	}
+	/* Between comfortable and cramped, buy the scroller room from the hero rather than
+	   from the story. */
+	@media (min-height: 721px) and (max-height: 860px) {
+		.home-word { font-size: min(clamp(44px, 10vw, 190px), 21vh); }
+		.home-head { padding-top: clamp(14px, 2vw, 26px); padding-bottom: 14px; }
+		.home-head .lede { margin-top: 14px; font-size: 13.5px; }
+		.home-actions { margin-top: 20px; }
+	}
+
+	/* The hero reads as one centred stack — eyebrow, wordmark, lede, buttons. */
+	.home-head {
+		/* Tighter than the shared .page-head: this pane has to leave the middle enough
+		   room to be worth scrolling. */
+		padding: clamp(20px, 3vw, 42px) clamp(20px, 3.5vw, 52px) clamp(18px, 2.4vw, 30px);
+		text-align: center;
+		/* The ticker below is a solid black band and separates the two on its own; the
+		   inherited rule would stack a second line directly on top of it. */
+		border-bottom: 0;
+
+		/* The art, unwashed. background-color still shows through wherever `cover` cannot
+		   reach and before the image loads, so the white type never lands on white paper.
+		   Note: nothing darkens the pale cloud masses now — see the contrast note below. */
+		background-color: var(--night);
+		background-image: url('/img/hero-sky.jpg');
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+		color: var(--primary);
+	}
+
+	/* ---- the hero's own palette ----
+	   Scoped to the plate so the shared .eyebrow / .lede / .cta rules keep working
+	   everywhere else on the site. */
+	.home-head .eyebrow { color: color-mix(in srgb, var(--primary) 72%, transparent); }
+	.home-head .eyebrow::before,
+	.home-head .eyebrow::after { background: var(--sky); }
+	.home-head .lede { color: color-mix(in srgb, var(--primary) 82%, transparent); }
+	/* Descendant selectors, not bare .home-word / .hw-year: the wordmark's own rules
+	   live further down this stylesheet, so at equal specificity THEY would win and the
+	   type — and the dust, which reads its colour off the type — would be painted black
+	   onto the night. Both nodes sit inside .home-head, so this simply outranks them. */
+	.home-head .home-word { color: var(--primary); }
+	/* --accent is #0047ff, which on this navy is nearly unreadable. --sky is the same
+	   hue lifted toward the pale blue already in the artwork. */
+	.home-head .hw-year { color: var(--sky); }
+
+	/* Buttons invert: the filled one becomes white-on-dark, the outline one takes a
+	   white rule instead of a black one it would otherwise draw into the night. */
+	.home-head .cta { background: var(--primary); color: var(--secondary); }
+	.home-head .home-alt {
+		background: transparent; color: var(--primary);
+		border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+	}
+	.home-head .home-alt:hover {
+		background: var(--primary); color: var(--secondary); border-color: var(--primary);
+	}
+	/* The shared .eyebrow puts a rule on the left only, which reads fine ranged left but
+	   pushes the text right of centre in a centred stack. A matching rule on the right
+	   balances it — measured 7px off before, 0 after. */
+	.home-head .eyebrow { justify-content: center; }
+	.home-head .eyebrow::after {
+		content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent);
+		/* letter-spacing adds a trailing space after the LAST character too, so the text
+		   item is ~.18em wider than its ink and the right rule was pushed that far out.
+		   Pulling it back makes the two visual gaps equal and recentres the group. */
+		margin-left: -.18em;
+	}
+	.home-head .lede { margin-left: auto; margin-right: auto; }
+	.home-actions {
+		display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; justify-content: center;
+	}
+
+	/* ============ THE WORDMARK ============ */
+	.home-word {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900;
+		/* vh cap as well as the vw ramp: on a wide, SHORT window 12.5vw is enormous and
+		   the hero would leave the scrolling pane a sliver. Whichever is smaller wins. */
+		font-size: min(clamp(48px, 12.5vw, 190px), 26vh);
+		line-height: .84;
+		letter-spacing: -0.035em;
+		text-transform: uppercase;
+		color: var(--secondary);
+		/* One flex item, not two. With the year in flow the PAIR was centred, which left
+		   ANVESHA itself ~26px left of the lede and the buttons — visible as soon as the
+		   hero was centred. The year is absolute below, so the word centres on its own. */
+		display: flex; justify-content: center;
+	}
+
+	/* The canvas is positioned against this, so the dust lands exactly where the type is. */
+	.hw-stage { position: relative; display: inline-block; }
+	.hw-text { display: block; }
+	.hw-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+	/* Gated on [data-hw], set by an inline script before first paint and cleared the
+	   moment the dust hands over. No JS, no attribute, no hiding — the heading is just
+	   type. The transition is what makes the hand-off a settle rather than a swap. */
+	html[data-hw] .hw-text { opacity: 0; }
+	.hw-text { transition: opacity .45s ease; }
+	/* Once the animation has finished there is nothing to draw, and a stale canvas must
+	   not sit over the type intercepting anything. */
+	.home-word[data-state='done'] .hw-canvas { display: none; }
+
+	.hw-year {
+		/* Hung off the word's top-right rather than sitting beside it, so it adds no
+		   width to the thing being centred. */
+		position: absolute; left: 100%; top: 0; margin-left: .06em;
+		color: var(--accent);
+		font-size: .26em;
+		line-height: 1;
+		letter-spacing: 0;
+		white-space: nowrap;
+	}
+	/* Arrives with the type, not with the dust. */
+	html[data-hw] .hw-year { opacity: 0; transform: translateY(.25em); }
+	.hw-year { transition: opacity .4s ease .12s, transform .4s cubic-bezier(.2, 1.5, .4, 1) .12s; }
+
+	@media (prefers-reduced-motion: reduce) {
+		.hw-text, .hw-year { transition: none; }
+		html[data-hw] .hw-text, html[data-hw] .hw-year { opacity: 1; transform: none; }
+	}
+
+	/* ============ TICKER ============ */
+	.home-ticker {
+		overflow: hidden;
+		border-top: var(--stroke) solid var(--secondary);
+		border-bottom: var(--stroke) solid var(--secondary);
+		background: var(--secondary);
+		/* Deeper than before: at 11px the band was shorter than the line box of its own
+		   text once letter-spacing and the mono font's ascenders were counted, so the
+		   caps were being clipped top and bottom by the overflow:hidden above. */
+		padding: 15px 0;
+	}
+	.home-ticker-track { display: flex; width: max-content; animation: home-marquee 34s linear infinite; }
+	.home-ticker-run { display: flex; align-items: center; }
+	.home-ticker-item {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase;
+		/* Explicit, not inherited: the band's height is this line box, so leaving it to
+		   whatever the page sets is what let it get clipped. */
+		line-height: 1.5;
+		color: var(--primary);
+		white-space: nowrap;
+	}
+	.home-ticker-dot { flex: none; width: 5px; height: 5px; margin: 0 22px; background: var(--accent); }
+	/* -50%, not -100%: the track holds four identical runs, so half a lap is exactly two
+	   full copies and the reset lands on a matching frame. Four rather than two because
+	   .card has no max-width — two runs can be narrower than an ultrawide viewport, and
+	   the strip would show a gap between laps. */
+	@keyframes home-marquee { to { transform: translateX(-50%); } }
+	@media (prefers-reduced-motion: reduce) {
+		.home-ticker-track { animation: none; }
+	}
+
+	/* ============ HERO ACTIONS ============ */
 	.home-alt {
 		display: inline-flex; align-items: center;
 		padding: 17px 24px;
@@ -76,13 +752,226 @@ const CARDS = [
 		font-weight: 800; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
 	}
 
-	.home-card { position: relative; padding-bottom: 46px; color: var(--secondary); text-decoration: none; }
-	.home-card-go {
-		position: absolute; left: 20px; bottom: 18px; display: block; line-height: 0;
-		color: var(--accent); transition: transform .18s ease;
+	/* ============ FOOTER ============ */
+	.home-foot {
+		display: flex; align-items: center; justify-content: space-between; gap: 16px;
+		padding: 12px clamp(18px, 3vw, 40px);
+		border-top: var(--stroke) solid var(--secondary);
+		background: var(--primary);
 	}
-	.home-card-go svg { width: 18px; height: 18px; stroke-width: 2.2; }
-	.home-card:hover { box-shadow: var(--pop); transform: translate(-2px, -2px); }
-	.home-card:hover .home-card-go { transform: translateX(5px); }
-	.home-card { transition: transform .12s ease, box-shadow .12s ease; }
+	.foot-social { display: flex; align-items: center; gap: 16px; }
+	/* Bare marks, no chassis. The footer is a quiet strip; four bordered buttons in it
+	   read as heavier than the nav they sit under. Hit area comes from padding rather
+	   than from a visible box, so it stays tappable without drawing itself. */
+	.foot-ico {
+		display: grid; place-items: center; padding: 5px;
+		color: var(--secondary);
+		transition: color .14s ease, transform .14s ease;
+	}
+	.foot-ico svg { width: 18px; height: 18px; display: block; }
+	.foot-ico:hover { color: var(--accent); transform: translateY(-2px); }
+	.foot-mail {
+		display: inline-flex; align-items: center; gap: 8px;
+		font-size: 11.5px; color: var(--ink-40); text-decoration: none;
+		transition: color .14s ease;
+	}
+	.foot-mail svg { width: 14px; height: 14px; stroke-width: 2; }
+	.foot-mail:hover { color: var(--accent); }
+
+	@media (max-width: 560px) {
+		/* Two short rows beat one cramped one once the address stops fitting beside the icons. */
+		.home-foot { flex-direction: column; gap: 10px; padding: 12px 18px; }
+	}
+
+	/* ============ THE FLOW ============
+	   Alternating rows down one column: copy on one side, illustration on the other,
+	   flipping each row. `data-side` is the single switch — it drives the column order
+	   AND which way each half travels on the way in, so the two can never disagree. */
+	.flow {
+		max-width: 1120px; margin: 0 auto;
+		padding: clamp(30px, 4vw, 56px) clamp(20px, 3.5vw, 44px) clamp(52px, 6vw, 88px);
+		display: flex; flex-direction: column;
+		gap: clamp(52px, 7vw, 104px);
+	}
+
+	.fl {
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: clamp(24px, 4vw, 60px);
+		align-items: center;
+	}
+	/* The flip. Explicit columns rather than `direction` or `order` on one child, so the
+	   DOM order stays copy-then-illustration for a screen reader in every row. */
+	.fl[data-side='left']  .fl-copy { grid-column: 1; }
+	.fl[data-side='left']  .art     { grid-column: 2; grid-row: 1; }
+	.fl[data-side='right'] .fl-copy { grid-column: 2; grid-row: 1; }
+	.fl[data-side='right'] .art     { grid-column: 1; grid-row: 1; }
+
+	.fl-copy { min-width: 0; }
+	.fl-kick {
+		display: flex; align-items: center; gap: 10px; margin-bottom: 11px;
+		font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
+	}
+	.fl-kick::before { content: ''; flex: none; width: 15px; height: 1.5px; background: var(--accent); }
+	.fl-h {
+		margin: 0 0 10px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(20px, 2.3vw, 30px); line-height: 1.08;
+		letter-spacing: -0.01em; text-transform: uppercase;
+	}
+	.fl-p { margin: 0 0 24px; font-size: 13.5px; line-height: 1.68; color: var(--ink-60); }
+	.fl-cta { margin-top: 24px; align-self: start; }
+
+	/* ---- the illustration frame ---- */
+	.art { margin: 0; min-width: 0; }
+	.art-frame {
+		position: relative; overflow: hidden;
+		aspect-ratio: 4 / 3;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--sink);
+		/* Same dot matrix as the page ground, so an empty frame reads as a reserved space
+		   rather than a broken image. */
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 16px 16px;
+	}
+	/* Taller than the frame and shifted by --par, which the scroll handler writes. The
+	   overflow above is what turns that drift into parallax instead of a moving box. */
+	.art-fill {
+		position: absolute; inset: -8% 0;
+		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+		transform: translateY(var(--par, 0px));
+		will-change: transform;
+	}
+	.art-ico { display: block; line-height: 0; color: var(--ink-40); }
+	.art-ico svg { width: clamp(30px, 4vw, 46px); height: clamp(30px, 4vw, 46px); stroke-width: 1.4; }
+	.art-tag {
+		padding: 4px 10px; background: var(--secondary); color: var(--primary);
+		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+	}
+	.art-cap {
+		display: flex; align-items: center; gap: 7px; margin-top: 10px;
+		font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.art-cap svg { width: 12px; height: 12px; stroke-width: 2; flex: none; }
+
+	/* ---- timeline ---- */
+	.tl { list-style: none; margin: 0; padding: 0; }
+	.tl-row {
+		position: relative;
+		display: grid; grid-template-columns: 62px 16px 1fr; gap: 14px; align-items: start;
+		padding: 0 0 22px;
+	}
+	/* The spine is drawn per row rather than as one rule behind them, so it grows with
+	   the list and the last row can stop it cleanly. */
+	.tl-row::before {
+		content: ''; position: absolute; left: 83px; top: 14px; bottom: 0;
+		width: 1.5px; background: var(--hair);
+	}
+	.tl-row:last-child { padding-bottom: 0; }
+	.tl-row:last-child::before { display: none; }
+	.tl-year { font-size: 12px; color: var(--ink-40); padding-top: 3px; }
+	.tl-dot {
+		width: 9px; height: 9px; margin-top: 7px; justify-self: center;
+		background: var(--primary); border: 2px solid var(--secondary);
+	}
+	.tl-row.is-now .tl-dot { background: var(--accent); border-color: var(--accent); }
+	.tl-row.is-now .tl-year { color: var(--accent); }
+	.tl-title { margin: 0 0 4px; font-size: 14px; font-weight: 800; }
+	.tl-text { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-60); }
+
+	/* ---- stats ---- */
+	/* Hairlines top and bottom instead of four bordered cards: the figures read as part
+	   of the paragraph above them rather than as a widget dropped into it. */
+	.stats {
+		display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		border-top: 1.5px solid var(--hair); border-bottom: 1.5px solid var(--hair);
+	}
+	.stat { padding: 18px 22px 18px 0; }
+	.stat-v {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(26px, 3.2vw, 40px); line-height: 1;
+		letter-spacing: -0.02em;
+		/* The number is re-written every frame while counting; without this the box
+		   resizes as digits are added and the row of cards jitters. */
+		font-variant-numeric: tabular-nums;
+	}
+	.stat-l {
+		margin-top: 9px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-40);
+	}
+
+	/* ---- sponsors ---- */
+	.sp-list { list-style: none; margin: 0; padding: 0; }
+	.sp {
+		display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: baseline;
+		padding: 13px 0;
+		border-bottom: 1.5px solid var(--hair);
+	}
+	.sp:first-child { border-top: 1.5px solid var(--hair); }
+	.sp-tier { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40); }
+	.sp-name { font-family: 'Archivo Expanded', 'Archivo', sans-serif; font-weight: 900; font-size: 15px; }
+	/* An unfilled slot reads as an invitation rather than as a row that failed to load. */
+	.sp-slot { font-size: 12.5px; font-style: italic; color: var(--ink-40); }
+	.sp.is-open .sp-tier { color: color-mix(in srgb, var(--ink-40) 70%, transparent); }
+
+	/* ---- the reveal ----
+	   Not gated on [data-anim]: these start hidden and are switched on by the observer,
+	   which also has a no-JS/no-IO path that adds .is-in to everything at once.
+	   The two halves come in from opposite edges and meet, which is what makes the flip
+	   legible — a row reads as assembling rather than as a block fading up. */
+	.fl .fl-copy, .fl .art {
+		opacity: 0;
+		transition: opacity .62s ease, transform .62s cubic-bezier(.22, .8, .3, 1);
+	}
+	.fl[data-side='left']  .fl-copy { transform: translateX(-34px); }
+	.fl[data-side='left']  .art     { transform: translateX(34px); }
+	.fl[data-side='right'] .fl-copy { transform: translateX(34px); }
+	.fl[data-side='right'] .art     { transform: translateX(-34px); }
+	/* The illustration lands a beat after the copy, so the eye reads the words first. */
+	.fl .art { transition-delay: .1s; }
+	.fl.is-in .fl-copy, .fl.is-in .art { opacity: 1; transform: none; }
+
+	/* Rows inside a row cascade rather than arriving together. Driven off the parent's
+	   .is-in, so they follow the half they live in instead of needing their own observer. */
+	.tl-row, .stat, .sp {
+		opacity: 0; transform: translateY(12px);
+		transition: opacity .45s ease, transform .45s cubic-bezier(.2, .8, .3, 1);
+	}
+	.fl.is-in .tl-row, .fl.is-in .stat, .fl.is-in .sp {
+		opacity: 1; transform: none;
+	}
+	.fl.is-in .tl-row:nth-child(1), .fl.is-in .stat:nth-child(1),
+	.fl.is-in .sp:nth-child(1) { transition-delay: .18s; }
+	.fl.is-in .tl-row:nth-child(2), .fl.is-in .stat:nth-child(2),
+	.fl.is-in .sp:nth-child(2) { transition-delay: .25s; }
+	.fl.is-in .tl-row:nth-child(3), .fl.is-in .stat:nth-child(3),
+	.fl.is-in .sp:nth-child(3) { transition-delay: .32s; }
+	.fl.is-in .tl-row:nth-child(4), .fl.is-in .stat:nth-child(4),
+	.fl.is-in .sp:nth-child(4) { transition-delay: .39s; }
+	.fl.is-in .tl-row:nth-child(5), .fl.is-in .sp:nth-child(5) { transition-delay: .46s; }
+	.fl.is-in .sp:nth-child(6) { transition-delay: .53s; }
+
+	@media (prefers-reduced-motion: reduce) {
+		.fl .fl-copy, .fl .art, .tl-row, .stat, .sp {
+			opacity: 1; transform: none; transition: none;
+		}
+		.art-fill { transform: none; }
+		.foot-ico { transition: none; }
+		.foot-ico:hover { transform: none; }
+	}
+
+	@media (max-width: 860px) {
+		/* One column. Both halves are reset to the same track, so `data-side` stops
+		   flipping anything and every row reads copy-then-illustration. */
+		.fl { grid-template-columns: 1fr; gap: 22px; }
+		.fl[data-side='left'] .fl-copy, .fl[data-side='right'] .fl-copy { grid-column: 1; grid-row: 1; }
+		.fl[data-side='left'] .art, .fl[data-side='right'] .art { grid-column: 1; grid-row: 2; }
+		/* Sideways travel needs width to read; stacked, both halves just lift. */
+		.fl[data-side='left'] .fl-copy, .fl[data-side='right'] .fl-copy,
+		.fl[data-side='left'] .art, .fl[data-side='right'] .art { transform: translateY(18px); }
+		.fl.is-in .fl-copy, .fl.is-in .art { transform: none; }
+		.art-frame { aspect-ratio: 16 / 10; }
+		.tl-row { grid-template-columns: 52px 16px 1fr; gap: 10px; }
+		.tl-row::before { left: 69px; }
+	}
 </style>
