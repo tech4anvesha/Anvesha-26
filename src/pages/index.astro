@@ -2,6 +2,7 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iHandshake from 'lucide-static/icons/handshake.svg?raw';
 import iMail from 'lucide-static/icons/mail.svg?raw';
@@ -117,13 +118,20 @@ const TICKER = [
 				<span class="home-x-rule"></span>
 			</div>
 
+			{/* Both carry an icon now, so the pair reads as one set rather than a filled
+			    button beside a bare one. #sponsors is the row further down this page — the
+			    fest has no sponsors PAGE, and the browser scrolls the nested pane for a
+			    fragment on its own, so this needs no script. */}
 			<div class="home-actions" data-reveal>
-				<a class="cta" href="/expo">
-					<span set:html={iFlask} />
-					<span>SEE THE EXPO</span>
+				<a class="cta" href="/events">
+					<span set:html={iCalendar} />
+					<span>EVENTS</span>
 					<span set:html={iArrowRight} />
 				</a>
-				<a class="btn home-alt" href="/events">BROWSE EVENTS</a>
+				<a class="btn home-alt" href="#sponsors">
+					<span set:html={iHandshake} />
+					<span>SPONSORS</span>
+				</a>
 			</div>
 		</header>
 
@@ -221,7 +229,7 @@ const TICKER = [
 					</figure>
 				</section>
 
-				<section class="fl" data-side="left" data-ab>
+				<section class="fl" id="sponsors" data-side="left" data-ab>
 					<div class="fl-copy">
 						<span class="fl-kick mono">Sponsors</span>
 						<h2 class="fl-h">Who keeps the doors open</h2>
@@ -860,11 +868,13 @@ const TICKER = [
 
 	/* ============ HERO ACTIONS ============ */
 	.home-alt {
-		display: inline-flex; align-items: center;
+		display: inline-flex; align-items: center; gap: 9px;
 		padding: 17px 24px;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 800; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
 	}
+	.home-alt svg { width: 16px; height: 16px; display: block; }
+	.home-alt > span:first-child { display: grid; place-items: center; flex: none; line-height: 0; }
 
 	/* ============ FOOTER ============ */
 	.home-foot {
@@ -893,8 +903,38 @@ const TICKER = [
 	.foot-mail:hover { color: var(--accent); }
 
 	@media (max-width: 560px) {
-		/* Two short rows beat one cramped one once the address stops fitting beside the icons. */
-		.home-foot { flex-direction: column; gap: 10px; padding: 12px 18px; }
+		/* One strip, not two rows: the address is dropped and the mail becomes another
+		   bare mark beside the socials, so the whole footer is a single line of icons.
+		   The <span> holding the address is what goes — the link itself stays, so the
+		   accessible name and the mailto are untouched. */
+		.home-foot { justify-content: center; gap: 16px; padding: 10px 18px; }
+		.foot-mail > span:last-child { display: none; }
+		/* Same box as .foot-ico, not merely the same padding: left inline, the icon sits on
+		   a text baseline and the link measures 32px against the socials' 28, so it rides
+		   2px high in the row. Grid drops the baseline; line-height:0 drops the descender. */
+		.foot-mail {
+			display: grid; place-items: center; padding: 5px;
+			line-height: 0; color: var(--secondary);
+		}
+		.foot-mail svg { width: 18px; height: 18px; }
+	}
+
+	@media (max-width: 560px) {
+		/* Side by side, always. Wrapping put one button under the other and cost the
+		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
+		   equal, however long the labels get. */
+		.home-actions { flex-wrap: nowrap; gap: 9px; margin-top: 18px; }
+		.home-actions > a { flex: 1 1 0; min-width: 0; justify-content: center; }
+		.cta, .home-alt { padding: 14px 10px; font-size: 11px; letter-spacing: .1em; }
+		/* The arrow is the first thing to go when the two share a line. */
+		.cta > span:last-child { display: none; }
+
+		/* Banner up, story down: every pixel taken off the hero here is a pixel the
+		   scrollable middle gets, which is the point of the fixed layout. */
+		.home-head { padding-top: 14px; padding-bottom: 10px; }
+		.home-x { margin-top: 12px; gap: 9px; }
+		.home-x-rule { width: clamp(26px, 12vw, 60px); }
+		.eyebrow { margin-bottom: 10px; }
 	}
 
 	/* ============ THE FLOW ============
