@@ -102,7 +102,7 @@ const hasTools = Astro.slots.has('tools');
 				    decorative SVG, so without this a screen reader announces an empty link. */}
 				<a class:list={['brand', isHome && 'brand-solo']} href={brandHref} transition:name="brand" aria-label="Anvesha '26 — home">
 					<span class="brand-mark" set:html={markSvg} />
-					{!isHome && <span class="brand-word">ANVESHA<sup>'26</sup></span>}
+					<span class="brand-word">ANVESHA<sup>'26</sup></span>
 					{brandTag && <i class="brand-tag">{brandTag}</i>}
 				</a>
 
@@ -374,6 +374,30 @@ const hasTools = Astro.slots.has('tools');
 	   :has() support, and it is the same `isHome` that decided the markup. */
 	.brand-solo .brand-mark svg { height: 34px; }
 	.brand-word { white-space: nowrap; }
+
+	/* Home only (.brand-solo is set for the home page and nowhere else). Here the nav
+	   wordmark is not a permanent part of the bar — it is the opening frame of the hero
+	   animation, which lifts it off and rebuilds it in the centre of the page.
+	   Out of flow so the mark keeps its own position and never jumps sideways when the
+	   word goes, and hidden by DEFAULT so the end state needs no script: a visit with JS
+	   off, where nothing would ever animate it away, simply never shows it. The pre-paint
+	   [data-hw] gate is what reveals it, and only for as long as the animation owns it. */
+	/* justify-self, because .brand is a grid item and grid items stretch: without this the
+	   box spans its whole track and `left:100%` lands the wordmark in the middle of the
+	   nav, underneath the links. Shrunk to the mark, 100% is the mark's right edge. */
+	.brand-solo { position: relative; justify-self: start; }
+	.brand-solo .brand-word {
+		position: absolute; left: 100%; top: 50%; translate: 0 -50%;
+		margin-left: 9px; visibility: hidden;
+	}
+	html[data-hw] .brand-solo .brand-word { visibility: visible; }
+	/* Under 720px the brand is centred in the bar and the wordmark, hanging off its right
+	   edge, would run into the tools column and be clipped by the card. display:none, not
+	   visibility — the script tests getClientRects() and falls back to gathering the dust
+	   in off the edges of the screen when there is no bar wordmark to lift. */
+	@media (max-width: 720px) {
+		.brand-solo .brand-word { display: none; }
+	}
 	.brand sup { color: var(--accent); font-size: 10px; margin-left: 3px; vertical-align: super; }
 	/* Standing reminder of which side of the site you are on — the panel edits live
 	   prices, so it should never be mistakable for the public storefront. */

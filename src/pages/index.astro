@@ -89,7 +89,7 @@ const TICKER = [
 		    can hand over, the wordmark still appears on its own. */}
 		<script is:inline>
 			document.documentElement.dataset.hw = 'on';
-			setTimeout(function () { document.documentElement.removeAttribute('data-hw'); }, 5000);
+			setTimeout(function () { document.documentElement.removeAttribute('data-hw'); }, 8000);
 		</script>
 	</Fragment>
 
@@ -287,11 +287,17 @@ const TICKER = [
 	const WORD = 'ANVESHA';
 
 	/**
-	 * The wordmark: dust gathering into type, then blowing off it.
+	 * The wordmark: the nav's own ANVESHA'26 comes apart and rebuilds itself, full size,
+	 * in the middle of the page. One continuous move — the grains that leave the menu bar
+	 * are the grains that land on the hero.
 	 *
-	 *   1. GATHER    particles fly in from every direction and land on the letterforms
-	 *   2. HOLD      the word sits, drawn entirely out of dust
-	 *   3. HAND OFF  the real type fades up underneath while the dust scatters off it
+	 *   1. LIFT      the nav wordmark is sampled, then hidden on the same frame the dust
+	 *                appears on top of it, so it reads as coming apart rather than
+	 *                being replaced
+	 *   2. FLY       every grain travels from its letter in the bar to its letter in the
+	 *                hero, staggered, so the word pulls apart and re-forms
+	 *   3. HOLD      the word sits, drawn entirely out of dust
+	 *   4. HAND OFF  the real type fades up underneath while the dust scatters off it
 	 *
 	 * The letter positions are not authored — the word is rendered once to an offscreen
 	 * canvas in the page's own font and its ink is sampled, so the particles land on
@@ -327,29 +333,25 @@ const TICKER = [
 		ready.then(() => build(root, canvas, text, done)).catch(done);
 	}
 
-	function build(root: HTMLElement, canvas: HTMLCanvasElement, text: HTMLElement, done: () => void) {
-		const rect = text.getBoundingClientRect();
+	/**
+	 * Render `str` in `el`'s own font at `el`'s own size to an offscreen canvas and return
+	 * the coordinates of its ink, in that box's local space, plus the box itself.
+	 *
+	 * Shared by both wordmarks so the bar and the hero are sampled by identical rules —
+	 * the only difference between them is the computed style they carry.
+	 */
+	function sampleInk(el: HTMLElement, str: string, step: number) {
+		const rect = el.getBoundingClientRect();
 		const w = Math.ceil(rect.width);
 		const h = Math.ceil(rect.height);
-		const ctx = canvas.getContext('2d');
-		if (!ctx || w < 2 || h < 2) return done();
+		if (w < 2 || h < 2) return null;
 
-		// Capped at 2: past that the extra pixels are invisible and the fill rate is not.
-		const dpr = Math.min(window.devicePixelRatio || 1, 2);
-		canvas.width = Math.round(w * dpr);
-		canvas.height = Math.round(h * dpr);
-		canvas.style.width = `${w}px`;
-		canvas.style.height = `${h}px`;
-		ctx.scale(dpr, dpr);
-
-		// The offscreen pass is the source of truth for where the ink is: same font, same
-		// size, same tracking as the DOM node the canvas sits on top of.
-		const cs = getComputedStyle(text);
+		const cs = getComputedStyle(el);
 		const off = document.createElement('canvas');
 		off.width = w;
 		off.height = h;
 		const octx = off.getContext('2d', { willReadFrequently: true });
-		if (!octx) return done();
+		if (!octx) return null;
 
 		octx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
 		// Not supported everywhere; without it the sampled word is fractionally wider than
@@ -364,53 +366,132 @@ const TICKER = [
 		// line box and sets the baseline one half-leading plus one ascent down from the top.
 		// Same arithmetic here, off the same font metrics, so the dust lands on the type
 		// instead of a couple of pixels above it.
-		const m = octx.measureText(WORD);
+		const m = octx.measureText(str);
 		const fa = m.fontBoundingBoxAscent;
 		const fd = m.fontBoundingBoxDescent;
 		if (typeof fa === 'number' && typeof fd === 'number') {
 			octx.textBaseline = 'alphabetic';
-			octx.fillText(WORD, w / 2, (h - (fa + fd)) / 2 + fa);
+			octx.fillText(str, w / 2, (h - (fa + fd)) / 2 + fa);
 		} else {
 			// Pre-2022 Safari has no font metrics. ANVESHA is all caps with no descenders,
 			// so centring the em square is close, and the cross-fade absorbs the rest.
 			octx.textBaseline = 'middle';
-			octx.fillText(WORD, w / 2, h / 2);
+			octx.fillText(str, w / 2, h / 2);
 		}
 
 		let pixels: Uint8ClampedArray;
 		try {
 			pixels = octx.getImageData(0, 0, w, h).data;
 		} catch {
-			return done(); // tainted or zero-sized canvas — nothing to sample
+			return null; // tainted or zero-sized canvas — nothing to sample
 		}
 
-		// The step scales with the wordmark, so a phone and a desktop get a similar
-		// particle COUNT rather than a similar density — one grain per 4px on a 190px
-		// title would be a quarter of a million of them.
-		const step = Math.max(2, Math.round(Math.min(w, 1500) / 240));
-		const found: number[][] = [];
+		const pts: number[][] = [];
 		for (let y = 0; y < h; y += step) {
 			for (let x = 0; x < w; x += step) {
 				// Alpha only: the offscreen word is solid black on transparent.
-				if (pixels[(y * w + x) * 4 + 3] > 128) found.push([x, y]);
+				if (pixels[(y * w + x) * 4 + 3] > 128) pts.push([x, y]);
 			}
 		}
-		if (!found.length) return done();
+		return pts.length ? { pts, rect, w, h } : null;
+	}
 
-		const P = found.map(([tx, ty]) => {
-			const a = Math.random() * Math.PI * 2;
-			const spread = 0.55 + Math.random();
+	function build(root: HTMLElement, canvas: HTMLCanvasElement, text: HTMLElement, done: () => void) {
+		// The step scales with the wordmark, so a phone and a desktop get a similar
+		// particle COUNT rather than a similar density — one grain per 4px on a 190px
+		// title would be a quarter of a million of them.
+		const heroW = text.getBoundingClientRect().width;
+		const step = Math.max(2, Math.round(Math.min(heroW, 1500) / 240));
+
+		const hero = sampleInk(text, WORD, step);
+		if (!hero) return done();
+
+		// The bar's copy, if it is on screen. Sampled at step 1 — at 19px there is not much
+		// ink to find, and a sparse source cloud makes the lift look like a fade.
+		// Sampled as one flat string: the real node sets '26 as a <sup> at a smaller size,
+		// which a single fillText cannot reproduce. At this size the difference is under a
+		// grain, and the DOM node is hidden on the same frame the dust replaces it.
+		const navWord = document.querySelector<HTMLElement>('.brand-solo .brand-word');
+		const nav = navWord && navWord.getClientRects().length
+			? sampleInk(navWord, WORD + "'26", 1)
+			: null;
+
+		// One canvas over the whole viewport, parented to <body>. The grains have to cross
+		// from the menu bar to the middle of the page, so they cannot live in a box scoped
+		// to the heading — and on <body> no ancestor's overflow, transform or stacking
+		// context can clip them. Everything below is therefore in VIEWPORT coordinates.
+		// z-index 55: over the bar and the card, under the mobile menu's 60, so a tap that
+		// opens the menu mid-flight is not painted over by dust.
+		const vw = document.documentElement.clientWidth;
+		const vh = document.documentElement.clientHeight;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return done();
+
+		// Capped at 2: past that the extra pixels are invisible and the fill rate is not.
+		const dpr = Math.min(window.devicePixelRatio || 1, 2);
+		canvas.width = Math.round(vw * dpr);
+		canvas.height = Math.round(vh * dpr);
+		canvas.style.cssText =
+			`position:fixed;left:0;top:0;width:${vw}px;height:${vh}px;pointer-events:none;z-index:55`;
+		document.body.appendChild(canvas);
+		ctx.scale(dpr, dpr);
+
+		// Sources sorted by x so a grain from the left of the bar lands on the left of the
+		// hero. Picking at random instead would still assemble the word, but the flight
+		// would read as a swarm rather than as the same word being pulled apart.
+		const src = nav ? nav.pts.slice().sort((a, b) => a[0] - b[0]) : null;
+		const srcN = src ? src.length : 0;
+		// Centre of the bar wordmark, used to push each grain outward before it heads for
+		// the hero — the "comes apart" half of the move.
+		const navCx = nav ? nav.rect.left + nav.rect.width / 2 : 0;
+		const navCy = nav ? nav.rect.top + nav.rect.height / 2 : 0;
+
+		const P = hero.pts.map(([lx, ly]) => {
+			// Hero target, in viewport space.
+			const tx = hero.rect.left + lx;
+			const ty = hero.rect.top + ly;
+
+			let sx: number;
+			let sy: number;
+			if (src) {
+				// Match on horizontal position within the word, with a little slop so the
+				// grains do not travel in tidy parallel lines.
+				const u = hero.w > 1 ? lx / hero.w : 0.5;
+				const j = Math.round((Math.random() - 0.5) * srcN * 0.08);
+				let i = Math.round(u * (srcN - 1)) + j;
+				i = i < 0 ? 0 : i > srcN - 1 ? srcN - 1 : i;
+				sx = nav!.rect.left + src[i][0];
+				sy = nav!.rect.top + src[i][1];
+			} else {
+				// No bar wordmark to lift (a narrow viewport, or the node never rendered):
+				// fall back to the original behaviour and gather in off every edge.
+				const a = Math.random() * Math.PI * 2;
+				const spread = 0.55 + Math.random();
+				sx = tx + Math.cos(a) * hero.w * spread;
+				sy = ty + Math.sin(a) * hero.h * spread * 2.6;
+			}
+
+			// Quadratic control point. Off to the side of the straight line and biased
+			// upward, so the grain bursts off the bar and arcs down into the hero instead
+			// of sliding along a chord — the difference between disintegrating and moving.
+			let cx = (sx + tx) / 2;
+			let cy = (sy + ty) / 2;
+			if (src) {
+				const ang = Math.atan2(sy - navCy, sx - navCx) + (Math.random() - 0.5) * 1.2;
+				const burst = 30 + Math.random() * 110;
+				cx = sx + Math.cos(ang) * burst;
+				cy = sy + Math.sin(ang) * burst - 30 - Math.random() * 70;
+			}
+
 			return {
-				tx, ty,
-				// Off every edge, not from one side: the word should look assembled, not
-				// slid in. Scaled by the canvas so the travel reads the same at any size.
-				sx: w / 2 + Math.cos(a) * w * spread,
-				sy: h / 2 + Math.sin(a) * h * spread * 2.6,
+				tx, ty, sx, sy, cx, cy,
 				// Where it goes when it blows off — outward from wherever it landed.
-				bx: (tx - w / 2) * 0.55 + (Math.random() - 0.5) * 90,
-				by: (ty - h / 2) * 0.9 + (Math.random() - 0.5) * 70 - 40,
-				delay: Math.random() * 0.35,
-				dur: 0.7 + Math.random() * 0.45,
+				bx: (lx - hero.w / 2) * 0.55 + (Math.random() - 0.5) * 90,
+				by: (ly - hero.h / 2) * 0.9 + (Math.random() - 0.5) * 70 - 40,
+				// Longer and more staggered than the old gather: this is a real journey
+				// across the page, not a drop onto a letter a few pixels away.
+				delay: Math.random() * 0.42,
+				dur: 0.85 + Math.random() * 0.5,
 				size: 1 + Math.random() * 1.6,
 			};
 		});
@@ -421,6 +502,11 @@ const TICKER = [
 		const GATHER = P.reduce((m, p) => Math.max(m, p.delay + p.dur), 0);
 		const HOLD = 0.45;    // the word sits, drawn entirely out of dust
 		const SCATTER = 0.85; // dust blows off while the real type comes up
+		// How long the BAR wordmark sits before anything lifts. Without this the swap to
+		// dust happens on the first animation frame — with the font cached that is about
+		// two frames, so the thing that is supposed to come apart is never seen at all.
+		// Only worth waiting for when there is a bar wordmark to look at.
+		const DWELL = src ? 0.6 : 0;
 
 		// The dust is drawn in whatever colour the real type is, read off the element
 		// itself. Hardcoding --secondary painted black grains onto the dark hero, i.e.
@@ -431,14 +517,46 @@ const TICKER = [
 		const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
 
 		let raf = 0;
-		const start = performance.now();
+		let startMs = 0;
 		let handedOver = false;
+		let started = false;
+		let lifted = false;
+
+		const cleanup = () => {
+			cancelAnimationFrame(raf);
+			canvas.remove();
+		};
 
 		const frame = (now: number) => {
-			const t = (now - start) / 1000;
-			ctx.clearRect(0, 0, w, h);
+			// The clock starts on the FIRST frame, not at build time. Between the two sits
+			// the font wait and the sampling, and starting the timeline before them would
+			// spend part of the flight on a frame that was never drawn.
+			if (!started) {
+				started = true;
+				startMs = now;
+			}
+			// Two clocks: `t` from the first frame, and `ft` — the flight — which does not
+			// start until the bar wordmark has had its moment.
+			const t = (now - startMs) / 1000;
+			const ft = t - DWELL;
 
-			const scatter = clamp01((t - (GATHER + HOLD)) / SCATTER);
+			if (ft < 0) {
+				// The bar wordmark is still on screen, untouched. Nothing to draw yet.
+				raf = requestAnimationFrame(frame);
+				return;
+			}
+			if (!lifted) {
+				lifted = true;
+				// Handover frame: every grain is sitting exactly on the letterform it was
+				// sampled from, so swapping the DOM text out here is invisible — what you
+				// see next is that same word coming apart. Inline style so it beats the
+				// html[data-hw] rule that revealed it.
+				if (navWord) navWord.style.visibility = 'hidden';
+			}
+
+			ctx.clearRect(0, 0, vw, vh);
+
+			const scatter = clamp01((ft - (GATHER + HOLD)) / SCATTER);
 			const se = easeOut(scatter);
 
 			// The real type comes up as the dust starts to leave, so there is never a
@@ -449,10 +567,12 @@ const TICKER = [
 			}
 
 			for (const p of P) {
-				const local = clamp01((t - p.delay) / p.dur);
+				const local = clamp01((ft - p.delay) / p.dur);
 				const e = easeOut(local);
-				const x = p.sx + (p.tx - p.sx) * e + p.bx * se;
-				const y = p.sy + (p.ty - p.sy) * e + p.by * se;
+				// Quadratic bezier src -> control -> target.
+				const m = 1 - e;
+				const x = m * m * p.sx + 2 * m * e * p.cx + e * e * p.tx + p.bx * se;
+				const y = m * m * p.sy + 2 * m * e * p.cy + e * e * p.ty + p.by * se;
 				// Fade in on approach, out on departure. min() stops a late particle
 				// arriving at full opacity after the scatter has already begun.
 				ctx.globalAlpha = Math.min(1, local * 2.4) * (1 - scatter);
@@ -462,9 +582,9 @@ const TICKER = [
 			if (scatter < 1) {
 				raf = requestAnimationFrame(frame);
 			} else {
-				// Nothing left to draw: drop the bitmap rather than leave a full-size
-				// transparent canvas composited over the heading for the rest of the visit.
-				canvas.width = canvas.height = 0;
+				// Nothing left to draw: drop the canvas rather than leave a full-viewport
+				// transparent one composited over the page for the rest of the visit.
+				cleanup();
 				done();
 			}
 		};
@@ -472,8 +592,9 @@ const TICKER = [
 		raf = requestAnimationFrame(frame);
 
 		// ClientRouter swaps the DOM out from under a running loop; without this the rAF
-		// keeps firing against a detached canvas until the tab is closed.
-		document.addEventListener('astro:before-swap', () => cancelAnimationFrame(raf), { once: true });
+		// keeps firing against a detached canvas until the tab is closed — and the canvas
+		// now lives on <body>, so a swap would not take it away either.
+		document.addEventListener('astro:before-swap', cleanup, { once: true });
 	}
 
 	document.addEventListener('astro:page-load', wordmark);
@@ -490,6 +611,40 @@ const TICKER = [
 	 * ponytail: class toggles driving CSS transitions plus one rAF-throttled scroll
 	 * handler, not a tween per element. The observer unobserves on first hit.
 	 */
+	/**
+	 * Run one [data-count] up to its own value. The final number is what the server
+	 * rendered, so this only ever overwrites it on the way there and puts it back at the
+	 * end — a dead counter, a reader with no JS, or reduced motion all still see the
+	 * real figure.
+	 */
+	function countUp(el: HTMLElement) {
+		if (el.dataset.counted) return;   // rows can re-enter the viewport; the count should not re-run
+		el.dataset.counted = '1';
+
+		const target = Number(el.dataset.count);
+		const suffix = el.dataset.suffix ?? '';
+		const fmt = (n: number) => n.toLocaleString('en-IN') + suffix;
+		if (!Number.isFinite(target)) return;
+
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			el.textContent = fmt(target);
+			return;
+		}
+
+		// Long enough to read as counting, short enough that a scroll past does not leave
+		// a number still climbing behind you.
+		const DUR = 1100;
+		const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+		const start = performance.now();
+
+		const step = (now: number) => {
+			const t = Math.min(1, (now - start) / DUR);
+			el.textContent = fmt(Math.round(target * easeOut(t)));
+			if (t < 1) requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+	}
+
 	function story() {
 		const scroller = document.getElementById('homeScroll');
 		const rows = document.querySelectorAll<HTMLElement>('[data-ab]');
