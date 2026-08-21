@@ -100,7 +100,13 @@ const hasTools = Astro.slots.has('tools');
 
 				{/* aria-label, not a title: on the home page the anchor's only child is a
 				    decorative SVG, so without this a screen reader announces an empty link. */}
-				<a class:list={['brand', isHome && 'brand-solo']} href={brandHref} transition:name="brand" aria-label="Anvesha '26 — home">
+				{/* Deliberately NOT transition:name'd. A named group makes the browser tween
+				    this element's BOX between pages, and the box changes a lot: mark-only on
+				    home, mark + wordmark everywhere else, and shifted sideways on /merch
+				    where .nav.has-tools re-grids the bar. Tweening that scales the snapshot,
+				    which read as the wordmark zooming in. The particle return flight is what
+				    carries the wordmark between states now. */}
+				<a class:list={['brand', isHome && 'brand-solo']} href={brandHref} aria-label="Anvesha '26 — home">
 					<span class="brand-mark" set:html={markSvg} />
 					<span class="brand-word">ANVESHA<sup>'26</sup></span>
 					{brandTag && <i class="brand-tag">{brandTag}</i>}
@@ -176,6 +182,7 @@ const hasTools = Astro.slots.has('tools');
 
 <script>
 	import { gsap } from 'gsap';
+	import { sampleInk } from '../scripts/ink';
 
 	// ---- page entrance ----
 	// Every [data-reveal] block fades up in document order. The nav is deliberately NOT
@@ -245,9 +252,148 @@ const hasTools = Astro.slots.has('tools');
 	// Body scroll-lock is inline style, so it survives a swap unless explicitly cleared.
 	document.addEventListener('astro:before-swap', () => { document.body.style.overflow = ''; });
 
+
+	// ---- the return flight: hero wordmark -> menu bar ----
+	//
+	// The home page ends with ANVESHA'26 huge in the middle and nothing but the mark in
+	// the bar. Every other page carries the wordmark in the bar. Left alone, navigating
+	// off home pops it into existence up there. This walks it back the way it came: the
+	// hero type is sampled on the way out, and on the next page the same grains fly from
+	// where it stood into the bar and become the real thing.
+	//
+	// The handoff rides on `window` rather than a module variable: page scripts re-run on
+	// every client-side navigation, so anything scoped to one would not survive the trip.
+
+	type Handoff = { pts: number[][]; x: number; y: number; w: number; h: number };
+	declare global { interface Window { __anveshaReturn?: Handoff } }
+
+	const HOME = '/';
+
+	// Leaving home: sample the hero wordmark while it is still on screen, and hide the
+	// INCOMING page's bar wordmark before the swap. Doing it on newDocument rather than
+	// after the swap means the view transition's snapshot is taken with it already
+	// hidden, so it never cross-fades in behind the particles.
+	document.addEventListener('astro:before-swap', (e) => {
+		const ev = e as unknown as { newDocument: Document };
+		if (location.pathname !== HOME) return;
+
+		const hero = document.querySelector<HTMLElement>('#homeWord .hw-text');
+		const incoming = ev.newDocument?.querySelector<HTMLElement>('.brand-word');
+		// Nothing to fly to (going home to home), or nothing to fly from (the intro never
+		// finished): leave the default cross-fade alone.
+		if (!hero || !incoming || ev.newDocument.querySelector('.brand-solo')) return;
+
+		const ink = sampleInk(hero, hero.textContent?.trim() || 'ANVESHA', 3);
+		if (!ink) return;
+
+		window.__anveshaReturn = {
+			pts: ink.pts, x: ink.rect.left, y: ink.rect.top, w: ink.w, h: ink.h,
+		};
+		incoming.style.visibility = 'hidden';
+	});
+
+	function returnFlight() {
+		const hand = window.__anveshaReturn;
+		if (!hand) return;
+		delete window.__anveshaReturn;
+
+		const word = document.querySelector<HTMLElement>('.brand-word');
+		const show = () => { if (word) word.style.visibility = ''; };
+		if (!word) return;
+
+		// display:none under 720px, and reduced motion should not get a flight at all.
+		if (!word.getClientRects().length ||
+		    matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
+
+		const dest = sampleInk(word, word.textContent?.trim() || "ANVESHA'26", 1);
+		if (!dest) return show();
+
+		const vw = document.documentElement.clientWidth;
+		const vh = document.documentElement.clientHeight;
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return show();
+
+		const dpr = Math.min(window.devicePixelRatio || 1, 2);
+		canvas.width = Math.round(vw * dpr);
+		canvas.height = Math.round(vh * dpr);
+		canvas.style.cssText =
+			`position:fixed;left:0;top:0;width:${vw}px;height:${vh}px;pointer-events:none;z-index:55`;
+		document.body.appendChild(canvas);
+		ctx.scale(dpr, dpr);
+		ctx.fillStyle = getComputedStyle(word).color || '#000';
+
+		// Same left-to-right pairing as the outbound trip, so a grain from the left of the
+		// hero lands on the left of the bar and the word stays itself in transit.
+		const dst = dest.pts.slice().sort((a, b) => a[0] - b[0]);
+		const dN = dst.length;
+		const cxHero = hand.x + hand.w / 2;
+		const cyHero = hand.y + hand.h / 2;
+
+		const P = hand.pts.map(([lx, ly]) => {
+			const sx = hand.x + lx;
+			const sy = hand.y + ly;
+			const u = hand.w > 1 ? lx / hand.w : 0.5;
+			let i = Math.round(u * (dN - 1)) + Math.round((Math.random() - 0.5) * dN * 0.08);
+			i = i < 0 ? 0 : i > dN - 1 ? dN - 1 : i;
+
+			// Burst outward from the hero first, then converge — the mirror of the way it
+			// arrived, so leaving reads as the same move played backwards.
+			const ang = Math.atan2(sy - cyHero, sx - cxHero) + (Math.random() - 0.5) * 1.2;
+			const burst = 30 + Math.random() * 110;
+			return {
+				sx, sy,
+				tx: dest.rect.left + dst[i][0],
+				ty: dest.rect.top + dst[i][1],
+				cx: sx + Math.cos(ang) * burst,
+				cy: sy + Math.sin(ang) * burst - 20 - Math.random() * 60,
+				delay: Math.random() * 0.3,
+				dur: 0.7 + Math.random() * 0.4,
+				size: 1 + Math.random() * 1.4,
+			};
+		});
+
+		const LAST = P.reduce((m, p) => Math.max(m, p.delay + p.dur), 0);
+		const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+		const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
+
+		let raf = 0;
+		let startMs = 0;
+		let landed = false;
+		const cleanup = () => { cancelAnimationFrame(raf); canvas.remove(); show(); };
+
+		const frame = (now: number) => {
+			if (!startMs) startMs = now;
+			const t = (now - startMs) / 1000;
+			ctx.clearRect(0, 0, vw, vh);
+
+			// The real wordmark comes up just before the last grains land, so the bar is
+			// never empty and the two are never both fully solid.
+			if (!landed && t > LAST - 0.18) { landed = true; show(); }
+
+			for (const p of P) {
+				const e = easeOut(clamp01((t - p.delay) / p.dur));
+				const m = 1 - e;
+				ctx.globalAlpha = Math.min(1, (1 - e) * 2.2);
+				ctx.fillRect(
+					m * m * p.sx + 2 * m * e * p.cx + e * e * p.tx,
+					m * m * p.sy + 2 * m * e * p.cy + e * e * p.ty,
+					p.size, p.size,
+				);
+			}
+
+			if (t < LAST) raf = requestAnimationFrame(frame);
+			else cleanup();
+		};
+		raf = requestAnimationFrame(frame);
+		// A second navigation mid-flight would otherwise leave the canvas on the old body.
+		document.addEventListener('astro:before-swap', cleanup, { once: true });
+	}
+
 	// fires on first load and after every client-side navigation
 	document.addEventListener('astro:page-load', reveal);
 	document.addEventListener('astro:page-load', initMenu);
+	document.addEventListener('astro:page-load', returnFlight);
 </script>
 
 <style is:global>
