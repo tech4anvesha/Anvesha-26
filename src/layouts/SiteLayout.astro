@@ -10,6 +10,7 @@
  *                .card's overflow:hidden cannot clip them
  */
 import Layout from './Layout.astro';
+import markSvg from '../assets/anvesha-mark.svg?raw';
 import '../styles/theme.css';
 
 import iHome from 'lucide-static/icons/house.svg?raw';
@@ -56,6 +57,11 @@ const SITE_NAV: NavItem[] = [
 const SRIJANA = 'https://pragunnepal.github.io/Srijana/';
 
 const { title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag } = Astro.props;
+
+// The home hero already carries ANVESHA '26 at full size, so repeating the wordmark in
+// the nav two rows above it is redundant — there, the mark stands alone. Derived from
+// the URL rather than a prop so no page has to remember to pass it.
+const isHome = Astro.url.pathname === '/';
 const NAV = nav;
 // trailing slash stripped so '/merch/' and '/merch' both match
 const here = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -92,8 +98,12 @@ const hasTools = Astro.slots.has('tools');
 				        aria-label="Open menu" aria-expanded="false" aria-controls="navMenu"
 				        set:html={iMenu} />
 
-				<a class="brand" href={brandHref} transition:name="brand">
-					ANVESHA<sup>'26</sup>{brandTag && <i class="brand-tag">{brandTag}</i>}
+				{/* aria-label, not a title: on the home page the anchor's only child is a
+				    decorative SVG, so without this a screen reader announces an empty link. */}
+				<a class:list={['brand', isHome && 'brand-solo']} href={brandHref} transition:name="brand" aria-label="Anvesha '26 — home">
+					<span class="brand-mark" set:html={markSvg} />
+					{!isHome && <span class="brand-word">ANVESHA<sup>'26</sup></span>}
+					{brandTag && <i class="brand-tag">{brandTag}</i>}
 				</a>
 
 				<nav class="menu" aria-label="Site">
@@ -349,10 +359,21 @@ const hasTools = Astro.slots.has('tools');
 	}
 	.nav.has-tools { grid-template-columns: 1fr auto 1fr; }
 	.brand {
+		display: inline-flex; align-items: center; gap: 9px;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 900; font-size: 19px; letter-spacing: 1px;
 		color: var(--secondary); text-decoration: none;
 	}
+	/* Height-driven: the viewBox is trimmed to the ink, so width follows the aspect and
+	   the gap beside the wordmark stays the gap it looks like. line-height:0 keeps the
+	   inline SVG from adding a descender's worth of dead space to the nav row. */
+	.brand-mark { display: grid; place-items: center; flex: none; line-height: 0; }
+	.brand-mark svg { display: block; height: 30px; width: auto; }
+	/* Alone in the bar, the mark can afford to be the size of the row it is centring.
+	   A class from the server rather than :not(:has(...)) — same result, no dependency on
+	   :has() support, and it is the same `isHome` that decided the markup. */
+	.brand-solo .brand-mark svg { height: 34px; }
+	.brand-word { white-space: nowrap; }
 	.brand sup { color: var(--accent); font-size: 10px; margin-left: 3px; vertical-align: super; }
 	/* Standing reminder of which side of the site you are on — the panel edits live
 	   prices, so it should never be mistakable for the public storefront. */

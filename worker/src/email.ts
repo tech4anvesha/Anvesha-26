@@ -21,7 +21,7 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const DEFAULT_FROM = "Anvesha '26 <onboarding@resend.dev>";
 
 const INK = '#0b0b0f';
-const ACCENT = '#0047ff';
+const ACCENT = '#9333ea'; // keep in sync with --accent in src/styles/theme.css
 const PAPER = '#ffffff';
 const SINK = '#f5f5f6';
 const MONO = "'DM Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace";

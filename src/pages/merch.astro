@@ -1084,7 +1084,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			const W = TW + PAGE * 2;
 
 			const INK = '#0b0b0f', PAPER = '#ffffff', SINK = '#f5f5f6';
-			const INK40 = '#9a9a9e', INK60 = '#6b6b70', BLUE = '#0047ff';
+			const INK40 = '#9a9a9e', INK60 = '#6b6b70', ACCENT = '#9333ea'; // keep in sync with --accent
 			const mono = (px: number, w = 400) => `${w} ${px}px 'DM Mono', ui-monospace, monospace`;
 			const disp = (px: number) => `800 ${px}px 'Archivo Expanded', 'Archivo', sans-serif`;
 
@@ -1133,7 +1133,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			ctx.fillStyle = PAPER; ctx.font = disp(15);
 			ctx.fillText('ANVESHA', L + 16, T + 29);
 			const bw = ctx.measureText('ANVESHA').width;
-			ctx.fillStyle = BLUE; ctx.font = disp(9);
+			ctx.fillStyle = ACCENT; ctx.font = disp(9);
 			ctx.fillText("'26", L + 18 + bw, T + 22);
 			ctx.textAlign = 'right';
 			ctx.fillStyle = '#b9b9bd'; ctx.font = mono(9);

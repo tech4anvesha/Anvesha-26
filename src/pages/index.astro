@@ -108,10 +108,15 @@ const TICKER = [
 				</span>
 			</h1>
 
-			<p class="lede" data-reveal>
-				Three days of talks, workshops and competitions, wrapped around an expo floor of
-				student research you can walk up to and ask about. Free to attend, open to everyone.
-			</p>
+			{/* Stands in for the lede that used to sit here: a rule—mark—rule divider that
+			    separates the wordmark from the buttons without another sentence to read.
+			    aria-hidden because it is punctuation, not content. */}
+			<div class="home-x" data-reveal aria-hidden="true">
+				<span class="home-x-rule"></span>
+				<span class="home-x-mark">&#10005;</span>
+				<span class="home-x-rule"></span>
+			</div>
+
 			<div class="home-actions" data-reveal>
 				<a class="cta" href="/expo">
 					<span set:html={iFlask} />
@@ -567,11 +572,10 @@ const TICKER = [
 	/* Two tokens the hero owns. Kept here rather than in theme.css: nothing else on the
 	   site is drawn on a dark ground, and the three-colour rule still holds everywhere
 	   the shell is white. */
-	/* --sky is measured, not picked: over the brightest cloud in the art under the
-	   thinnest part of the scrim, #0047ff lands at 1.08:1 and #7ea6ff at 2.84:1. This
-	   clears 3.5:1 there and 8:1 under the wordmark, so the year and the eyebrow rules
-	   stay legible wherever the image happens to be bright. */
-	.home-page { --night: #060a19; --sky: #9dbaff; }
+	/* --paper-warm is the ground under the art: shown before the image loads and anywhere
+	   `cover` leaves a gap, so it has to hold black type on its own. Warmed toward the
+	   flare so the swap is not a flash of pure white. */
+	.home-page { --paper-warm: #f7ede2; --iris: #9333ea; }
 
 	/* ============ PAGE FRAME ============
 	   Four panes in the card: hero, ticker, scroller, footer. Only the third moves, so
@@ -594,11 +598,11 @@ const TICKER = [
 	@media (min-height: 721px) and (max-height: 860px) {
 		.home-word { font-size: min(clamp(44px, 10vw, 190px), 21vh); }
 		.home-head { padding-top: clamp(14px, 2vw, 26px); padding-bottom: 14px; }
-		.home-head .lede { margin-top: 14px; font-size: 13.5px; }
+		.home-x { margin-top: 16px; gap: 11px; }
 		.home-actions { margin-top: 20px; }
 	}
 
-	/* The hero reads as one centred stack — eyebrow, wordmark, lede, buttons. */
+	/* The hero reads as one centred stack — eyebrow, wordmark, divider, buttons. */
 	.home-head {
 		/* Tighter than the shared .page-head: this pane has to leave the middle enough
 		   room to be worth scrolling. */
@@ -608,55 +612,71 @@ const TICKER = [
 		   inherited rule would stack a second line directly on top of it. */
 		border-bottom: 0;
 
-		/* The art, unwashed. background-color still shows through wherever `cover` cannot
-		   reach and before the image loads, so the white type never lands on white paper.
-		   Note: nothing darkens the pale cloud masses now — see the contrast note below. */
-		background-color: var(--night);
-		background-image: url('/img/hero-sky.jpg');
+		/* The art, unwashed. The type on this plate is now ink, not paper, so the
+		   pre-load ground has to be light — black type on a dark ground would be invisible
+		   for as long as the image takes to arrive. */
+		background-color: var(--paper-warm);
+		background-image: url('/img/hero-flare.jpg');
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
-		color: var(--primary);
+		color: var(--secondary);
 	}
 
 	/* ---- the hero's own palette ----
-	   Scoped to the plate so the shared .eyebrow / .lede / .cta rules keep working
+	   Scoped to the plate so the shared .eyebrow / .cta rules keep working
 	   everywhere else on the site. */
-	.home-head .eyebrow { color: color-mix(in srgb, var(--primary) 72%, transparent); }
+	.home-head .eyebrow { color: color-mix(in srgb, var(--secondary) 78%, transparent); }
+	/* The dashes follow the type: a pale-blue rule beside black text reads as a leftover. */
 	.home-head .eyebrow::before,
-	.home-head .eyebrow::after { background: var(--sky); }
-	.home-head .lede { color: color-mix(in srgb, var(--primary) 82%, transparent); }
-	/* Descendant selectors, not bare .home-word / .hw-year: the wordmark's own rules
-	   live further down this stylesheet, so at equal specificity THEY would win and the
-	   type — and the dust, which reads its colour off the type — would be painted black
-	   onto the night. Both nodes sit inside .home-head, so this simply outranks them. */
-	.home-head .home-word { color: var(--primary); }
-	/* --accent is #0047ff, which on this navy is nearly unreadable. --sky is the same
-	   hue lifted toward the pale blue already in the artwork. */
-	.home-head .hw-year { color: var(--sky); }
+	.home-head .eyebrow::after { background: var(--secondary); }
+	/* Descendant selectors, not bare .home-word / .hw-year: the wordmark's own rules live
+	   further down this stylesheet, so at equal specificity THEY would win. Kept scoped
+	   even though both now resolve to ink — the particle canvas samples this computed
+	   colour, so whatever wins here is what the dust is painted in. */
+	.home-head .home-word { color: var(--secondary); }
+	/* --iris is picked off the violet already in the artwork rather than --accent's
+	   #0047ff. Measured over this crop: median 3.11:1, the best of the saturated purples
+	   tested — #6d28d9 and #5b21b6 both read deeper but land under 2.8:1. */
+	.home-head .hw-year { color: var(--iris); }
 
-	/* Buttons invert: the filled one becomes white-on-dark, the outline one takes a
-	   white rule instead of a black one it would otherwise draw into the night. */
-	.home-head .cta { background: var(--primary); color: var(--secondary); }
+	/* Both buttons go ink now that the type has: the filled one is solid black with paper
+	   type, the outline one a black rule. This is the shell's own default pairing, so
+	   these rules exist only to override the dark-plate versions they replaced. */
+	.home-head .cta { background: var(--secondary); color: var(--primary); }
 	.home-head .home-alt {
-		background: transparent; color: var(--primary);
-		border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+		background: transparent; color: var(--secondary);
+		border-color: color-mix(in srgb, var(--secondary) 55%, transparent);
 	}
 	.home-head .home-alt:hover {
-		background: var(--primary); color: var(--secondary); border-color: var(--primary);
+		background: var(--secondary); color: var(--primary); border-color: var(--secondary);
 	}
 	/* The shared .eyebrow puts a rule on the left only, which reads fine ranged left but
 	   pushes the text right of centre in a centred stack. A matching rule on the right
 	   balances it — measured 7px off before, 0 after. */
 	.home-head .eyebrow { justify-content: center; }
 	.home-head .eyebrow::after {
-		content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent);
+		/* No background here on purpose: this rule sits AFTER the ::before/::after pair
+		   above at equal specificity, so declaring one would win and repaint the right
+		   dash in --accent while the left stayed ink. */
+		content: ''; flex: none; width: 16px; height: 1.5px;
 		/* letter-spacing adds a trailing space after the LAST character too, so the text
 		   item is ~.18em wider than its ink and the right rule was pushed that far out.
 		   Pulling it back makes the two visual gaps equal and recentres the group. */
 		margin-left: -.18em;
 	}
-	.home-head .lede { margin-left: auto; margin-right: auto; }
+
+	/* The X divider. Flex with equal rules either side, so it is centred by construction
+	   rather than by correction — there is no letter-spacing to compensate for here. */
+	.home-x { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 26px; }
+	.home-x-rule {
+		flex: none; height: 1.5px; width: clamp(38px, 7vw, 104px);
+		background: color-mix(in srgb, var(--secondary) 45%, transparent);
+	}
+	.home-x-mark {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: clamp(15px, 1.7vw, 21px); line-height: 1; color: var(--iris);
+	}
 	.home-actions {
 		display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; justify-content: center;
 	}
@@ -674,7 +694,7 @@ const TICKER = [
 		text-transform: uppercase;
 		color: var(--secondary);
 		/* One flex item, not two. With the year in flow the PAIR was centred, which left
-		   ANVESHA itself ~26px left of the lede and the buttons — visible as soon as the
+		   ANVESHA itself ~26px left of the divider and the buttons — visible as soon as the
 		   hero was centred. The year is absolute below, so the word centres on its own. */
 		display: flex; justify-content: center;
 	}
