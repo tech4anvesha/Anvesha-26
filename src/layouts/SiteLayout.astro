@@ -444,11 +444,15 @@ const hasTools = Astro.slots.has('tools');
 		text-decoration: none;
 		transition: transform .1s ease, box-shadow .1s ease, background .12s ease, color .12s ease;
 	}
-	.btn:hover:not(:disabled) {
+	/* .cta rides along: it is a button in every way except the class, and it was the only
+	   control on the site with no hover at all — six of them across five pages. */
+	.btn:hover:not(:disabled),
+	.cta:hover {
 		transform: translate(-2px, -2px);
 		box-shadow: var(--pop);
 	}
-	.btn:active:not(:disabled) {
+	.btn:active:not(:disabled),
+	.cta:active {
 		transform: translate(0, 0);
 		box-shadow: 0 0 0 var(--accent);
 	}
@@ -715,6 +719,8 @@ const hasTools = Astro.slots.has('tools');
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 800; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
 		color: var(--primary); background: var(--secondary);
+		/* Same curve as .btn, so the two move identically when they sit side by side. */
+		transition: transform .1s ease, box-shadow .1s ease, background .12s ease, color .12s ease;
 	}
 	.cta svg { width: 17px; height: 17px; stroke-width: 2.2; }
 

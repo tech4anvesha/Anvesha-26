@@ -2153,6 +2153,13 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			border-top: var(--stroke) solid var(--secondary);
 			border-radius: 18px 18px 0 0;
 		}
+		/* The panel is a flex column with a max-height, so every block in it was a
+		   shrinkable flex item: on a short window — a phone with the browser's URL bar and
+		   toolbar both showing — the stage was squashed to fit instead of the panel
+		   scrolling. Measured at 369x555: the 4/3 stage came out 333x40, an 8.24:1 slot
+		   with the shirt cropped to a strip. flex:none makes them keep their size and lets
+		   overflow-y do its job. */
+		.m-sheet-panel > * { flex: none; }
 		.m-sheet-bar {
 			position: sticky; top: 0; z-index: 1;
 			display: flex; align-items: center; justify-content: space-between;

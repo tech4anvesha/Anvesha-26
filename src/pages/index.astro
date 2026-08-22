@@ -72,12 +72,11 @@ const WORD = 'ANVESHA';
 // Ticker content. Repeated four times in the markup below so the strip is wider than
 // any realistic viewport and can loop on a matching frame with no visible seam.
 const TICKER = [
-	'06—08 FEBRUARY 2026',
 	'IISER THIRUVANANTHAPURAM',
-	'120 EXPO PROJECTS',
-	'FREE TO ATTEND',
-	'12 EVENTS',
-	'OPEN TO EVERYONE',
+	'ANNUAL SCIENCE FEST',
+	'75+ PROJECTS',
+	'20+ EVENTS',
+	'OPEN TO ALL',
 ];
 ---
 
@@ -937,6 +936,11 @@ const TICKER = [
 		   but more than the 200px the content alone comes to. 42% of the card gives the
 		   artwork room to read as artwork with the ticker still on screen below it. */
 		.home-head { min-height: 42%; }
+
+		/* White here, ink on desktop: this crop of the artwork is the dark nebula rather
+		   than the flare, and black on it measured close to nothing. The rules either side
+		   stay --iris — they read fine on the dark and tie back to the year and arrow. */
+		.home-head .eyebrow { color: var(--primary); }
 
 		/* Side by side, always. Wrapping put one button under the other and cost the
 		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
