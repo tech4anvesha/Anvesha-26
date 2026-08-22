@@ -730,7 +730,42 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				.fromTo(viewListEl.children, { x: 16 }, { x: 0, stagger: 0.06, ...slide }, '-=0.3');
 		}
 
-		function addToBag() {
+		/**
+		 * Throws a chip of the product from the add button up to the bag.
+		 *
+		 * Pure decoration: it draws itself on <body>, cleans up after itself and never
+		 * touches cart state, so a thrown error here cannot cost anyone their order. One
+		 * function for both views — #cartToggle is the target in each, it just sits in a
+		 * different corner. Fixed positioning because the sheet closes underneath it on
+		 * a phone and an absolutely positioned chip would go with it.
+		 */
+		function flyToBag(from: HTMLElement) {
+			if (rm || !item) return;
+			const a = from.getBoundingClientRect();
+			const b = $('cartToggle').getBoundingClientRect();
+			const S = 56;
+
+			const chip = document.createElement('div');
+			chip.className = 'fly';
+			chip.setAttribute('aria-hidden', 'true');
+			if (item.image_url) chip.innerHTML = `<img src="${API}${item.image_url}" alt="" />`;
+			document.body.appendChild(chip);
+
+			gsap.set(chip, {
+				x: a.left + a.width / 2 - S / 2,
+				y: a.top + a.height / 2 - S / 2,
+				scale: 0.55, opacity: 0,
+			});
+			// x and y are tweened separately with different eases — that difference IS the
+			// arc. One tween to the corner would draw a straight diagonal.
+			gsap.timeline({ onComplete: () => chip.remove() })
+				.to(chip, { opacity: 1, scale: 1, duration: 0.16, ease: 'power2.out' }, 0)
+				.to(chip, { x: b.left + b.width / 2 - S / 2, duration: 0.6, ease: 'power1.inOut' }, 0)
+				.to(chip, { y: b.top + b.height / 2 - S / 2, duration: 0.6, ease: 'power2.in' }, 0)
+				.to(chip, { scale: 0.2, opacity: 0, duration: 0.2, ease: 'power2.in' }, 0.42);
+		}
+
+		function addToBag(from: HTMLElement) {
 			if (!item) return;
 			const key = cartKey(item.id, size);
 			cart[key] ??= { merch_id: item.id, quantity: 0, size };
@@ -738,10 +773,14 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			// Adding an item only bumps the counter — it does not yank the shopper into
 			// the bag. They open it deliberately, via the bag button, when ready.
 			saveCart(); renderCart();
-			if (!rm) gsap.fromTo('#cartCount, #cartCount2', { scale: 1.8 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' });
+			flyToBag(from);
+			// Delayed to land with the chip: the counter jumping before anything has
+			// visibly arrived reads as two unrelated events rather than one.
+			if (!rm) gsap.fromTo('#cartCount, #cartCount2',
+				{ scale: 1.8 }, { scale: 1, duration: 0.45, delay: 0.5, ease: 'back.out(3)' });
 		}
-		addBtn.onclick = addToBag;
-		mAdd.onclick = () => { addToBag(); openSheet(false); };
+		addBtn.onclick = () => addToBag(addBtn);
+		mAdd.onclick = () => { addToBag(mAdd); openSheet(false); };
 
 		// ---- cart drawer ----
 		const cartEl = $('cart'), scrim = $('scrim');
@@ -1848,6 +1887,19 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		max-width: 100%; max-height: 100%;
 		object-fit: contain;
 	}
+
+	/* The chip thrown at the bag on add. z-index above everything it flies over: the
+	   checkout popup (50), the mobile sheet (45) and the drawer (30). top/left stay 0 —
+	   GSAP places it with a transform, which is the only thing that should move. */
+	.fly {
+		position: fixed; top: 0; left: 0; z-index: 60;
+		width: 56px; height: 56px;
+		pointer-events: none; overflow: hidden;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop);
+	}
+	.fly img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 	.load-err {
 		margin: 0; padding: 18px 2px;
