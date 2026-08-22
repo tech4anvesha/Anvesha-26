@@ -1,162 +1,1112 @@
 ---
+/**
+ * TEAMS — a department browser.
+ *
+ * Left: the same expanding rail the merch catalogue uses (styles/catalogue-tree.css),
+ * reskinned retro rather than rewritten — the connector geometry is the fiddly part and
+ * it already works. Right: the selected person as a console status screen, split 40/60
+ * between a portrait box and a dossier readout.
+ *
+ * Everything the card shows lives in data-* on the tree row that opens it, so there is
+ * no payload, no second copy of the copy, and the page renders complete without JS —
+ * the script only adds expanding and selection.
+ */
 import SiteLayout from '../layouts/SiteLayout.astro';
+import '../styles/catalogue-tree.css';
 
-import iMail from 'lucide-static/icons/mail.svg?raw';
-import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
-import iPalette from 'lucide-static/icons/palette.svg?raw';
-import iCode from 'lucide-static/icons/code.svg?raw';
-import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
-import iHandshake from 'lucide-static/icons/handshake.svg?raw';
+import iBuilding from 'lucide-static/icons/landmark.svg?raw';
+import iUsers from 'lucide-static/icons/users.svg?raw';
+import iContent from 'lucide-static/icons/file-text.svg?raw';
+import iCog from 'lucide-static/icons/cog.svg?raw';
+import iShield from 'lucide-static/icons/shield-check.svg?raw';
 import iMegaphone from 'lucide-static/icons/megaphone.svg?raw';
+import iSparkles from 'lucide-static/icons/sparkles.svg?raw';
+import iPalette from 'lucide-static/icons/palette.svg?raw';
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
+import iWallet from 'lucide-static/icons/wallet.svg?raw';
 import iTruck from 'lucide-static/icons/truck.svg?raw';
 import iClapper from 'lucide-static/icons/clapperboard.svg?raw';
+import iHandshake from 'lucide-static/icons/handshake.svg?raw';
+import iCode from 'lucide-static/icons/code.svg?raw';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
+import iInfo from 'lucide-static/icons/info.svg?raw';
 
-// One array, no per-card markup. `mail` is the local part only — the domain is
-// appended once below, so a domain change is a single edit rather than nine.
-const TEAMS = [
+// TODO(anvesha): real names, roll numbers, batches, schools, positions and one-liners.
+// The shape is what matters here — one array drives the rail, the card and every count.
+// Institute rows are faculty and carry no roll number, hence the em dash.
+const DEPTS = [
 	{
-		name: 'Design', icon: iPalette, mail: 'design',
-		text: 'Every poster, badge, banner and merch print. Owns the visual language the rest of the fest is dressed in.',
-		does: ['Identity & print', 'Merch artwork', 'Stage and signage'],
+		name: 'Institute', icon: iBuilding,
+		members: [
+			{ name: 'Prof. R Sankaranarayanan', roll: '—', batch: 'Faculty', school: 'School of Physics',
+			  role: 'Patron',
+			  bio: 'Signs off on the fest as an institute activity and opens it every year.' },
+			{ name: 'Dr. Anita George', roll: '—', batch: 'Faculty', school: 'School of Biology',
+			  role: 'Faculty Advisor',
+			  bio: 'The bridge between the student committee and the administration.' },
+			{ name: 'Dr. P Vasudevan', roll: '—', batch: 'Faculty', school: 'School of Chemistry',
+			  role: 'Dean, Students',
+			  bio: 'Clears venues, budgets and anything that needs an institute signature.' },
+		],
 	},
 	{
-		name: 'Web & Tech', icon: iCode, mail: 'tech',
-		text: 'This site, the merch store, the registration flows and whatever is holding the livestream together on the day.',
-		does: ['Site & storefront', 'Registrations', 'On-site AV support'],
+		name: 'Organizing Committee', icon: iUsers,
+		members: [
+			{ name: 'Aarav Menon', roll: 'IMS22014', batch: 'B22', school: 'School of Physics',
+			  role: 'Convenor',
+			  bio: 'Runs the committee and owns whatever nobody else has picked up.' },
+			{ name: 'Ishita Rao', roll: 'IMS22078', batch: 'B22', school: 'School of Biology',
+			  role: 'Co-convenor',
+			  bio: 'Keeps fifteen departments talking to each other in fest week.' },
+			{ name: 'Kabir Nair', roll: 'IMS23031', batch: 'B23', school: 'School of Mathematics',
+			  role: 'General Secretary',
+			  bio: 'Minutes, deadlines and the master timeline everything else hangs off.' },
+		],
 	},
 	{
-		name: 'Events', icon: iCalendar, mail: 'events',
-		text: 'Programming across three days — talks, workshops and competitions — and the schedule that keeps them from colliding.',
-		does: ['Speaker outreach', 'Competitions', 'Scheduling'],
+		name: 'Tech', icon: iCode,
+		members: [
+			// `more` is optional and only this row has it — it is what puts the ⓘ on the
+			// card. TODO(anvesha): drop it if the creator page ever comes down.
+			{ name: 'Antrin Maji', roll: 'IMS24019', batch: 'B24', school: 'School of Physics',
+			  role: 'Head', more: '/creator',
+			  bio: 'This site, the merch store, registrations and the AV on the day.' },
+			{ name: 'Harish Kumar', roll: 'IMS23041', batch: 'B23', school: 'School of Mathematics',
+			  role: 'Co-head',
+			  bio: 'Backend, deployments and whatever is on fire during the livestream.' },
+			{ name: 'Lakshmi Nandan', roll: 'IMS24058', batch: 'B24', school: 'School of Chemistry',
+			  role: 'On-site AV',
+			  bio: 'Sound, projection and the cables between them in every hall.' },
+		],
 	},
 	{
-		name: 'Expo', icon: iFlask, mail: 'expo',
-		text: 'The research floor. Handles submissions, allocates halls, and pairs every project with a slot and a table.',
-		does: ['Project intake', 'Hall allocation', 'Judging panels'],
+		name: 'Content', icon: iContent,
+		members: [
+			{ name: 'Meera Pillai', roll: 'IMS23009', batch: 'B23', school: 'School of Biology',
+			  role: 'Head',
+			  bio: 'Every word on the site, the deck and the printed programme.' },
+			{ name: 'Rohan Das', roll: 'IMS23044', batch: 'B23', school: 'School of Physics',
+			  role: 'Co-head',
+			  bio: 'Speaker briefs, event blurbs and the copy nobody notices when it works.' },
+			{ name: 'Sneha Varma', roll: 'IMS24052', batch: 'B24', school: 'School of Chemistry',
+			  role: 'Copy',
+			  bio: 'Writes and edits the short form — captions, cards, calls to action.' },
+		],
 	},
 	{
-		name: 'Sponsorship', icon: iHandshake, mail: 'sponsors',
-		text: 'Partnerships and the budget they pay for. Anvesha is free to attend because this team makes it so.',
-		does: ['Partner outreach', 'Deck & deliverables', 'Budgeting'],
+		name: 'Contraption', icon: iCog,
+		members: [
+			{ name: 'Aditya Kurup', roll: 'IMS22067', batch: 'B22', school: 'School of Physics',
+			  role: 'Head',
+			  bio: 'Rigs, props and anything that has to actually work on the day.' },
+			{ name: 'Nikhil Raj', roll: 'IMS23020', batch: 'B23', school: 'School of Chemistry',
+			  role: 'Co-head',
+			  bio: 'Builds the demo pieces the outreach team takes to schools.' },
+			{ name: 'Tara Suresh', roll: 'IMS24011', batch: 'B24', school: 'School of Physics',
+			  role: 'Fabrication',
+			  bio: 'Cutting, wiring and the last-minute repair table behind the stage.' },
+		],
 	},
 	{
-		name: 'Outreach', icon: iMegaphone, mail: 'outreach',
-		text: 'The year-round half of Anvesha — school visits, demo kits, and lab sessions in places that have never had one.',
-		does: ['School programmes', 'Demo kits', 'Volunteer training'],
+		name: 'Crowd Management', icon: iShield,
+		members: [
+			{ name: 'Varun Iyer', roll: 'IMS22035', batch: 'B22', school: 'School of Mathematics',
+			  role: 'Head',
+			  bio: 'Queues, capacity and the flow between halls across three days.' },
+			{ name: 'Ananya Bose', roll: 'IMS23056', batch: 'B23', school: 'School of Biology',
+			  role: 'Co-head',
+			  bio: 'Volunteer rosters and who is standing where at any given hour.' },
+			{ name: 'Farhan Ali', roll: 'IMS24029', batch: 'B24', school: 'School of Chemistry',
+			  role: 'Floor Lead',
+			  bio: 'On the floor for the sessions that fill up fastest.' },
+		],
 	},
 	{
-		name: 'Media & PR', icon: iClapper, mail: 'media',
-		text: 'Photo, video, social and press. Everything anyone sees of the fest who could not be in the room.',
-		does: ['Coverage & edits', 'Social', 'Press accreditation'],
+		name: 'Outreach and PR', icon: iMegaphone,
+		members: [
+			{ name: 'Divya Krishnan', roll: 'IMS22091', batch: 'B22', school: 'School of Biology',
+			  role: 'Head',
+			  bio: 'The year-round half of Anvesha — school visits and demo kits.' },
+			{ name: 'Siddharth Menon', roll: 'IMS23073', batch: 'B23', school: 'School of Physics',
+			  role: 'Co-head',
+			  bio: 'Press, partnerships with schools, and the accreditation desk.' },
+			{ name: 'Riya Thomas', roll: 'IMS24004', batch: 'B24', school: 'School of Mathematics',
+			  role: 'Schools',
+			  bio: 'Coordinates the visiting-school programme and its volunteers.' },
+		],
 	},
 	{
-		name: 'Logistics', icon: iTruck, mail: 'logistics',
-		text: 'Venues, transport, accommodation, food and the merch counter. The team you only notice when something is missing.',
-		does: ['Venue & transport', 'Hospitality', 'Merch distribution'],
+		name: 'Decor', icon: iSparkles,
+		members: [
+			{ name: 'Nandita Shenoy', roll: 'IMS23018', batch: 'B23', school: 'School of Chemistry',
+			  role: 'Head',
+			  bio: 'How the campus looks for three days, from gate to stage.' },
+			{ name: 'Arjun Pillai', roll: 'IMS23062', batch: 'B23', school: 'School of Biology',
+			  role: 'Co-head',
+			  bio: 'Sourcing, staging and striking every installation on site.' },
+			{ name: 'Leela Mathew', roll: 'IMS24038', batch: 'B24', school: 'School of Physics',
+			  role: 'Install',
+			  bio: 'Runs the build crew through the two nights before opening.' },
+		],
+	},
+	{
+		name: 'Design', icon: iPalette,
+		members: [
+			{ name: 'Zoya Hameed', roll: 'IMS22023', batch: 'B22', school: 'School of Chemistry',
+			  role: 'Head',
+			  bio: 'Owns the visual language the rest of the fest is dressed in.' },
+			{ name: 'Advait Kulkarni', roll: 'IMS23085', batch: 'B23', school: 'School of Physics',
+			  role: 'Co-head',
+			  bio: 'Merch artwork, badges and the signage system across campus.' },
+			{ name: 'Priya Raghavan', roll: 'IMS24017', batch: 'B24', school: 'School of Biology',
+			  role: 'Print',
+			  bio: 'Takes files to press and argues with the printer so nobody else has to.' },
+		],
+	},
+	{
+		name: 'Events', icon: iCalendar,
+		members: [
+			{ name: 'Rahul Sen', roll: 'IMS22050', batch: 'B22', school: 'School of Physics',
+			  role: 'Head',
+			  bio: 'Talks, workshops and competitions across the three days.' },
+			{ name: 'Nithya Balan', roll: 'IMS23012', batch: 'B23', school: 'School of Mathematics',
+			  role: 'Co-head',
+			  bio: 'The schedule, and keeping two full halls from clashing.' },
+			{ name: 'Imran Qureshi', roll: 'IMS23047', batch: 'B23', school: 'School of Biology',
+			  role: 'Speakers',
+			  bio: 'Invites, confirms and looks after everyone who comes to speak.' },
+		],
+	},
+	{
+		name: 'Finance', icon: iWallet,
+		members: [
+			{ name: 'Shreya Gupta', roll: 'IMS22006', batch: 'B22', school: 'School of Mathematics',
+			  role: 'Treasurer',
+			  bio: 'The budget, and every rupee that leaves it.' },
+			{ name: 'Vikram Anand', roll: 'IMS23099', batch: 'B23', school: 'School of Chemistry',
+			  role: 'Co-treasurer',
+			  bio: 'Reimbursements, vendor payments and the paperwork behind both.' },
+			{ name: 'Neha Joseph', roll: 'IMS24063', batch: 'B24', school: 'School of Biology',
+			  role: 'Accounts',
+			  bio: 'Keeps the books that Finance has to hand the institute afterwards.' },
+		],
+	},
+	{
+		name: 'Logistics', icon: iTruck,
+		members: [
+			{ name: 'Karthik Mohan', roll: 'IMS22082', batch: 'B22', school: 'School of Physics',
+			  role: 'Head',
+			  bio: 'Venues, transport and hospitality — including merch logistics.' },
+			{ name: 'Aisha Rahman', roll: 'IMS23027', batch: 'B23', school: 'School of Biology',
+			  role: 'Co-head',
+			  bio: 'Accommodation and food for speakers, judges and visiting teams.' },
+			{ name: 'Devan Nair', roll: 'IMS24045', batch: 'B24', school: 'School of Chemistry',
+			  role: 'Merch Logistics',
+			  bio: 'Stock, the counter and getting every order into the right hands.' },
+		],
+	},
+	{
+		name: 'Media', icon: iClapper,
+		members: [
+			{ name: 'Sanjana Rane', roll: 'IMS23054', batch: 'B23', school: 'School of Biology',
+			  role: 'Head',
+			  bio: 'Photo, video and everything anyone sees who was not in the room.' },
+			{ name: 'Yash Patel', roll: 'IMS23068', batch: 'B23', school: 'School of Physics',
+			  role: 'Co-head',
+			  bio: 'Edits and the turnaround that gets them out the same night.' },
+			{ name: 'Fatima Sheikh', roll: 'IMS24022', batch: 'B24', school: 'School of Mathematics',
+			  role: 'Social Media',
+			  bio: 'Runs the feeds through fest week and the months before it.' },
+		],
+	},
+	{
+		name: 'Sponsorship', icon: iHandshake,
+		members: [
+			{ name: 'Aryan Chatterjee', roll: 'IMS22040', batch: 'B22', school: 'School of Chemistry',
+			  role: 'Head',
+			  bio: 'Anvesha is free to attend because this desk makes it so.' },
+			{ name: 'Maya Pillai', roll: 'IMS23033', batch: 'B23', school: 'School of Mathematics',
+			  role: 'Co-head',
+			  bio: 'The deck, the tiers and every deliverable promised in them.' },
+			{ name: 'Rohit Verma', roll: 'IMS24071', batch: 'B24', school: 'School of Physics',
+			  role: 'Outreach',
+			  bio: 'First contact with partners, and the follow-ups nobody enjoys.' },
+		],
+	},
+	{
+		name: 'Expo', icon: iFlask,
+		members: [
+			{ name: 'Gautam Rao', roll: 'IMS22059', batch: 'B22', school: 'School of Chemistry',
+			  role: 'Head',
+			  bio: 'The research floor — submissions, halls and judging panels.' },
+			{ name: 'Sara Philip', roll: 'IMS23076', batch: 'B23', school: 'School of Biology',
+			  role: 'General Expo',
+			  bio: 'The open floor, where anyone with a project can take a table.' },
+			{ name: 'Manav Trivedi', roll: 'IMS23088', batch: 'B23', school: 'School of Physics',
+			  role: 'Subject Expo',
+			  bio: 'The discipline-wise halls and the panels that judge them.' },
+		],
 	},
 ];
 
-const DOMAIN = 'anvesha26.in';
+const pad = (n: number) => String(n).padStart(2, '0');
+const crewTotal = DEPTS.reduce((n, d) => n + d.members.length, 0);
+
+// Derived, not typed out forty-five times: the institute address is name-based and the
+// batch year disambiguates it, exactly as iisertvm.ac.in issues them.
+const emailOf = (name: string, batch: string) => {
+	const stem = name.replace(/^(prof|dr)\.?\s+/i, '').toLowerCase()
+		.replace(/[^a-z\s]/g, '').trim().split(/\s+/).join('.');
+	return `${stem}${batch.startsWith('B') ? batch.slice(1) : ''}@iisertvm.ac.in`;
+};
+// TODO(anvesha): real numbers. Deliberately in the 90000 0xxxx block so no placeholder
+// on this page can ring an actual phone before the real ones go in.
+let phoneSeq = 0;
+const phoneOf = () => `+91 90000 ${String(++phoneSeq).padStart(5, '0')}`;
+
+const ROWS = DEPTS.map((d, di) => d.members.map((m, mi) => ({
+	...m, di, mi, dept: d.name, no: pad(di + 1),
+	email: emailOf(m.name, m.batch), phone: phoneOf(),
+})));
+
+const first = ROWS[0][0];
 ---
 
 <SiteLayout title="Teams · Anvesha '26">
 	<div class="page">
-		<header class="page-head" data-reveal>
-			<p class="eyebrow">Who runs Anvesha '26</p>
-			<h1 class="page-title">Teams</h1>
-			<p class="lede">
-				Anvesha is put together entirely by students at IISER Thiruvananthapuram, split
-				across eight teams. If you want to reach one of them, write to it directly — every
-				team below has its own address.
+		<header class="page-head tm-head" data-reveal>
+			{/* The comma marks are decoration, not punctuation — aria-hidden so a screen
+			    reader is not read a stray comma either side of the sentence. */}
+			{/* One short dotted tail per robot. A dashed stroke with round caps and a zero
+			    dash length draws the dots — one polyline per robot beats a stream of nodes,
+			    and being in the template it keeps the scoped stylesheet. */}
+			<svg class="tm-trail" id="tmTrail" aria-hidden="true">
+				{[0, 1, 2, 3, 4, 5, 6].map(() => <polyline />)}
+			</svg>
+
+			{/* Seven of them, drifting the band behind the line. Decoration only: aria-hidden,
+			    pointer-events:none, and they park themselves if the reader has asked for
+			    reduced motion. Blink delays are staggered so they do not blink in unison. */}
+			{[0, 1, 2, 3, 4, 5, 6].map((i) => (
+				<div class="tm-bot" aria-hidden="true" style={`--blink:${(i * 0.71).toFixed(2)}s`}>
+					<svg viewBox="0 0 64 62" width="46" height="45">
+						{/* antenna, arms and base first — the head draws over the ends that
+						    tuck under it, so nothing needs a mask or a clip */}
+						<rect class="bot-stalk" x="30.5" y="2" width="3" height="10" rx="1.5" />
+						<circle class="bot-tip" cx="32" cy="3" r="3.5" />
+						<circle class="bot-arm" cx="8" cy="33" r="6" />
+						<circle class="bot-arm" cx="56" cy="33" r="6" />
+						<rect class="bot-arm" x="22" y="46" width="20" height="9" rx="4.5" />
+						<rect class="bot-body" x="12" y="9" width="40" height="40" rx="13" />
+						<rect class="bot-visor" x="18" y="21" width="28" height="15" rx="7.5" />
+						<g class="bot-eyes">
+							<circle cx="26" cy="28.5" r="3.2" />
+							<circle cx="38" cy="28.5" r="3.2" />
+						</g>
+					</svg>
+				</div>
+			))}
+
+			<p class="tm-line" aria-label="Meet the crew steering this year's scientific voyage...">
+				<span class="tm-q" aria-hidden="true">&ldquo;</span><span
+					class="tm-text" id="tmText">Meet the crew steering this year's scientific voyage...</span><span
+					class="tm-cur" id="tmCur" aria-hidden="true">_</span><span
+					class="tm-q tm-qend" id="tmQend" aria-hidden="true">,,</span>
 			</p>
 		</header>
 
 		<section class="section" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">The teams</span>
+				<span class="sechead-label">The crew</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{TEAMS.length}</b> teams</span>
+				<span class="sechead-meta"><b>{DEPTS.length}</b> departments · <b>{crewTotal}</b> people</span>
 			</div>
 
-			<div class="tiles teams">
-				{TEAMS.map((t, i) => (
-					<article class="tile team">
-						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
-						<span class="tile-icon" set:html={t.icon} />
-						<div class="tile-title">{t.name}</div>
-						<p class="tile-text">{t.text}</p>
+			<div class="tm-shell">
+				{/* ---- the rail ---- */}
+				<aside class="tm-side">
+					<div class="tm-side-bar">
+						<span class="tm-led" aria-hidden="true"></span>
+						<span class="tm-side-title">DEPARTMENTS</span>
+						<span class="tm-side-n">{pad(DEPTS.length)}</span>
+					</div>
 
-						<ul class="team-does">
-							{t.does.map((d) => <li>{d}</li>)}
-						</ul>
+					<div class="tree tm-tree" id="tmTree" role="tree" aria-label="Departments">
+						{DEPTS.map((d, di) => (
+							<>
+								<button class:list={['tnode', 'tcat', di === 0 && 'open']} type="button"
+								        role="treeitem" aria-expanded={di === 0 ? 'true' : 'false'}
+								        data-cat={di}>
+									<span class="tcaret" aria-hidden="true">&#9656;</span>
+									<span class="tname">{d.name}</span>
+									<span class="tmeta">{pad(d.members.length)}</span>
+								</button>
 
-						<a class="team-mail mono" href={`mailto:${t.mail}@${DOMAIN}`}>
-							<span set:html={iMail} />
-							<span>{t.mail}@{DOMAIN}</span>
-						</a>
-					</article>
-				))}
+								<div class:list={['tkids', di === 0 && 'open']} data-kids={di}>
+									<div class="tkids-in">
+									{ROWS[di].map((m) => (
+										<button
+											class:list={['tnode', 'titem', m.mi === d.members.length - 1 && 'last',
+											             di === 0 && m.mi === 0 && 'active']}
+											type="button" role="treeitem"
+											data-name={m.name}
+											data-role={m.role}
+											data-roll={m.roll}
+											data-batch={m.batch}
+											data-school={m.school}
+											data-email={m.email}
+											data-phone={m.phone}
+											data-dept={m.dept}
+											data-bio={m.bio}
+											data-no={m.no}
+											data-idx={m.mi + 1}
+											data-of={d.members.length}
+											data-more={(m as { more?: string }).more}
+										>
+											<i class="tnum">{pad(m.mi + 1)}</i>
+											<span class="tname">{m.name}</span>
+											<span class="tmeta">{m.role}</span>
+										</button>
+									))}
+									</div>
+								</div>
+							</>
+						))}
+					</div>
+				</aside>
+
+				{/* ---- the status card ----
+				    Pre-filled from the first member so the panel is never an empty box, and so
+				    the page is complete before a single line of script runs. */}
+				<article class="sc" aria-live="polite">
+					<div class="sc-top">
+						<span class="sc-led" aria-hidden="true"></span>
+						<span class="sc-model">ANVESHA <b>CREW</b></span>
+						{/* Which of the department's people is on screen, drawn as pixels. */}
+						<span class="sc-pips" id="scPips" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
+						<span class="sc-no" id="scNo">NO. 01</span>
+					</div>
+
+					<div class="sc-split">
+						{/* The portrait is a framed box on its panel, not a full-bleed fill. */}
+						<div class="sc-photo" aria-hidden="true">
+							<div class="sc-box">
+								<span class="sc-px"></span>
+								<span class="sc-init" id="scInit">RS</span>
+							</div>
+							<span class="sc-photo-tag">NO PHOTO ON FILE</span>
+						</div>
+
+						<div class="sc-screen">
+							<span class="sc-px" aria-hidden="true"></span>
+
+							<div class="sc-info">
+								<p class="sc-dept" id="scDept">{DEPTS[0].name}</p>
+								<div class="sc-nameline">
+									<h2 class="sc-name" id="scName">{first.name}</h2>
+									{/* Shown only for a member carrying `more`. Server-rendered hidden so
+									    it never flashes on for the row that loads first. */}
+									<a class="sc-more" id="scMore" href="/creator" hidden
+									   aria-label="More about this person" set:html={iInfo} />
+								</div>
+								<p class="sc-role" id="scRole">{first.role}</p>
+
+								{/* An ID card's data block: boxed cells, label over value. The grid gap
+								    is the ink showing through — one background and a 1.5px gap draw
+								    every rule, so no cell needs its own borders or nth-child sums. */}
+								<dl class="sc-fields">
+									<div class="sc-field">
+										<dt>ROLL No.</dt>
+										<dd id="scRoll">{first.roll}</dd>
+									</div>
+									<div class="sc-field">
+										<dt>BATCH</dt>
+										<dd id="scBatch">{first.batch}</dd>
+									</div>
+									<div class="sc-field">
+										<dt>SCHOOL</dt>
+										<dd id="scSchool">{first.school}</dd>
+									</div>
+									<div class="sc-field">
+										<dt>DEPARTMENT</dt>
+										<dd id="scDept2">{first.dept}</dd>
+									</div>
+									<div class="sc-field">
+										<dt>POSITION</dt>
+										<dd id="scPos">{first.role}</dd>
+									</div>
+									<div class="sc-field">
+										<dt>PHONE</dt>
+										<dd><a id="scPhone" href={`tel:${first.phone.replace(/\s/g, '')}`}>{first.phone}</a></dd>
+									</div>
+									<div class="sc-field sc-field-wide">
+										<dt>INSTITUTE EMAIL</dt>
+										<dd><a id="scEmail" href={`mailto:${first.email}`}>{first.email}</a></dd>
+									</div>
+								</dl>
+
+								<p class="sc-bio" id="scBio">{first.bio}</p>
+							</div>
+
+							{/* The strip along the bottom of every ID card ever issued. */}
+							<div class="sc-strip">
+								<span class="sc-code" aria-hidden="true"></span>
+								<span class="sc-issue" id="scBar">ANVESHA '26 · IISER TVM</span>
+							</div>
+						</div>
+					</div>
+				</article>
 			</div>
-		</section>
-
-		<section class="section" data-reveal>
-			<div class="sechead">
-				<span class="sechead-label">Join us</span>
-				<span class="sechead-rule"></span>
-				<span class="sechead-meta">Rolling</span>
-			</div>
-			<p class="lede" style="margin-top:0">
-				Recruitment opens to IISER TVM students each semester, and most teams take people
-				with no prior experience — the ones that don't will say so. Tell us which team
-				interests you and what you would want to work on.
-			</p>
-			<a class="cta" href={`mailto:hello@${DOMAIN}?subject=${encodeURIComponent('Joining a team')}`}
-			   style="margin-top:22px">
-				<span set:html={iMail} />
-				<span>WRITE TO US</span>
-				<span set:html={iArrowRight} />
-			</a>
 		</section>
 	</div>
 </SiteLayout>
 
-<style is:global>
-	.teams { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: start; }
-	/* padding-bottom, not a gap: the mail line is pinned to the bottom edge so the
-	   addresses line up across a row of cards of unequal text length. */
-	.team { padding-bottom: 54px; }
+<script>
+	/**
+	 * Types the header line out on arrival.
+	 *
+	 * The full sentence is server-rendered and the <p> carries it as aria-label, so this
+	 * only ever removes and restores what is already there — a reader with JS off, or a
+	 * crawler, or a screen reader mid-type all still get the whole line.
+	 * The ellipsis rides at a slower beat than the words: three dots at typing speed read
+	 * as a stutter rather than a trailing off.
+	 */
+	function typeLine() {
+		const el = document.getElementById('tmText');
+		const cur = document.getElementById('tmCur');
+		const qend = document.getElementById('tmQend');
+		if (!el || !cur || !qend) return;
 
-	.team-does {
-		list-style: none; margin: 2px 0 0; padding: 13px 0 0;
-		border-top: 1.5px solid var(--hair);
-		display: flex; flex-wrap: wrap; gap: 6px;
-	}
-	.team-does li {
-		padding: 4px 8px;
-		border: 1.5px solid var(--hair); border-radius: var(--r);
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-60);
+		const full = el.textContent ?? '';
+		const done = () => { el.textContent = full; cur.hidden = true; qend.hidden = false; };
+
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
+
+		qend.hidden = true;
+		el.textContent = '';
+		let i = 0;
+		const step = () => {
+			el.textContent = full.slice(0, ++i);
+			if (i >= full.length) {
+				// Let the caret blink a beat before the closing mark lands.
+				setTimeout(done, 420);
+				return;
+			}
+			setTimeout(step, full[i] === '.' ? 190 : 26);
+		};
+		setTimeout(step, 260);
 	}
 
-	.team-mail {
-		position: absolute; left: 20px; right: 20px; bottom: 18px;
-		display: flex; align-items: center; gap: 8px;
-		font-size: 11px; letter-spacing: .01em;
-		color: var(--ink-40); text-decoration: none;
-		transition: color .14s ease;
-	}
-	.team-mail span:first-child { display: grid; place-items: center; flex: none; line-height: 0; }
-	.team-mail svg { width: 13px; height: 13px; stroke-width: 2; }
-	/* The address is the only interactive thing on the card, so it is the only thing
-	   that reacts — the card itself is not a link. */
-	.team-mail:hover { color: var(--accent); }
-	.team-mail span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	/**
+	 * Flies the robots around the header band.
+	 *
+	 * Three states on a timer — CRUISE, DASH and REST — because constant motion at one
+	 * speed is what made the first version read as a machine on rails. Each robot keeps
+	 * its own state and picks its own beats, so they never move as a formation.
+	 *
+	 * ponytail: one rAF for all of them, not one each — the per-frame work is a transform
+	 * write per robot, and four loops would just be four places to stop.
+	 * No cancel bookkeeping either: it stops itself the frame the elements leave the
+	 * document, which is exactly what a client-side navigation does to them.
+	 */
+	function flyBot() {
+		const head = document.querySelector<HTMLElement>('.tm-head');
+		const bots = Array.from(document.querySelectorAll<HTMLElement>('.tm-bot'));
+		if (!head || !bots.length) return;
 
-	.team:hover { box-shadow: var(--pop); transform: translate(-2px, -2px); }
-	.team { transition: transform .12s ease, box-shadow .12s ease; }
+		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		const tails = Array.from(document.querySelectorAll<SVGPolylineElement>('.tm-trail polyline'));
+		const TAIL = 16;              // ≈ 30px of dots at cruise — a hint, not a comet
+
+		const crew = bots.map((el, i) => ({
+			el,
+			tail: tails[i] ?? null,
+			pts: [] as { x: number; y: number }[],
+			// Spread across the band rather than stacked in one corner.
+			x: head.clientWidth * (0.07 + i * 0.135),
+			y: head.clientHeight * (i % 2 ? 0.62 : 0.16),
+			a: (i * Math.PI * 2) / 7 + 0.4,
+			shown: 0,
+			speed: 0,
+			target: 2,
+			until: 0,
+			resting: false,
+		}));
+
+		if (reduced) {
+			for (const b of crew) b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+			return;
+		}
+
+		type Bot = (typeof crew)[number];
+		const pick = (b: Bot, t: number) => {
+			// A rest is the shortest of the three: standing still is a beat, not a pause.
+			const r = Math.random();
+			if (r < 0.24) { b.resting = true; b.target = 0; b.until = t + 900 + Math.random() * 900; }
+			else if (r < 0.42) { b.resting = false; b.target = 4.4; b.until = t + 700 + Math.random() * 700; }
+			else { b.resting = false; b.target = 1.7 + Math.random() * 0.9; b.until = t + 1600 + Math.random() * 2200; }
+			b.el.classList.toggle('is-idle', b.resting);
+		};
+
+		const step = (t: number) => {
+			if (!bots[0].isConnected) return;
+
+			for (const b of crew) {
+				if (t > b.until) {
+					if (b.resting) b.a += (Math.random() - 0.5) * 2.4;   // leaves facing somewhere new
+					pick(b, t);
+				}
+
+				const maxX = Math.max(0, head.clientWidth - b.el.offsetWidth);
+				const maxY = Math.max(0, head.clientHeight - b.el.offsetHeight);
+
+				// Ease toward the state's speed rather than snapping — the ramp is most of
+				// what makes a stop read as deceleration instead of a freeze.
+				b.speed += (b.target - b.speed) * 0.045;
+
+				// Wander harder at low speed, so it turns tightly as it slows and holds a
+				// line when it is moving fast.
+				b.a += (Math.random() - 0.5) * (0.05 + 0.16 / (1 + b.speed));
+				b.x += Math.cos(b.a) * b.speed;
+				b.y += Math.sin(b.a) * b.speed;
+
+				// Steer away from a wall instead of bouncing: a reflection reads as a collision.
+				if (b.x < 0 || b.x > maxX) { b.a = Math.PI - b.a; b.x = Math.min(Math.max(b.x, 0), maxX); }
+				if (b.y < 0 || b.y > maxY) { b.a = -b.a; b.y = Math.min(Math.max(b.y, 0), maxY); }
+
+				// The sprite stands upright, so its nose is -90° from the heading. Eased, and
+				// by the short way round, or it unwinds a full turn every time it crosses ±180°.
+				if (b.speed > 0.25) {
+					let d = (b.a + Math.PI / 2) - b.shown;
+					d = Math.atan2(Math.sin(d), Math.cos(d));
+					b.shown += d * 0.09;
+				}
+				b.el.style.transform =
+					`translate(${b.x.toFixed(1)}px, ${b.y.toFixed(1)}px) rotate(${(b.shown * 180 / Math.PI).toFixed(1)}deg)`;
+
+				// Only while moving — a resting robot should not keep stamping one point, and
+				// its tail keeps retreating into it instead.
+				if (b.speed > 0.3) {
+					b.pts.push({ x: b.x + b.el.offsetWidth / 2, y: b.y + b.el.offsetHeight / 2 });
+					if (b.pts.length > TAIL) b.pts.shift();
+				} else if (b.pts.length) {
+					b.pts.shift();
+				}
+				b.tail?.setAttribute('points',
+					b.pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+			}
+
+			requestAnimationFrame(step);
+		};
+		requestAnimationFrame((t) => { for (const b of crew) pick(b, t); step(t); });
+	}
+
+	// ponytail: same re-init shape as /merch and /events — module scripts run once per
+	// session, so with the client router this has to bind against each swapped DOM.
+	let inited: HTMLElement | null = null;
+
+	function initTeams() {
+		const tree = document.getElementById('tmTree');
+		if (!tree || tree === inited) return;
+		inited = tree;
+
+		const $ = (id: string) => document.getElementById(id)!;
+
+		typeLine();
+		flyBot();
+		const scNo = $('scNo'), scDept = $('scDept'), scDept2 = $('scDept2'), scName = $('scName');
+		const scRole = $('scRole'), scPos = $('scPos'), scRoll = $('scRoll'), scBatch = $('scBatch');
+		const scSchool = $('scSchool'), scBio = $('scBio'), scInit = $('scInit');
+		const scEmail = $('scEmail') as HTMLAnchorElement, scPhone = $('scPhone') as HTMLAnchorElement;
+		const scPips = $('scPips');
+		const scMore = $('scMore') as HTMLAnchorElement;
+
+		const initials = (name: string) =>
+			name.replace(/^(Prof|Dr)\.?\s+/i, '')          // a title is not an initial
+				.split(/\s+/).slice(0, 2)
+				.map((w) => w[0] ?? '').join('').toUpperCase();
+
+		function select(row: HTMLElement) {
+			for (const r of tree!.querySelectorAll('.titem.active')) r.classList.remove('active');
+			row.classList.add('active');
+
+			const d = row.dataset;
+			scInit.textContent = initials(d.name!);
+			scDept.textContent = d.dept!;
+			scDept2.textContent = d.dept!;
+			scName.textContent = d.name!;
+			scMore.hidden = !d.more;
+			if (d.more) scMore.href = d.more;
+			scRole.textContent = d.role!;
+			scPos.textContent = d.role!;
+			scRoll.textContent = d.roll!;
+			scBatch.textContent = d.batch!;
+			scSchool.textContent = d.school!;
+			scBio.textContent = d.bio!;
+			scNo.textContent = `NO. ${d.no}`;
+			// One pixel per person in the department, the current one lit.
+			scPips.innerHTML = Array.from({ length: +d.of! },
+				(_, i) => `<i class="${i < +d.idx! ? 'on' : ''}"></i>`).join('');
+
+			scEmail.textContent = d.email!;
+			scEmail.href = `mailto:${d.email}`;
+			scPhone.textContent = d.phone!;
+			scPhone.href = `tel:${d.phone!.replace(/\s/g, '')}`;
+
+			// Stacked layout: the card sits below a rail that is most of a screen tall, so
+			// picking a name would otherwise update something the reader cannot see.
+			if (matchMedia('(max-width: 860px)').matches)
+				document.querySelector('.sc')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		}
+
+		/** One open department at a time — opening any other closes the one before it. */
+		function openCat(cat: HTMLElement, open: boolean) {
+			cat.classList.toggle('open', open);
+			cat.setAttribute('aria-expanded', String(open));
+			// A class, not [hidden]: display:none cannot transition, and the rail's open
+			// and close are the page's only real motion.
+			tree!.querySelector<HTMLElement>(`[data-kids="${cat.dataset.cat}"]`)?.classList.toggle('open', open);
+		}
+
+		tree.addEventListener('click', (e) => {
+			const el = e.target as HTMLElement;
+
+			const cat = el.closest<HTMLElement>('.tcat');
+			if (cat) {
+				const open = !cat.classList.contains('open');
+				for (const other of tree.querySelectorAll<HTMLElement>('.tcat.open'))
+					if (other !== cat) openCat(other, false);
+				openCat(cat, open);
+				return;
+			}
+
+			const row = el.closest<HTMLElement>('.titem');
+			if (row) select(row);
+		});
+	}
+
+	document.addEventListener('astro:page-load', initTeams);
+	initTeams();
+</script>
+
+<style>
+	/* ============ HEADER ============
+	   One centred line where the title and lede were, hung between purple comma marks.
+	   No max-width: the measure was what pushed it onto two lines. */
+	/* A definite height so the robot has a band to cross rather than a strip the height of
+	   one line of type. */
+	.tm-head {
+		position: relative; overflow: hidden; text-align: center;
+		display: grid; place-items: center;
+		min-height: clamp(132px, 18vh, 184px);
+	}
+
+	/* ---- the ground behind the line ----
+	   Graph paper and one ranging ring, both drawn in CSS: it is a science fest, and a
+	   plotted grid says that without an image to load. The mask fades everything out
+	   before it reaches the type, so nothing competes with the sentence itself. */
+	.tm-head::before,
+	.tm-head::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+	.tm-head::before {
+		background:
+			repeating-linear-gradient(90deg, var(--hair) 0 1px, transparent 1px 46px),
+			repeating-linear-gradient(0deg, var(--hair) 0 1px, transparent 1px 46px);
+		/* two stops, not one: a single radial leaves a hard ring where the fade ends */
+		mask-image: radial-gradient(ellipse 62% 90% at 50% 50%, transparent 12%, #000 58%, transparent 96%);
+	}
+	/* Concentric rings, off to one side so the composition is not a bullseye. */
+	.tm-head::after {
+		background: repeating-radial-gradient(
+			circle at 12% 50%,
+			transparent 0 38px,
+			color-mix(in srgb, var(--accent) 22%, transparent) 38px 39.5px
+		);
+		mask-image: linear-gradient(90deg, #000 0%, transparent 42%);
+		opacity: .55;
+	}
+
+	/* ---- the tails ----
+	   stroke-dasharray '0 8' with a round cap is a dot every 8px: the zero-length dash
+	   collapses to nothing and the cap draws it as a circle. */
+	.tm-trail {
+		position: absolute; inset: 0; z-index: 0;
+		width: 100%; height: 100%;
+		pointer-events: none; overflow: visible;
+	}
+	.tm-trail polyline {
+		fill: none;
+		stroke: color-mix(in srgb, var(--secondary) 34%, transparent);
+		stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0 8;
+	}
+
+	/* ---- the robot ----
+	   left/top stay 0; the loop writes a transform, which is the only thing that should
+	   move. Sits above the drawn ground but under .tm-line, so it passes behind the
+	   sentence rather than over it. */
+	.tm-bot {
+		position: absolute; left: 0; top: 0; z-index: 0;
+		line-height: 0; pointer-events: none;
+		will-change: transform;
+	}
+	/* The wrapper carries position and heading; the svg carries the idle wobble, so the
+	   two compose instead of fighting over one transform. */
+	.tm-bot svg { display: block; overflow: visible; transform-origin: 50% 55%; }
+	.tm-bot.is-idle svg { animation: bot-idle 1.5s ease-in-out infinite; }
+	@keyframes bot-idle {
+		0%, 100% { transform: rotate(-7deg) translateY(0); }
+		50%      { transform: rotate(7deg) translateY(-4px); }
+	}
+
+	.bot-body { fill: var(--accent); }
+	.bot-arm, .bot-tip { fill: color-mix(in srgb, var(--accent) 42%, var(--primary)); }
+	.bot-stalk { fill: var(--accent); }
+	.bot-visor { fill: var(--primary); }
+	.bot-eyes { fill: var(--secondary); }
+	/* Blinks on a long cycle — squashed on the y axis, about its own middle. */
+	.bot-eyes { transform-box: fill-box; transform-origin: center; animation: bot-blink 4.6s infinite var(--blink, 0s); }
+	@keyframes bot-blink {
+		0%, 92%, 100% { transform: scaleY(1); }
+		95% { transform: scaleY(.12); }
+	}
+
 	@media (prefers-reduced-motion: reduce) {
-		.team { transition: none; }
-		.team:hover { transform: none; }
+		.bot-eyes, .tm-bot.is-idle svg { animation: none; }
+	}
+
+	.tm-line {
+		position: relative; z-index: 1;
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(15px, 2.5vw, 32px);
+		line-height: 1.15; letter-spacing: -.015em;
+	}
+	.tm-q { color: var(--accent); }
+	/* The typing caret. Same beat as the card's, so the two read as one machine. */
+	.tm-cur { color: var(--accent); animation: sc-blink 1.05s steps(1, end) infinite; }
+	.tm-cur[hidden] { display: none; }
+	.tm-qend[hidden] { display: none; }
+	/* One line from the breakpoint up. Below it the sentence cannot fit at a readable
+	   size on any phone, so it is allowed to wrap rather than shrink to nothing. */
+	@media (min-width: 861px) {
+		.tm-line { white-space: nowrap; }
+	}
+
+	/* ============ LAYOUT ============
+	   Rail left, card right, both stretched to the same row height — the rail sets it and
+	   the card follows, so the two panels always end on the same line. */
+	.tm-shell {
+		display: grid; grid-template-columns: minmax(232px, 300px) 1fr;
+		gap: clamp(18px, 2.4vw, 34px); align-items: stretch;
+	}
+	@media (max-width: 860px) {
+		.tm-shell { grid-template-columns: 1fr; }
+	}
+
+	/* ============ THE RAIL ============ */
+	.tm-side {
+		display: flex; flex-direction: column;
+		/* A definite height, so it is the rail that decides how tall the row is. */
+		height: clamp(430px, 64vh, 640px);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--primary);
+		overflow: hidden;
+	}
+	/* An ink title bar, the way a device labels its own panel. */
+	.tm-side-bar {
+		flex: none;
+		display: flex; align-items: center; gap: 9px;
+		padding: 10px 12px;
+		background: var(--secondary); color: var(--primary);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .18em;
+	}
+	.tm-led {
+		flex: none; width: 7px; height: 7px; border-radius: 50%;
+		background: var(--accent);
+		box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--accent) 28%, transparent);
+	}
+	.tm-side-title { flex: 1; }
+	.tm-side-n { color: color-mix(in srgb, var(--primary) 62%, transparent); }
+
+	/* ---- retro skin over styles/catalogue-tree.css ----
+	   The rail's geometry — connector rules, indents, the grid on each row — is inherited
+	   whole. Only the surface changes here: mono type throughout, a typed caret instead of
+	   an icon, and connectors in ink rather than a hairline so they read as drawn. */
+	.tm-tree {
+		flex: 1; min-height: 0;
+		padding: 6px; margin: 0;
+		scrollbar-width: thin; scrollbar-color: var(--secondary) transparent;
+	}
+	.tm-tree::-webkit-scrollbar { display: block; width: 6px; }
+	.tm-tree button.tnode { font-family: 'DM Mono', ui-monospace, monospace; }
+
+	.tm-tree .tcat { grid-template-columns: 14px 1fr auto; padding: 10px 9px 10px 6px; }
+	.tm-tree .tcaret {
+		width: 14px; font-size: 11px; line-height: 1;
+		color: var(--ink-40);
+		transition: transform .16s ease, color .16s ease;
+	}
+	.tm-tree .tcat.open .tcaret { transform: rotate(90deg); color: var(--accent); }
+	.tm-tree .tcat .tname { font-size: 10.5px; letter-spacing: .1em; font-weight: 700; }
+	.tm-tree .tcat .tmeta { font-size: 9.5px; letter-spacing: .1em; }
+
+	/* ---- open / close ----
+	   0fr -> 1fr on a one-row grid: the browser animates to the row's own content height
+	   with no JS measuring it and no hard-coded number to go stale. .tkids already clips,
+	   which is what turns the row collapsing into a wipe.
+	   visibility flips at the far end of the close so collapsed rows leave the tab order,
+	   and instantly on open so they are focusable before the wipe finishes. */
+	.tm-tree .tkids {
+		display: grid; grid-template-rows: 0fr;
+		visibility: hidden;
+		transition: grid-template-rows .26s cubic-bezier(.25, .1, .25, 1), visibility 0s .26s;
+	}
+	.tm-tree .tkids.open {
+		grid-template-rows: 1fr;
+		visibility: visible;
+		transition: grid-template-rows .26s cubic-bezier(.25, .1, .25, 1), visibility 0s;
+	}
+	.tm-tree .tkids-in { min-height: 0; }
+	/* The rows themselves fade in behind the wipe, so a tall department does not appear
+	   as a block of text sliding down fully formed. */
+	.tm-tree .tkids-in > .titem { opacity: 0; transition: opacity .2s ease .06s; }
+	.tm-tree .tkids.open .tkids-in > .titem { opacity: 1; }
+	@media (prefers-reduced-motion: reduce) {
+		.tm-tree .tkids, .tm-tree .tkids.open,
+		.tm-tree .tkids-in > .titem { transition: none; }
+	}
+
+	.tm-tree .titem { padding: 8px 9px 8px 40px; font-size: 12px; }
+	.tm-tree .titem::before,
+	.tm-tree .titem::after { background: color-mix(in srgb, var(--secondary) 30%, transparent); }
+	.tm-tree .titem .tname { font-weight: 500; letter-spacing: .01em; }
+	.tm-tree .titem .tmeta { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+	.tm-tree .tnum { background: var(--secondary); font-size: 8.5px; }
+	.tm-tree .titem.active .tnum { background: var(--accent); }
+
+	/* ============ THE STATUS CARD ============ */
+	.sc {
+		display: flex; flex-direction: column; min-height: 0;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--primary);
+		box-shadow: var(--pop-lg);
+		overflow: hidden;
+	}
+	.sc-top {
+		flex: none;
+		display: flex; align-items: center; gap: 10px;
+		padding: 10px 14px;
+		background: var(--secondary); color: var(--primary);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .18em;
+	}
+	.sc-led {
+		flex: none; width: 8px; height: 8px; border-radius: 50%;
+		background: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+	}
+	.sc-model { flex: 1; }
+	.sc-model b { font-weight: 500; color: var(--accent); }
+	.sc-no { color: color-mix(in srgb, var(--primary) 62%, transparent); }
+	/* The HUD meter: one square per person in the department, filled up to the one on
+	   screen. Square, hard-edged and 4px — a lit pixel, not a dot. */
+	.sc-pips { display: flex; gap: 3px; }
+	/* :global on the child — select() rebuilds these <i>s, and markup made at runtime
+	   carries no scope attribute, so a scoped rule would style the first three and
+	   nothing after the first click. */
+	.sc-pips :global(i) {
+		width: 7px; height: 7px;
+		background: color-mix(in srgb, var(--primary) 26%, transparent);
+	}
+	.sc-pips :global(i.on) { background: var(--accent); }
+
+	/* 40/60 — the portrait panel and the readout. */
+	.sc-split {
+		flex: 1; min-height: 0;
+		display: grid; grid-template-columns: 40% 1fr;
+		border-top: var(--stroke) solid var(--secondary);
+	}
+
+	/* ---- the portrait panel ----
+	   A framed box centred on its panel. Initials rather than a photograph: nobody has
+	   supplied one, and a placeholder face is worse than no face. */
+	.sc-photo {
+		display: flex; flex-direction: column; align-items: stretch;
+		gap: 12px; min-width: 0; padding: clamp(14px, 1.8vw, 24px);
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	/* Same notched-corner frame as the data block, one pixel heavier — it is the larger
+	   object, and an even border on both would make the box read as the lighter one. */
+	/* Fills the panel rather than sitting in it as a 240px tile — the offset is the panel's
+	   own padding plus --px, so the notched frame has room to draw without being clipped.
+	   No aspect-ratio: the plate takes whatever shape the panel is, which is what makes it
+	   read as the card's photo window instead of a stamp in the middle of one. */
+	.sc-box {
+		--px: 4px;
+		position: relative; display: grid; place-items: center;
+		flex: 1; min-height: 0; margin: var(--px);
+		border: 0; border-radius: 0;
+		box-shadow:
+			0 calc(var(--px) * -1) 0 0 var(--secondary),
+			0 var(--px) 0 0 var(--secondary),
+			calc(var(--px) * -1) 0 0 0 var(--secondary),
+			var(--px) 0 0 0 var(--secondary);
+		/* the shell's own dot matrix, so the empty plate still belongs to the page */
+		background:
+			radial-gradient(circle at center, color-mix(in srgb, var(--secondary) 15%, transparent) 1.1px, transparent 1.3px)
+			0 0 / 8px 8px,
+			var(--primary);
+		overflow: hidden;
+	}
+	.sc-init {
+		position: relative;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(42px, 7.5vw, 108px); line-height: 1;
+	}
+	.sc-photo-tag {
+		flex: none; text-align: center;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8px; letter-spacing: .16em; color: var(--ink-40);
+	}
+
+	/* ---- the readout ---- */
+	.sc-screen {
+		position: relative; min-width: 0;
+		display: flex; flex-direction: column;
+		padding: clamp(16px, 2vw, 26px);
+		background: var(--sink);
+	}
+	/* Scanlines. 1px on, 2px off — any denser and it turns the type grey on a
+	   non-integer device pixel ratio. */
+	.sc-px {
+		position: absolute; inset: 0; pointer-events: none;
+		background: repeating-linear-gradient(
+			to bottom,
+			color-mix(in srgb, var(--secondary) 7%, transparent) 0 1px,
+			transparent 1px 3px
+		);
+	}
+
+	.sc-info { position: relative; flex: 1; min-height: 0; min-width: 0; overflow-y: auto; }
+	.sc-dept {
+		display: flex; align-items: center; gap: 9px; margin: 0 0 8px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent);
+	}
+	.sc-dept::before { content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent); }
+	.sc-nameline { display: flex; align-items: center; gap: 9px; }
+	/* [hidden] loses to a display rule, so it has to be restated at higher specificity —
+	   otherwise the ⓘ shows on every member. */
+	.sc-more {
+		display: grid; place-items: center; flex: none;
+		width: 18px; height: 18px; line-height: 0;
+		color: var(--accent);
+		transition: transform .14s ease, color .14s ease;
+	}
+	.sc-more[hidden] { display: none; }
+	/* :global — set:html content carries no scope attribute, so a scoped `.sc-more svg`
+	   matches nothing and the icon renders at its own 24px inside an 18px box. */
+	.sc-more :global(svg) { width: 15px; height: 15px; stroke-width: 2.4; display: block; }
+	.sc-more:hover { transform: translateY(-2px); color: var(--secondary); }
+
+	.sc-name {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(19px, 2.3vw, 31px);
+		line-height: .98; letter-spacing: -.02em; text-transform: uppercase;
+	}
+	.sc-role {
+		margin: 8px 0 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-60);
+	}
+
+	/* ---- the data block, drawn 8-bit ----
+	   No border and no radius. The frame is four offset shadows, which leaves the corners
+	   notched — the way a sprite-drawn box has to look when it is built out of square
+	   pixels and cannot round anything. --px is the pixel; everything blocky on this card
+	   is a multiple of it, so the whole panel rescales from one number.
+	   The gap IS the inner rule: one ink background behind a 3px grid gap draws every line
+	   at once, so cells carry no borders and nothing is switched off at the edges. */
+	.sc-fields {
+		--px: 3px;
+		margin: 18px var(--px) 0;
+		display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--px);
+		background: var(--secondary);
+		border: 0; border-radius: 0;
+		box-shadow:
+			0 calc(var(--px) * -1) 0 0 var(--secondary),
+			0 var(--px) 0 0 var(--secondary),
+			calc(var(--px) * -1) 0 0 0 var(--secondary),
+			var(--px) 0 0 0 var(--secondary);
+	}
+	.sc-field-wide { grid-column: 1 / -1; }
+	.sc-field {
+		min-width: 0; padding: 9px 11px 10px;
+		background: var(--primary);
+		font-family: 'DM Mono', ui-monospace, monospace;
+	}
+	/* A lit pixel before every label, the way a stat screen marks its rows. */
+	.sc-field dt {
+		display: flex; align-items: center; gap: 6px;
+		font-size: 8px; letter-spacing: .16em; color: var(--ink-40);
+	}
+	.sc-field dt::before {
+		content: ''; flex: none; width: 4px; height: 4px; background: var(--accent);
+	}
+	.sc-field dd {
+		margin: 4px 0 0 10px; min-width: 0;
+		font-size: 12px; letter-spacing: .02em; overflow-wrap: anywhere;
+	}
+	.sc-field dd a { color: var(--secondary); text-decoration: none; }
+	.sc-field dd a:hover { color: var(--accent); }
+	@media (max-width: 1180px) {
+		.sc-fields { grid-template-columns: 1fr; }
+	}
+
+	.sc-bio {
+		margin: 16px 0 0; max-width: 58ch;
+		font-size: 13px; line-height: 1.62; color: var(--ink-60);
+	}
+
+	/* ---- the issue strip ---- */
+	.sc-strip {
+		position: relative; flex: none;
+		display: flex; align-items: center; justify-content: space-between; gap: 16px;
+		margin: 16px 0 0; padding-top: 12px;
+		border-top: 1.5px solid var(--secondary);
+	}
+	/* Bars of three widths on a repeating cycle. Decoration — it encodes nothing, which
+	   is why it is aria-hidden and not a real barcode font. */
+	.sc-code {
+		flex: 1; min-width: 90px; height: 22px;
+		background: repeating-linear-gradient(
+			90deg,
+			var(--secondary) 0 2px, transparent 2px 5px,
+			var(--secondary) 5px 8px, transparent 8px 10px,
+			var(--secondary) 10px 11px, transparent 11px 15px
+		);
+	}
+	.sc-issue {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+		white-space: nowrap;
+	}
+
+	/* Stacked: the card no longer has a rail to match, so it sizes to its content and the
+	   portrait becomes a band across the top rather than a 40% sliver. */
+	@media (max-width: 860px) {
+		.sc { min-height: 460px; }
+		.sc-split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+		.sc-photo {
+			padding: 20px 18px 22px;
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		}
+		/* Stacked, the panel is a band with no height to fill, so the plate goes back to
+		   a square tile centred in it. */
+		.sc-box { flex: none; width: min(100%, 190px); aspect-ratio: 1; margin: var(--px) auto; }
+		.sc-init { font-size: clamp(38px, 13vw, 62px); }
 	}
 </style>
+

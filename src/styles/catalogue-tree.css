@@ -110,3 +110,9 @@ button.tnode:hover { background: color-mix(in srgb, var(--secondary) 6%, transpa
 	color: var(--primary); background: var(--accent); border-radius: var(--r);
 }
 .titem.inactive .tname { color: var(--ink-40); text-decoration: line-through; }
+
+/* .tree is a flex column, so every row in it is a shrinkable flex item. Once the rail
+   is taller than its max-height the browser squashes the rows to fit instead of
+   letting .tree scroll — an open folder lost its last children with no sign of it.
+   flex:none makes them keep their height and hands the job back to overflow-y. */
+.tree > * { flex: none; }
