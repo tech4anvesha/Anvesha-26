@@ -736,9 +736,13 @@ const TICKER = [
 	   type, the outline one a black rule. This is the shell's own default pairing, so
 	   these rules exist only to override the dark-plate versions they replaced. */
 	.home-head .cta { background: var(--secondary); color: var(--primary); }
+	/* Filled paper, not a transparent outline. Outlined, this button read whatever was
+	   behind it — over the dark half of the artwork it measured 1.04:1 and vanished. A
+	   solid plate makes it independent of the crop, and black-on-white beside the filled
+	   black button reads as a matched pair. */
 	.home-head .home-alt {
-		background: transparent; color: var(--secondary);
-		border-color: color-mix(in srgb, var(--secondary) 55%, transparent);
+		background: var(--primary); color: var(--secondary);
+		border-color: var(--secondary);
 	}
 	.home-head .home-alt:hover {
 		background: var(--secondary); color: var(--primary); border-color: var(--secondary);
