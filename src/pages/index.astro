@@ -929,6 +929,11 @@ const TICKER = [
 	}
 
 	@media (max-width: 560px) {
+		/* Back to content height on a phone: a full-box hero costs a whole screen before
+		   anything else, and a phone box is mostly hero already. The page still scrolls as
+		   one — only the height is reverted, not the layout. */
+		.home-head { min-height: 0; }
+
 		/* Side by side, always. Wrapping put one button under the other and cost the
 		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
 		   equal, however long the labels get. */
