@@ -244,7 +244,19 @@ const PAYLOAD = {
 							</button>
 						))}
 					</div>
-					<span class="dial-hub" aria-hidden="true"></span>
+					{/* The number card, like the one under the glass in the middle of a rotary
+					    dial. It sits outside .dial-ring so it stays upright while the wheel
+					    turns, and it is what the empty hub used to be. It carries the day's
+					    session COUNT rather than its date — the date is already the headline
+					    right beside it, and repeating it wasted the one spot on the page that
+					    can hold a number nobody has counted for themselves.
+					    aria-hidden: the panel beside the dial states all of it in prose. */}
+					<div class="dial-card" aria-hidden="true">
+						<span class="dial-card-ed" id="dlCardEd">Anvesha '25</span>
+						<b class="dial-card-day" id="dlCardNum">3</b>
+						<span class="dial-card-mon" id="dlCardWord">Events</span>
+						<span class="dial-card-pos" id="dlCardPos">01 / 09</span>
+					</div>
 				</div>
 
 				<div class="dial-read">
@@ -256,8 +268,10 @@ const PAYLOAD = {
 					<div class="dial-ctl">
 						<button class="btn cbtn" id="dlPrev" aria-label="Earlier date" set:html={iChevL}></button>
 						<span class="dial-ctl-mid">
+							<span class="dial-rule" aria-hidden="true"></span>
 							<span class="dial-pos" id="dlPos">01 / 09</span>
-							<span class="dial-hint">Drag the dial to travel back</span>
+							<span class="dial-hint">Drag / click dial to travel back</span>
+							<span class="dial-rule" aria-hidden="true"></span>
 						</span>
 						<button class="btn cbtn" id="dlNext" aria-label="Later date" set:html={iChevR}></button>
 					</div>
@@ -467,6 +481,7 @@ const PAYLOAD = {
 		const ticks = Array.from(ringEl.querySelectorAll<HTMLElement>('.dial-tick'));
 		const inners = ticks.map((t) => t.querySelector('.dial-tick-in') as HTMLElement);
 		const dlEdition = $('dlEdition'), dlDate = $('dlDate'), dlList = $('dlList'), dlPos = $('dlPos');
+		const cardEd = $('dlCardEd'), cardNum = $('dlCardNum'), cardWord = $('dlCardWord'), cardPos = $('dlCardPos');
 
 		const N = ticks.length;
 		const STEP = 360 / N;
@@ -490,6 +505,11 @@ const PAYLOAD = {
 			dlDate.textContent = r.date;
 			dlPos.textContent = `${pad(cur + 1)} / ${pad(N)}`;
 
+			cardEd.textContent = r.edition;
+			cardNum.textContent = String(r.ids.length);
+			cardWord.textContent = r.ids.length === 1 ? 'Event' : 'Events';
+			cardPos.textContent = dlPos.textContent;
+
 			dlList.innerHTML = r.ids.map((id) => {
 				const e = data[id];
 				return `<li><button class="dial-ev" data-ev="${id}">
@@ -501,7 +521,12 @@ const PAYLOAD = {
 			for (const b of dlList.querySelectorAll<HTMLElement>('[data-ev]'))
 				b.onclick = () => openFile(b.dataset.ev!);
 
-			rot = -cur * STEP;
+			// Every tick's angle repeats every 360°, so pick the turn that is nearest where
+			// the ring already sits. Snapping to the canonical -cur*STEP made a click on
+			// the neighbouring tick unwind the long way round — eight steps back instead of
+			// one forward — and unwound every full turn a drag had put in.
+			const target = -cur * STEP;
+			rot = target + Math.round((rot - target) / 360) * 360;
 			applyRot(rot, animate);
 		}
 
@@ -518,7 +543,6 @@ const PAYLOAD = {
 
 		face.addEventListener('pointerdown', (e) => {
 			dragging = true; moved = 0; lastA = angleAt(e);
-			face.setPointerCapture(e.pointerId);
 			face.classList.add('dragging');
 		}, { signal });
 
@@ -529,6 +553,10 @@ const PAYLOAD = {
 			let d = a - lastA;
 			if (d > 180) d -= 360; else if (d < -180) d += 360;
 			lastA = a; moved += Math.abs(d);
+			// Capture only once this is really a drag. Capturing on pointerdown retargets
+			// the whole gesture to .dial-face INCLUDING the click that follows, so a tap on
+			// a tick never reached the tick's own handler and the dial did not move.
+			if (moved > 6 && !face.hasPointerCapture(e.pointerId)) face.setPointerCapture(e.pointerId);
 			rot += d;
 			applyRot(rot, false);   // follow the finger exactly, no easing
 		}, { signal });
@@ -537,9 +565,11 @@ const PAYLOAD = {
 			if (!dragging) return;
 			dragging = false;
 			face.classList.remove('dragging');
-			face.releasePointerCapture?.(e.pointerId);
-			// snap to whichever tick is nearest 12 o'clock
-			showDate(Math.round(-rot / STEP));
+			if (face.hasPointerCapture(e.pointerId)) face.releasePointerCapture(e.pointerId);
+			// snap to whichever tick is nearest 12 o'clock — but only after a real drag,
+			// otherwise this fires on every tap and lands on the date already showing,
+			// which is a wasted animation right before the tick's own click.
+			if (moved > 6) showDate(Math.round(-rot / STEP));
 		}
 		face.addEventListener('pointerup', endDrag, { signal });
 		face.addEventListener('pointercancel', endDrag, { signal });
@@ -707,9 +737,40 @@ const PAYLOAD = {
 	}
 	/* CSS supplies layout only — GSAP owns rotation on both the ring and the labels */
 	.dial-ring { position: absolute; inset: 0; }
-	.dial-hub {
-		position: absolute; left: 50%; top: 50%; width: 13px; height: 13px;
-		margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--secondary);
+	/* The centre card. Was a 13px dot, which left the middle of a 300px dial empty and
+	   made the ring read as a loose circle of buttons rather than a dial. Sized off --r
+	   so it grows with the face and always clears the ticks: they sit at --r ± 24, the
+	   card's edge at --r * .575. pointer-events:none — the whole face is a drag target. */
+	.dial-card {
+		position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+		width: calc(var(--r) * 1.15); height: calc(var(--r) * 1.15);
+		display: grid; place-content: center; justify-items: center;
+		border-radius: 50%; text-align: center; pointer-events: none;
+		background: var(--secondary); color: var(--primary);
+		border: var(--stroke) solid var(--secondary);
+		/* paper gap then an ink hairline: the card holder's bezel, and the gap is what
+		   keeps the black disc from merging into a tick that rotates past it */
+		box-shadow: 0 0 0 5px var(--primary), 0 0 0 6.5px var(--secondary);
+	}
+	.dial-card-ed {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+	}
+	.dial-card-day {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(30px, 4vw, 46px); line-height: 1.02;
+	}
+	.dial-card-mon {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--primary) 72%, transparent);
+	}
+	.dial-card-pos {
+		margin-top: 7px; padding-top: 6px;
+		border-top: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8px; letter-spacing: .12em;
+		color: color-mix(in srgb, var(--primary) 55%, transparent);
 	}
 	/* the read head: a solid wedge sitting outside the ring at 12 o'clock */
 	.dial-pointer {
@@ -787,7 +848,15 @@ const PAYLOAD = {
 	.dial-ctl { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 	.dial-ctl-mid {
 		display: flex; align-items: center; justify-content: center;
-		gap: 12px; flex-wrap: wrap; flex: 1;
+		gap: 12px; flex: 1; min-width: 0;
+	}
+	/* Two solid ink rules, not one: a single line out to each arrow read as a
+	   strikethrough running through the row. Height IS the gap between them — the box
+	   has no fill of its own. */
+	.dial-rule {
+		flex: 1 1 0; min-width: 10px; height: 6px;
+		border-top: 1.5px solid var(--secondary);
+		border-bottom: 1.5px solid var(--secondary);
 	}
 	.dial-pos {
 		font-family: 'DM Mono', ui-monospace, monospace;
@@ -898,6 +967,8 @@ const PAYLOAD = {
 	@media (max-width: 900px) {
 		.dial { grid-template-columns: 1fr; justify-items: center; }
 		.dial-read { width: 100%; }
+		/* Squeezed to their 10px floor here, where they read as stubs rather than rules. */
+		.dial-rule { display: none; }
 	}
 	@media (max-width: 720px) {
 		.tl { --tl-time: 44px; --tl-gap: 8px; --tl-rail: 22px; }
