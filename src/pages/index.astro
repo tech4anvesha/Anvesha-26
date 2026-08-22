@@ -4,6 +4,7 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+import iChevronDown from 'lucide-static/icons/chevron-down.svg?raw';
 import iHandshake from 'lucide-static/icons/handshake.svg?raw';
 import iMail from 'lucide-static/icons/mail.svg?raw';
 import iImage from 'lucide-static/icons/image.svg?raw';
@@ -96,7 +97,7 @@ const TICKER = [
 
 	<div class="page home-page">
 		<header class="page-head home-head">
-			<p class="eyebrow" data-reveal>Science fest · 06—08 February 2026</p>
+			<p class="eyebrow" data-reveal>STC, IISER Thiruvananthapuram presents</p>
 
 			<h1 class="home-word" id="homeWord">
 				<span class="hw-stage">
@@ -109,12 +110,13 @@ const TICKER = [
 				</span>
 			</h1>
 
-			{/* Stands in for the lede that used to sit here: a rule—mark—rule divider that
-			    separates the wordmark from the buttons without another sentence to read.
-			    aria-hidden because it is punctuation, not content. */}
+			{/* Same rule—mark—rule divider, with a bouncing arrow where the ✕ was: the hero
+			    now fills the whole card, so nothing below it is visible on open and this is
+			    the only thing saying there is more. aria-hidden — it is a hint, not content;
+			    the scrollbar is the accessible affordance. */}
 			<div class="home-x" data-reveal aria-hidden="true">
 				<span class="home-x-rule"></span>
-				<span class="home-x-mark">&#10005;</span>
+				<span class="home-x-mark" set:html={iChevronDown} />
 				<span class="home-x-rule"></span>
 			</div>
 
@@ -593,7 +595,9 @@ const TICKER = [
 	}
 
 	function story() {
-		const scroller = document.getElementById('homeScroll');
+		// .page, not the middle pane: the hero no longer pins anything, so the whole page
+		// is one scroller and that is what the observer roots on and the parallax reads.
+		const scroller = document.querySelector<HTMLElement>('.home-page');
 		const rows = document.querySelectorAll<HTMLElement>('[data-ab]');
 		if (!rows.length) return;
 
@@ -680,34 +684,19 @@ const TICKER = [
 	.home-page { --paper-warm: #f7ede2; --iris: #9333ea; }
 
 	/* ============ PAGE FRAME ============
-	   Four panes in the card: hero, ticker, scroller, footer. Only the third moves, so
-	   the wordmark and the strip stay put while the story runs past them. .page is
-	   normally the scroller, hence the override — two nested scrollers would fight. */
-	.home-page { overflow: hidden; }
-	.home-head, .home-ticker, .home-foot { flex: none; }
-	.home-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+	   One scroller — .page itself, which SiteLayout already makes one, so there is no
+	   override here at all. The hero is a full box of artwork on open and everything
+	   else (strip, story, footer) is below the fold; nothing is pinned.
+	   `flex: none` on every child because .page is a flex column: without it the panes
+	   would shrink to fit rather than overflow, and there would be nothing to scroll. */
+	.home-page > * { flex: none; }
 
-	/* Three fixed panes plus the nav come to roughly 480px before the story gets a single
-	   pixel. On a short window that leaves a scroller too small to scroll, so below this
-	   the page gives up the fixed layout and behaves like every other page on the site —
-	   one scroller, everything in it. Degrading beats a 30px-tall viewport. */
-	@media (max-height: 720px) {
-		.home-page { overflow-y: auto; }
-		.home-scroll { flex: none; min-height: 0; overflow: visible; }
-	}
-	/* Between comfortable and cramped, buy the scroller room from the hero rather than
-	   from the story. */
-	@media (min-height: 721px) and (max-height: 860px) {
-		.home-word { font-size: min(clamp(44px, 10vw, 190px), 21vh); }
-		.home-head { padding-top: clamp(14px, 2vw, 26px); padding-bottom: 14px; }
-		.home-x { margin-top: 16px; gap: 11px; }
-		.home-actions { margin-top: 20px; }
-	}
-
-	/* The hero reads as one centred stack — eyebrow, wordmark, divider, buttons. */
+	/* The hero reads as one centred stack — eyebrow, wordmark, divider, buttons — and
+	   fills the card on open. 100% of .page, which has no padding of its own, so this is
+	   the full box; the stack centres in whatever is left after the padding. */
 	.home-head {
-		/* Tighter than the shared .page-head: this pane has to leave the middle enough
-		   room to be worth scrolling. */
+		min-height: 100%;
+		display: flex; flex-direction: column; justify-content: center;
 		padding: clamp(20px, 3vw, 42px) clamp(20px, 3.5vw, 52px) clamp(18px, 2.4vw, 30px);
 		text-align: center;
 		/* The ticker below is a solid black band and separates the two on its own; the
@@ -729,9 +718,10 @@ const TICKER = [
 	   Scoped to the plate so the shared .eyebrow / .cta rules keep working
 	   everywhere else on the site. */
 	.home-head .eyebrow { color: color-mix(in srgb, var(--secondary) 78%, transparent); }
-	/* The dashes follow the type: a pale-blue rule beside black text reads as a leftover. */
+	/* The dashes are the one bit of colour in the line — same --iris as the year and the
+	   arrow, so the three read as one accent rather than three decisions. */
 	.home-head .eyebrow::before,
-	.home-head .eyebrow::after { background: var(--secondary); }
+	.home-head .eyebrow::after { background: var(--iris); }
 	/* Descendant selectors, not bare .home-word / .hw-year: the wordmark's own rules live
 	   further down this stylesheet, so at equal specificity THEY would win. Kept scoped
 	   even though both now resolve to ink — the particle canvas samples this computed
@@ -775,9 +765,23 @@ const TICKER = [
 		flex: none; height: 1.5px; width: clamp(38px, 7vw, 104px);
 		background: color-mix(in srgb, var(--secondary) 45%, transparent);
 	}
-	.home-x-mark {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: clamp(15px, 1.7vw, 21px); line-height: 1; color: var(--iris);
+	/* Was a ✕. Now a chevron that keeps nudging down — the hero fills the card, so this
+	   is what tells you the page continues. line-height:0 because an inline SVG otherwise
+	   sits on a text baseline and rides high of the rules either side of it. */
+	.home-x-mark { display: grid; place-items: center; line-height: 0; color: var(--iris); }
+	.home-x-mark svg {
+		display: block; width: clamp(19px, 2vw, 26px); height: clamp(19px, 2vw, 26px);
+		stroke-width: 2.4;
+		animation: home-nudge 1.9s cubic-bezier(.33, 0, .2, 1) infinite;
+	}
+	/* Two beats then a rest: a continuous bob reads as decoration, a pause reads as a
+	   prompt. Opacity carries the fade so the arrow never hard-cuts back to the top. */
+	@keyframes home-nudge {
+		0%, 55%, 100% { transform: translateY(0); opacity: .55; }
+		22% { transform: translateY(7px); opacity: 1; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.home-x-mark svg { animation: none; opacity: 1; }
 	}
 	.home-actions {
 		display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; justify-content: center;
@@ -877,7 +881,12 @@ const TICKER = [
 	.home-alt > span:first-child { display: grid; place-items: center; flex: none; line-height: 0; }
 
 	/* ============ FOOTER ============ */
+	/* Pinned to the bottom of the card for the whole scroll. sticky, not fixed: it is the
+	   last child, so it rides up to the fold while there is content below it and settles
+	   into place at the end — and it stays inside .card, which a fixed element would not.
+	   The opaque background and the border are what stop the story showing through it. */
 	.home-foot {
+		position: sticky; bottom: 0; z-index: 2;
 		display: flex; align-items: center; justify-content: space-between; gap: 16px;
 		padding: 12px clamp(18px, 3vw, 40px);
 		border-top: var(--stroke) solid var(--secondary);
