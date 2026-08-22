@@ -933,10 +933,10 @@ const TICKER = [
 	}
 
 	@media (max-width: 560px) {
-		/* Back to content height on a phone: a full-box hero costs a whole screen before
-		   anything else, and a phone box is mostly hero already. The page still scrolls as
-		   one — only the height is reverted, not the layout. */
-		.home-head { min-height: 0; }
+		/* Not the full box on a phone — that costs a whole screen before anything else —
+		   but more than the 200px the content alone comes to. 42% of the card gives the
+		   artwork room to read as artwork with the ticker still on screen below it. */
+		.home-head { min-height: 42%; }
 
 		/* Side by side, always. Wrapping put one button under the other and cost the
 		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
