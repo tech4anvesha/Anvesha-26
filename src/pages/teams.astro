@@ -277,6 +277,19 @@ const first = ROWS[0][0];
 		<header class="page-head tm-head" data-reveal>
 			{/* The comma marks are decoration, not punctuation — aria-hidden so a screen
 			    reader is not read a stray comma either side of the sentence. */}
+			{/* Outlined geometry over the graph paper. viewBox + slice, so the shapes keep
+			    their proportions and the composition crops with the band instead of
+			    stretching with it. */}
+			<svg class="tm-geo" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+				<polygon class="geo" points="150,215 190,140 230,215" />
+				<rect class="geo" x="292" y="52" width="54" height="54" transform="rotate(18 319 79)" />
+				<circle class="geo" cx="470" cy="238" r="26" />
+				<polygon class="geo geo-accent" points="742,58 762,78 742,98 722,78" />
+				<polygon class="geo" points="905,120 941,141 941,183 905,204 869,183 869,141" />
+				<circle class="geo" cx="1078" cy="86" r="38" />
+				<line class="geo" x1="1010" y1="236" x2="1122" y2="196" />
+			</svg>
+
 			{/* One short dotted tail per robot. A dashed stroke with round caps and a zero
 			    dash length draws the dots — one polyline per robot beats a stream of nodes,
 			    and being in the template it keeps the scoped stylesheet. */}
@@ -325,10 +338,30 @@ const first = ROWS[0][0];
 			<div class="tm-shell">
 				{/* ---- the rail ---- */}
 				<aside class="tm-side">
+					{/* display:contents on a wide screen, so these two are one panel there and
+					    two stacked boxes on a phone — without a second copy of the markup. */}
+					<div class="tm-box">
 					<div class="tm-side-bar">
 						<span class="tm-led" aria-hidden="true"></span>
 						<span class="tm-side-title">DEPARTMENTS</span>
 						<span class="tm-side-n">{pad(DEPTS.length)}</span>
+					</div>
+
+					{/* Phone only. The rail's folder rows are hidden there and this drives the
+					    same open/close, so there is one source of truth for what is open. */}
+					<label class="tm-pick">
+						<span class="tm-pick-label">Department</span>
+						<select id="tmPick">
+							{DEPTS.map((d, i) => <option value={i}>{d.name}</option>)}
+						</select>
+					</label>
+					</div>
+
+					<div class="tm-box">
+					<div class="tm-list-bar">
+						<span class="tm-led" aria-hidden="true"></span>
+						<span class="tm-side-title">Members</span>
+						<span class="tm-side-n" id="tmCount">03</span>
 					</div>
 
 					<div class="tree tm-tree" id="tmTree" role="tree" aria-label="Departments">
@@ -372,6 +405,7 @@ const first = ROWS[0][0];
 								</div>
 							</>
 						))}
+					</div>
 					</div>
 				</aside>
 
@@ -669,6 +703,20 @@ const first = ROWS[0][0];
 			tree!.querySelector<HTMLElement>(`[data-kids="${cat.dataset.cat}"]`)?.classList.toggle('open', open);
 		}
 
+		const pick = document.getElementById('tmPick') as HTMLSelectElement | null;
+		pick?.addEventListener('change', () => {
+			const cat = tree.querySelector<HTMLElement>(`.tcat[data-cat="${pick.value}"]`);
+			if (!cat) return;
+			for (const other of tree.querySelectorAll<HTMLElement>('.tcat.open'))
+				if (other !== cat) openCat(other, false);
+			openCat(cat, true);
+			const rows = tree.querySelectorAll<HTMLElement>(`[data-kids="${pick.value}"] .titem`);
+			const count = document.getElementById('tmCount');
+			if (count) count.textContent = String(rows.length).padStart(2, '0');
+			// Land on someone rather than an open list with a stale card under it.
+			if (rows[0]) select(rows[0]);
+		});
+
 		tree.addEventListener('click', (e) => {
 			const el = e.target as HTMLElement;
 
@@ -724,6 +772,24 @@ const first = ROWS[0][0];
 		);
 		mask-image: linear-gradient(90deg, #000 0%, transparent 42%);
 		opacity: .55;
+	}
+
+	/* ---- the geometry ----
+	   Outlines only, and the same radial fade as the grid so nothing crowds the sentence.
+	   A shade up from --hair: these are drawn ON the paper, not part of its ruling. */
+	.tm-geo {
+		position: absolute; inset: 0; z-index: 0;
+		width: 100%; height: 100%; pointer-events: none;
+		mask-image: radial-gradient(ellipse 66% 96% at 50% 50%, transparent 10%, #000 52%, transparent 98%);
+	}
+	.geo {
+		fill: none;
+		stroke: color-mix(in srgb, var(--secondary) 18%, transparent);
+		stroke-width: 1.6;
+	}
+	.geo-accent {
+		fill: color-mix(in srgb, var(--accent) 30%, transparent);
+		stroke: color-mix(in srgb, var(--accent) 55%, transparent);
 	}
 
 	/* ---- the tails ----
@@ -803,6 +869,29 @@ const first = ROWS[0][0];
 		.tm-shell { grid-template-columns: 1fr; }
 	}
 
+	/* The picker is a native <select> on purpose: a phone renders it as the OS wheel,
+	   which beats any list this page could draw for fifteen options. */
+	.tm-pick { display: none; }
+	.tm-pick-label {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.tm-pick select {
+		appearance: none; -webkit-appearance: none;
+		width: 100%; margin-top: 5px; padding: 11px 34px 11px 12px;
+		background: var(--primary); color: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; letter-spacing: .06em;
+		/* the caret, drawn rather than shipped as an icon */
+		background-image:
+			linear-gradient(45deg, transparent 50%, var(--secondary) 50%),
+			linear-gradient(135deg, var(--secondary) 50%, transparent 50%);
+		background-position: right 17px center, right 12px center;
+		background-size: 5px 5px, 5px 5px;
+		background-repeat: no-repeat;
+	}
+
 	/* ============ THE RAIL ============ */
 	.tm-side {
 		display: flex; flex-direction: column;
@@ -812,10 +901,17 @@ const first = ROWS[0][0];
 		background: var(--primary);
 		overflow: hidden;
 	}
-	/* An ink title bar, the way a device labels its own panel. */
-	.tm-side-bar {
+	/* Transparent on a wide screen; the phone rules below turn each into its own box. */
+	.tm-box { display: contents; }
+	.tm-side-bar { display: flex; }
+	.tm-list-bar { display: none; }
+
+	/* An ink title bar, the way a device labels its own panel. `display` is set per-bar
+	   below, not here: this shared rule sits after the .tm-list-bar reset and would
+	   otherwise turn the phone-only bar back on for every screen. */
+	.tm-side-bar, .tm-list-bar {
 		flex: none;
-		display: flex; align-items: center; gap: 9px;
+		align-items: center; gap: 9px;
 		padding: 10px 12px;
 		background: var(--secondary); color: var(--primary);
 		font-family: 'DM Mono', ui-monospace, monospace;
@@ -1092,6 +1188,54 @@ const first = ROWS[0][0];
 		font-family: 'DM Mono', ui-monospace, monospace;
 		font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
 		white-space: nowrap;
+	}
+
+	/* ---- phone ----
+	   The rail becomes a picker plus a short scrolling member list, and the card sits
+	   under it. Two rows visible: enough to show there is a list, short enough that the
+	   card stays on the same screen. */
+	@media (max-width: 860px) {
+		/* The panel stops being a box and becomes the stack that holds two of them. */
+		.tm-side {
+			height: auto; border: 0; background: none; overflow: visible;
+			display: flex; flex-direction: column; gap: 12px;
+		}
+		.tm-box {
+			display: flex; flex-direction: column;
+			border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+			background: var(--primary); overflow: hidden;
+		}
+		.tm-list-bar { display: flex; }
+		.tm-pick { display: block; padding: 12px; }
+
+		/* The count is already on the MEMBERS bar and in the picker, so the section meta is
+		   a third copy taking a whole line on a 390px screen. The label keeps its rule. */
+		.sechead-meta { display: none; }
+		.sechead-label { white-space: nowrap; }
+
+		.tm-tree { max-height: none; padding: 10px; overflow: visible; }
+		.tm-tree .tcat { display: none; }
+		/* No folder row above them, so the connector rules and their indent have nothing
+		   to hang off. */
+		.tm-tree .titem { padding-left: 12px; }
+		.tm-tree .titem::before,
+		.tm-tree .titem::after { display: none; }
+
+		.tm-tree .tkids { display: none; }
+		.tm-tree .tkids.open {
+			display: block; visibility: visible;
+			/* three 32px rows plus the 1.5px borders — the whole of a three-person
+			   department, and a scroll the moment one has four. */
+			max-height: 99px; overflow-y: auto; overscroll-behavior: contain;
+			border: 1.5px solid var(--hair); border-radius: var(--r);
+			transition: none;                 /* the 0fr->1fr wipe needs the grid it replaced */
+		}
+		.tm-tree .tkids-in > .titem { opacity: 1; transition: none; }
+
+		/* Four, not seven: the band is a third of the width here and seven read as a swarm.
+		   The tails go with them, or three lines would keep drawing themselves. */
+		.tm-bot:nth-of-type(n+5),
+		.tm-trail polyline:nth-of-type(n+5) { display: none; }
 	}
 
 	/* Stacked: the card no longer has a rail to match, so it sizes to its content and the
