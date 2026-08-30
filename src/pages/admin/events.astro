@@ -301,8 +301,11 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			<p class="ev-draft-err" data-err hidden></p>
 		</div>
 
-		<!-- The poster rides in its own box beside the card, uploaded straight after the
-		     event row it belongs to is created. -->
+		{/* Same bento as the editor: the poster on top, taller, and under it the row as
+		    the storefront will draw it. A card with only a drop plate beside it could not
+		    fill the pane, and there was no way to see what you were typing until after
+		    it had been sent. */}
+		<div class="ev-draft-right">
 		<aside class="ev-poster-box">
 			<p class="ev-poster-head">
 				<span>Poster</span>
@@ -318,6 +321,32 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			<button class="btn ev-drop-clear" type="button" data-posterclear hidden>REMOVE</button>
 			<p class="ev-poster-hint">JPEG, PNG, WebP or AVIF · 6MB max</p>
 		</aside>
+
+		<aside class="ev-cell ev-preview ev-draft-preview">
+			<p class="a-eyebrow">Storefront preview</p>
+
+			<div class="pv-item">
+				<time class="pv-time" data-pvtime>--:--</time>
+				<span class="pv-rail" aria-hidden="true"><span class="pv-dot"></span></span>
+				<div class="pv-card">
+					<span class="pv-top">
+						<span class="pv-chip" data-pvchip>TYPE</span>
+						<span class="pv-venue" data-pvvenue>VENUE</span>
+					</span>
+					<span class="pv-head"><span class="pv-name" data-pvname>Event name</span></span>
+					<span class="pv-desc" data-pvdesc></span>
+				</div>
+			</div>
+
+			<dl class="pv-rows">
+				<div class="pv-row"><dt>When</dt><span class="pv-lead"></span><dd data-pvwhen>—</dd></div>
+				<div class="pv-row"><dt>Time</dt><span class="pv-lead"></span><dd data-pvclock>—</dd></div>
+				<div class="pv-row"><dt>Length</dt><span class="pv-lead"></span><dd data-pvlen>—</dd></div>
+			</dl>
+
+			<p class="pv-cta" data-pvcta>No registration link — the button is hidden.</p>
+		</aside>
+		</div>
 	  </div>
 	</template>
 </AdminLayout>
@@ -791,6 +820,34 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			});
 		}
 
+		/** The editor's preview, redrawn from a draft card's own fields. Same markup and
+		 *  the same two-line clamp as the storefront, so what it shows is what will ship. */
+		function paintDraftPreview(row: HTMLElement) {
+			const v = (sel: string) => (row.querySelector(sel) as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
+			const set = (sel: string, text: string) => {
+				const el = row.querySelector(sel) as HTMLElement | null;
+				if (el) el.textContent = text;
+			};
+			const start = fromInput(v('[data-start]')), end = fromInput(v('[data-end]'));
+
+			set('[data-pvtime]', start.slice(11) || '--:--');
+			set('[data-pvchip]', (v('[data-type]') || 'Event').toUpperCase());
+			set('[data-pvvenue]', (v('[data-venue]') || 'VENUE').toUpperCase());
+			set('[data-pvname]', v('[data-name]') || 'Event name');
+			set('[data-pvdesc]', v('[data-desc]') || 'The description shows here, clamped to two lines.');
+
+			const iso = start.slice(0, 10);
+			if (iso.length === 10) {
+				const p = dparts(iso);
+				set('[data-pvwhen]', `${p.wd} ${p.dd} ${p.mon}`);
+			} else set('[data-pvwhen]', '—');
+			set('[data-pvclock]', start && end ? `${start.slice(11)} – ${end.slice(11)}` : '—');
+			set('[data-pvlen]', start && end ? runLength(start, end) : '—');
+			set('[data-pvcta]', v('[data-reg]').trim()
+				? 'REGISTER button shows, linking to the form.'
+				: 'No registration link — the button is hidden.');
+		}
+
 		/** Staged, not uploaded: there is no event id to attach a poster to until the row
 		 *  has been created, so the file waits in its input and goes up straight after. */
 		function wirePosterDrop(row: HTMLElement) {
@@ -862,6 +919,10 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				renumber();
 			};
 			wirePosterDrop(node);
+			// One listener on the card, not one per field: every input bubbles to here and
+			// the preview is cheap to redraw whole.
+			node.addEventListener('input', () => paintDraftPreview(node));
+			paintDraftPreview(node);
 			draftsBox.appendChild(node);
 			renumber();
 			return node;
@@ -1262,10 +1323,19 @@ import iX from 'lucide-static/icons/x.svg?raw';
 
 	/* ---- add: the card and its poster, side by side ---- */
 	.ev-draft-row {
-		display: grid; grid-template-columns: minmax(0, 1fr) 232px;
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(288px, 0.68fr);
 		gap: 14px; align-items: stretch;
 	}
 	.ev-draft-row > .ev-draft { margin: 0; }
+	/* The same split the editor uses: poster above, taller, preview sized to its content
+	   underneath. minmax so the plate never collapses on a short window. */
+	.ev-draft-right {
+		display: grid; grid-template-rows: minmax(180px, 1fr) auto; gap: 14px; min-height: 0;
+	}
+	.ev-draft-preview { background: var(--sink); gap: 14px; }
+	/* The description takes the slack in a draft too, but with a ceiling — unbounded it
+	   became a 400px box on a tall monitor while every other field stayed 40px. */
+	.ev-draft .ev-field-grow textarea { max-height: 240px; }
 
 	/* Cards tile instead of stacking. One card stretched across a wide monitor put a
 	   40-character Name field at 1368px, which is unreadable and looks broken; auto-fill
@@ -1281,9 +1351,10 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		   grid's BOX stayed at the pane height while its content overflowed — and the
 		   button after it rendered on top of the overflow. */
 		display: grid; flex: 1 0 auto; align-items: stretch; gap: 14px;
-		/* Wider floor than before: a row is now a card PLUS a 232px poster box, and at
-		   480px the fields were squeezed into a column narrower than the plate. */
-		grid-template-columns: repeat(auto-fill, minmax(min(100%, 720px), 1fr));
+		/* One card per row. A row is now three panels wide — fields, poster, preview — so
+		   tiling two across a monitor left the fields narrower than the plate beside them,
+		   and with a single card the second track was simply empty paper. */
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.ev-draft {
 		display: flex; flex-direction: column; gap: 12px;
@@ -1361,6 +1432,7 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		   the plate goes under the card and lies down — a portrait box across the full
 		   width would be a screen of its own. */
 		.ev-draft-row { grid-template-columns: minmax(0, 1fr); }
+		.ev-draft-right { grid-template-rows: auto auto; }
 		/* Stacked there is no column height to fill, so the plate goes back to setting
 		   its own — landscape, because a portrait box across the full width of the pane
 		   would be a screen of its own. */
