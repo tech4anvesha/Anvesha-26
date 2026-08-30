@@ -1,0 +1,517 @@
+/**
+ * Anvesha '26 events API — a Cloudflare Worker of its own.
+ *
+ *   GET    /api/events              upcoming, soonest first          [public]
+ *   GET    /api/events/past         already happened, newest first   [public]
+ *   POST   /api/events              add to the schedule              [admin]
+ *   PUT    /api/events/:id          edit a scheduled event           [admin]
+ *   DELETE /api/events/:id          drop a scheduled event           [admin]
+ *   PUT    /api/events/past/:id     add gallery link + summary       [admin]
+ *   POST   /api/events/sweep        run the archive sweep now        [admin]
+ *   GET    /api/events/:id/poster   poster image, streamed from R2   [public]
+ *   POST   /api/events/:id/poster   upload/replace a poster          [admin]
+ *   DELETE /api/events/:id/poster   remove a poster                  [admin]
+ *
+ * Separate deployment from the merch Worker, same D1 database. It shares nothing with
+ * merch but the admin_login table — signing in on the existing admin panel has to let
+ * you edit events too, and re-implementing a second login would mean a second password
+ * to rotate and a second audit trail to read.
+ *
+ * The cron trigger (every 15 minutes, see wrangler.jsonc) is what moves an event from
+ * events_scheduled to events_done once its end time has passed.
+ */
+
+// ============================================================
+// env + small helpers
+// ============================================================
+
+export interface Env {
+	DB: D1Database;
+	// The merch bucket. Posters live under the `events/` prefix inside it.
+	MEDIA: R2Bucket;
+	ALLOWED_ORIGINS: string;
+	ENVIRONMENT: string;
+}
+
+type Cors = Record<string, string>;
+
+/** An admin session is good for this long after login — matches the merch Worker. */
+const SESSION_HOURS = 12;
+
+/**
+ * Everything in this table is naive IST, so "now" has to be built the same way before
+ * it can be compared. Fixed +05:30 with no DST, which India does not observe.
+ *
+ * ponytail: a constant, not a timezone library. If this ever has to serve a fest in a
+ * second timezone, that is the moment to reach for Intl.DateTimeFormat — not before.
+ */
+const IST_OFFSET_MIN = 330;
+
+/** 'YYYY-MM-DD HH:MM' in IST for a given instant. */
+export function istStamp(at: number = Date.now()): string {
+	return new Date(at + IST_OFFSET_MIN * 60_000).toISOString().slice(0, 16).replace('T', ' ');
+}
+
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no I, L, O, U
+/** `EVT_` + 40 bits of randomness. Public data, so it only has to be unique. */
+export function newEventId(): string {
+	const raw = crypto.getRandomValues(new Uint8Array(5));
+	let bits = 0, value = 0, out = '';
+	for (const byte of raw) {
+		value = (value << 8) | byte;
+		bits += 8;
+		while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+	}
+	return 'EVT_' + out;
+}
+
+export const looksLikeEventId = (v: unknown): v is string =>
+	typeof v === 'string' && /^EVT_[0-9A-HJKMNP-TV-Z]{8}$/.test(v);
+
+class ApiError extends Error {
+	status: number;
+	code: string;
+	constructor(status: number, code: string, message: string) {
+		super(message);
+		this.status = status;
+		this.code = code;
+	}
+}
+const bad = (code: string, message: string) => new ApiError(400, code, message);
+const notFound = (m = 'Not found') => new ApiError(404, 'not_found', m);
+const unauthorized = (m = 'Unauthorized') => new ApiError(401, 'unauthorized', m);
+
+function corsHeaders(env: Env, req: Request): Cors {
+	const origin = req.headers.get('Origin') ?? '';
+	const allowed = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+	const base: Cors = {
+		'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+		'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+		'Access-Control-Max-Age': '86400',
+		Vary: 'Origin',
+	};
+	// Never '*' and never a reflected stranger: the admin routes carry an
+	// Authorization header, so an unlisted origin gets no Allow-Origin header at all.
+	if (!allowed.includes(origin)) return base;
+	return { ...base, 'Access-Control-Allow-Origin': origin };
+}
+
+const json = (data: unknown, init: ResponseInit = {}, cors: Cors = {}) =>
+	new Response(JSON.stringify(data), {
+		...init,
+		headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors, ...(init.headers ?? {}) },
+	});
+
+async function readJson<T>(req: Request, maxBytes = 16_384): Promise<T> {
+	const text = await req.text();
+	if (text.length > maxBytes) throw bad('payload_too_large', 'Request body too large');
+	try {
+		return JSON.parse(text) as T;
+	} catch {
+		throw bad('invalid_json', 'Body is not valid JSON');
+	}
+}
+
+// ============================================================
+// auth — the merch Worker's session, read from the shared D1
+// ============================================================
+
+/** Throws 401 unless the Bearer token is a live admin session. */
+async function requireAdmin(env: Env, req: Request): Promise<void> {
+	const header = req.headers.get('Authorization') ?? '';
+	const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+	if (!token) throw unauthorized('Not signed in');
+
+	// login_validation is a single fixed row and is read on every request, not cached,
+	// so flipping `active` to 0 locks out sessions that are already open. Expiry lives
+	// in the WHERE clause — an aged-out session simply stops matching.
+	const row = await env.DB.prepare(
+		`SELECT v.active
+		   FROM admin_login a, login_validation v
+		  WHERE a.session_token = ?
+		    AND a.logout_time IS NULL
+		    AND a.login_time > datetime('now', ?)
+		    AND v.id = 1`,
+	)
+		.bind(token, `-${SESSION_HOURS} hours`)
+		.first<{ active: number }>();
+
+	if (!row) throw unauthorized('Session expired — sign in again');
+	if (row.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
+}
+
+// ============================================================
+// validation
+// ============================================================
+
+const STAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+
+function str(v: unknown, field: string, max: number, required = true): string {
+	const s = typeof v === 'string' ? v.trim() : '';
+	if (!s) {
+		if (required) throw bad('missing_field', `${field} is required`);
+		return '';
+	}
+	if (s.length > max) throw bad('field_too_long', `${field} is too long (max ${max})`);
+	return s;
+}
+
+/** Accepts 'YYYY-MM-DD HH:MM' and also the 'YYYY-MM-DDTHH:MM' an <input type="datetime-local"> sends. */
+function stamp(v: unknown, field: string): string {
+	const s = typeof v === 'string' ? v.trim().replace('T', ' ').slice(0, 16) : '';
+	if (!STAMP.test(s)) throw bad('bad_datetime', `${field} must look like 2026-02-14 10:00`);
+	// Regex shape is not calendar validity — 2026-02-31 matches it and 2026-02-30 does not exist.
+	const [d, t] = s.split(' ');
+	const iso = new Date(`${d}T${t}:00Z`);
+	if (Number.isNaN(iso.getTime()) || iso.toISOString().slice(0, 10) !== d) {
+		throw bad('bad_datetime', `${field} is not a real date`);
+	}
+	return s;
+}
+
+/**
+ * A link goes straight into an href on the page, so the scheme is the trust boundary:
+ * `javascript:...` in this column is stored XSS on the events page. http/https only.
+ * Empty means "no link" and is stored as NULL, never as ''.
+ */
+function link(v: unknown, field: string): string | null {
+	const s = typeof v === 'string' ? v.trim() : '';
+	if (!s) return null;
+	if (s.length > 500) throw bad('field_too_long', `${field} is too long (max 500)`);
+	let u: URL;
+	try {
+		u = new URL(s);
+	} catch {
+		throw bad('bad_link', `${field} must be a full URL starting with https://`);
+	}
+	if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+		throw bad('bad_link', `${field} must be an http(s) URL`);
+	}
+	return s;
+}
+
+interface EventBody {
+	name?: unknown; starts_at?: unknown; ends_at?: unknown; venue?: unknown;
+	description?: unknown; registration_link?: unknown; event_type?: unknown;
+}
+
+/** Everything the scheduled table needs, validated. Shared by create and update. */
+function parseEvent(body: EventBody) {
+	const starts_at = stamp(body.starts_at, 'starts_at');
+	const ends_at = stamp(body.ends_at, 'ends_at');
+	if (ends_at <= starts_at) throw bad('bad_datetime', 'ends_at must be after starts_at');
+	return {
+		name: str(body.name, 'name', 160),
+		starts_at,
+		ends_at,
+		venue: str(body.venue, 'venue', 160),
+		description: str(body.description, 'description', 4000, false),
+		registration_link: link(body.registration_link, 'registration_link'),
+		event_type: str(body.event_type, 'event_type', 40, false) || 'Event',
+	};
+}
+
+// ============================================================
+// posters
+// ============================================================
+
+/** Only formats every browser and R2 will serve back without transcoding. */
+const IMAGE_TYPES: Record<string, string> = {
+	'image/jpeg': 'jpg',
+	'image/png': 'png',
+	'image/webp': 'webp',
+	'image/avif': 'avif',
+};
+const MAX_POSTER_BYTES = 6 * 1024 * 1024;
+
+/** Which table holds this id, and what its poster key is. One round trip, not two. */
+async function findEvent(env: Env, id: string) {
+	const row = await env.DB.prepare(
+		`SELECT 'scheduled' AS tbl, poster_path FROM events_scheduled WHERE event_id = ?
+		 UNION ALL
+		 SELECT 'done' AS tbl, poster_path FROM events_done WHERE event_id = ?`,
+	)
+		.bind(id, id)
+		.first<{ tbl: 'scheduled' | 'done'; poster_path: string | null }>();
+	return row;
+}
+const tableOf = (tbl: 'scheduled' | 'done') => (tbl === 'scheduled' ? 'events_scheduled' : 'events_done');
+
+/**
+ * The poster is served through the Worker rather than from a public bucket URL so it
+ * carries this Worker's CORS and cache headers — and so replacing one does not require
+ * anything that references it to learn a new address.
+ */
+async function getPoster(env: Env, id: string, cors: Cors, req: Request, ctx?: ExecutionContext) {
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+
+	const cache = caches.default;
+	const cacheKey = new Request(new URL(req.url).toString(), { method: 'GET' });
+	const hit = await cache.match(cacheKey);
+	if (hit) {
+		// CORS is per-origin and must not come out of a shared cache, so the live headers
+		// are merged back over whatever the stored copy carries.
+		const headers = new Headers(hit.headers);
+		for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+		return new Response(hit.body, { headers, status: hit.status });
+	}
+
+	const row = await findEvent(env, id);
+	if (!row) throw notFound('No such event');
+	if (!row.poster_path) throw notFound('No poster for this event');
+
+	const object = await env.MEDIA.get(row.poster_path);
+	if (!object) throw notFound('Poster missing from storage');
+
+	const headers = new Headers(cors);
+	object.writeHttpMetadata(headers); // Content-Type as uploaded
+	headers.set('etag', object.httpEtag);
+	headers.set('Cache-Control', 'public, max-age=86400');
+
+	const res = new Response(object.body, { headers });
+	// clone(), not arrayBuffer(): the body stays a stream, so bytes start arriving
+	// immediately instead of after the whole image has buffered.
+	if (ctx) ctx.waitUntil(cache.put(cacheKey, res.clone()));
+	return res;
+}
+
+/** The edge cache is keyed by URL and the URL never changes, so a replaced poster would
+ *  keep serving the old bytes for a day. Dropped on every write. */
+async function purgePoster(req: Request, id: string) {
+	try {
+		const { origin } = new URL(req.url);
+		await caches.default.delete(`${origin}/api/events/${encodeURIComponent(id)}/poster`);
+	} catch (e) {
+		// A stale image is not worth failing an upload that already committed.
+		console.error('events: poster purge failed', e);
+	}
+}
+
+async function putPoster(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+
+	const row = await findEvent(env, id);
+	if (!row) throw notFound('No such event');
+
+	const form = await req.formData().catch(() => null);
+	if (!form) throw bad('bad_body', 'Expected multipart form data');
+	const file = form.get('poster');
+	if (!(file instanceof File) || file.size === 0) throw bad('no_file', 'No poster in the request');
+
+	const ext = IMAGE_TYPES[file.type];
+	if (!ext) throw bad('bad_image_type', `Unsupported image type ${file.type || 'unknown'}`);
+	if (file.size > MAX_POSTER_BYTES) throw bad('image_too_large', 'The poster must be 6MB or smaller');
+
+	// Keyed by id AND extension, so replacing a PNG with a JPEG writes a new object
+	// rather than leaving a .png key holding JPEG bytes. The old one is deleted after
+	// the row is updated — losing the delete costs storage; losing the update would
+	// leave the row pointing at nothing.
+	const key = `events/${id}.${ext}`;
+	await env.MEDIA.put(key, file.stream(), {
+		httpMetadata: { contentType: file.type, cacheControl: 'public, max-age=86400' },
+	});
+	await env.DB.prepare(`UPDATE ${tableOf(row.tbl)} SET poster_path = ? WHERE event_id = ?`)
+		.bind(key, id)
+		.run();
+	if (row.poster_path && row.poster_path !== key) await env.MEDIA.delete(row.poster_path);
+	await purgePoster(req, id);
+
+	return json({ event_id: id, has_poster: true }, {}, cors);
+}
+
+async function deletePoster(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+
+	const row = await findEvent(env, id);
+	if (!row) throw notFound('No such event');
+
+	await env.DB.prepare(`UPDATE ${tableOf(row.tbl)} SET poster_path = NULL WHERE event_id = ?`)
+		.bind(id)
+		.run();
+	if (row.poster_path) await env.MEDIA.delete(row.poster_path);
+	await purgePoster(req, id);
+
+	return json({ event_id: id, has_poster: false }, {}, cors);
+}
+
+// ============================================================
+// the sweep — scheduled -> done, once the end time has passed
+// ============================================================
+
+/**
+ * Moves every event whose end time is in the past into events_done.
+ *
+ * One batch, which D1 runs as a single transaction: without that the DELETE could land
+ * after a failed INSERT and take the events with it. INSERT OR IGNORE covers the row
+ * that is somehow already in events_done — the DELETE then finishes the job that was
+ * half-done, rather than the whole sweep failing on one duplicate id.
+ *
+ * Idempotent by construction, so running it twice, or by hand, costs nothing.
+ */
+export async function sweep(env: Env, now = istStamp()): Promise<number> {
+	const [moved] = await env.DB.batch([
+		env.DB.prepare(
+			`INSERT OR IGNORE INTO events_done
+			   (event_id, name, starts_at, ends_at, venue, description, event_type, poster_path)
+			 SELECT event_id, name, starts_at, ends_at, venue, description, event_type, poster_path
+			   FROM events_scheduled WHERE ends_at <= ?`,
+		).bind(now),
+		env.DB.prepare(`DELETE FROM events_scheduled WHERE ends_at <= ?`).bind(now),
+	]);
+	return moved.meta.changes ?? 0;
+}
+
+// ============================================================
+// routes
+// ============================================================
+
+async function listScheduled(env: Env, cors: Cors): Promise<Response> {
+	// has_poster, not poster_path: the R2 key is storage detail the page has no use for,
+	// and the image is fetched from /poster regardless of what it is stored as.
+	const { results } = await env.DB.prepare(
+		`SELECT event_id, name, starts_at, ends_at, venue, description, registration_link, event_type,
+		        poster_path IS NOT NULL AS has_poster
+		   FROM events_scheduled ORDER BY starts_at ASC`,
+	).all();
+	// A row whose end time has passed but that the cron has not reached yet would
+	// otherwise show as upcoming for up to 15 minutes. Filtering here rather than
+	// shortening the cron keeps the page honest at zero extra cost.
+	const now = istStamp();
+	return json({ events: results.filter((r: any) => r.ends_at > now) }, {}, cors);
+}
+
+async function listDone(env: Env, cors: Cors): Promise<Response> {
+	const { results } = await env.DB.prepare(
+		`SELECT event_id, name, starts_at, ends_at, venue, description, gallery_link, summary, event_type,
+		        poster_path IS NOT NULL AS has_poster
+		   FROM events_done ORDER BY ends_at DESC`,
+	).all();
+	return json({ events: results }, {}, cors);
+}
+
+async function createEvent(env: Env, req: Request, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	const e = parseEvent(await readJson<EventBody>(req));
+	const event_id = newEventId();
+	await env.DB.prepare(
+		`INSERT INTO events_scheduled
+		   (event_id, name, starts_at, ends_at, venue, description, registration_link, event_type)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+	)
+		.bind(event_id, e.name, e.starts_at, e.ends_at, e.venue, e.description, e.registration_link, e.event_type)
+		.run();
+	return json({ event_id, ...e }, { status: 201 }, cors);
+}
+
+async function updateEvent(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+	const e = parseEvent(await readJson<EventBody>(req));
+	const res = await env.DB.prepare(
+		`UPDATE events_scheduled
+		    SET name = ?, starts_at = ?, ends_at = ?, venue = ?, description = ?,
+		        registration_link = ?, event_type = ?
+		  WHERE event_id = ?`,
+	)
+		.bind(e.name, e.starts_at, e.ends_at, e.venue, e.description, e.registration_link, e.event_type, id)
+		.run();
+	if (!res.meta.changes) throw notFound('No such event');
+	return json({ event_id: id, ...e }, {}, cors);
+}
+
+async function deleteEvent(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+	// Read the key before the row goes: afterwards there is nothing left to say which
+	// object belonged to it, and an orphan in R2 costs storage forever.
+	const row = await findEvent(env, id);
+	const res = await env.DB.prepare(`DELETE FROM events_scheduled WHERE event_id = ?`).bind(id).run();
+	if (!res.meta.changes) throw notFound('No such event');
+	if (row?.poster_path) {
+		await env.MEDIA.delete(row.poster_path).catch((e) => console.error('events: poster delete failed', e));
+		await purgePoster(req, id);
+	}
+	return json({ ok: true }, {}, cors);
+}
+
+/**
+ * The only two fields a past event has that a scheduled one does not. Everything else
+ * about it is history and is deliberately not editable here — if a name or a venue was
+ * wrong, it was wrong on the day.
+ */
+async function updateDone(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+	const body = await readJson<{ gallery_link?: unknown; summary?: unknown }>(req);
+	const gallery_link = link(body.gallery_link, 'gallery_link');
+	const summary = str(body.summary, 'summary', 4000, false) || null;
+	const res = await env.DB.prepare(
+		`UPDATE events_done SET gallery_link = ?, summary = ? WHERE event_id = ?`,
+	)
+		.bind(gallery_link, summary, id)
+		.run();
+	if (!res.meta.changes) throw notFound('No such event');
+	return json({ event_id: id, gallery_link, summary }, {}, cors);
+}
+
+// ============================================================
+// entry points
+// ============================================================
+
+export default {
+	async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		const cors = corsHeaders(env, req);
+		if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+
+		const { pathname } = new URL(req.url);
+		const method = req.method;
+
+		try {
+			if (method === 'GET' && pathname === '/api/events') return await listScheduled(env, cors);
+			if (method === 'GET' && pathname === '/api/events/past') return await listDone(env, cors);
+			if (method === 'POST' && pathname === '/api/events') return await createEvent(env, req, cors);
+			if (method === 'POST' && pathname === '/api/events/sweep') {
+				await requireAdmin(env, req);
+				return json({ moved: await sweep(env) }, {}, cors);
+			}
+
+			const poster = pathname.match(/^\/api\/events\/([^/]+)\/poster$/);
+			if (poster) {
+				const id = decodeURIComponent(poster[1]);
+				if (method === 'GET') return await getPoster(env, id, cors, req, ctx);
+				if (method === 'POST') return await putPoster(env, req, id, cors);
+				if (method === 'DELETE') return await deletePoster(env, req, id, cors);
+			}
+
+			// /past/:id before /:id — otherwise 'past' is read as an event id.
+			const past = pathname.match(/^\/api\/events\/past\/([^/]+)$/);
+			if (method === 'PUT' && past) return await updateDone(env, req, decodeURIComponent(past[1]), cors);
+
+			const one = pathname.match(/^\/api\/events\/([^/]+)$/);
+			if (one) {
+				const id = decodeURIComponent(one[1]);
+				if (method === 'PUT') return await updateEvent(env, req, id, cors);
+				if (method === 'DELETE') return await deleteEvent(env, req, id, cors);
+			}
+
+			return json({ error: 'not_found', message: 'Unknown route' }, { status: 404 }, cors);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return json({ error: err.code, message: err.message }, { status: err.status }, cors);
+			}
+			console.error('events: unhandled', err);
+			return json({ error: 'server_error', message: 'Something went wrong' }, { status: 500 }, cors);
+		}
+	},
+
+	/** Cron trigger. The whole reason two tables can stay in sync without anyone looking. */
+	async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(
+			sweep(env)
+				.then((n) => n && console.log(`events: archived ${n}`))
+				.catch((e) => console.error('events: sweep failed', e)),
+		);
+	},
+};

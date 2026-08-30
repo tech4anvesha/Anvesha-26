@@ -1,0 +1,53 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "anvesha-events-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-01",
+	"observability": {
+		"enabled": true
+	},
+	// The SAME database the merch Worker uses. Two Workers, one D1 — they share no rows
+	// except admin_login, which is the point: one admin password, one audit trail.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "anvesha",
+			"database_id": "55c2dd34-3151-4167-9799-2bf9b2c8d06b"
+		}
+	],
+	// The SAME bucket the merch Worker writes to. The name says "merch" and the posters
+	// are not merch — but a second bucket is a second thing to configure, bill and back
+	// up for no gain, and the `events/` prefix keeps the two sets apart inside it.
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "anvesha-merch"
+		}
+	],
+	// Every 15 minutes: an event whose end time has passed moves to events_done. The
+	// public list also filters by end time, so nothing shows as upcoming in the gap —
+	// this only has to be frequent enough that the past-events page is not stale, not
+	// second-accurate.
+	"triggers": {
+		"crons": ["*/15 * * * *"]
+	},
+	"vars": {
+		"ENVIRONMENT": "development",
+		// `wrangler deploy` with no --env ships this block, so everything listed here is
+		// LIVE. The merch Worker keeps dev origins out of its copy entirely; this one
+		// carries them because the events page is developed against the DEPLOYED Worker
+		// rather than a local one, and .dev.vars only reaches `wrangler dev`.
+		//
+		// That is a deliberate trade and a small one: every route these origins can reach
+		// without a Bearer token is already public read-only data. The admin writes are
+		// unaffected — they need an admin session, which CORS does not grant.
+		//
+		// DEV ORIGINS — delete the third line before the fest goes live.
+		//   The LAN address is whatever `npm run dev -- --host` prints for testing on a
+		//   phone. It is DHCP-assigned, so it changes when the router hands out a new
+		//   lease; update it here and redeploy when the phone starts getting CORS errors.
+		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app,http://localhost:4321,http://127.0.0.1:4321,http://192.168.216.147:4321"
+	}
+	// No secrets. Admin auth is the session token in the shared D1, so there is nothing
+	// here to `wrangler secret put`.
+}

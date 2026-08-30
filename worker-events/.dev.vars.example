@@ -1,0 +1,4 @@
+# Copy to .dev.vars (git-ignored) for `wrangler dev`. This overrides the vars block in
+# wrangler.jsonc, which is deliberately production-only.
+ALLOWED_ORIGINS="http://localhost:4321,http://127.0.0.1:4321"
+ENVIRONMENT="development"

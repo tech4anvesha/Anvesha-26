@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    // Workers types ONLY — with Node's loaded, `Buffer` and `process` would typecheck
+    // in worker source and then fail at runtime.
+    "types": ["@cloudflare/workers-types"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
