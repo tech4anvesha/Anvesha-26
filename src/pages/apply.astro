@@ -1,0 +1,204 @@
+---
+/**
+ * Crew details form.
+ *
+ * The form itself lives on Tally (id objE4O) and is embedded here rather than rebuilt:
+ * Tally owns the storage, the file uploads and the responses, and someone who does not
+ * write code can change a question without a deploy. What this page owns is the frame —
+ * the page furniture, the instructions and the tone.
+ *
+ * ponytail: the embed, not a hand-rolled form. A form of our own would mean a table, an
+ * upload route, a review screen and a spam story, all to collect fifty rows once.
+ */
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+import iId from 'lucide-static/icons/id-card.svg?raw';
+import iCamera from 'lucide-static/icons/camera.svg?raw';
+import iPen from 'lucide-static/icons/pen-line.svg?raw';
+
+const FORM_ID = 'objE4O';
+
+// The embed's own chrome is switched off so the page's chrome is the only chrome:
+// no Tally title, no card, transparent ground, and a height that follows the content
+// instead of a scrollbar inside a scrollbar.
+const EMBED = `https://tally.so/embed/${FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`;
+
+const STEPS = [
+	{ icon: iId, label: 'Who you are',
+	  text: 'Name, roll number, batch, department and whether you are a head or a co-head. This is what the card on the Teams page reads.' },
+	{ icon: iCamera, label: 'One photo',
+	  text: 'Head and shoulders, portrait, at least 600px wide. Plain background if you can manage one — it sits in a fixed frame beside your details.' },
+	{ icon: iPen, label: 'Something you want to say',
+	  text: 'The only part in your own words. A line or two: why you are here, what you are building, what you would tell someone joining next year.' },
+];
+---
+
+<SiteLayout title="Apply · Anvesha '26">
+	<div class="page">
+		<header class="page-head" data-reveal>
+			<p class="eyebrow">For the crew</p>
+			<h1 class="page-title">Your details</h1>
+			<p class="lede">
+				Everything on the Teams page comes from this form. Fill it in once, properly —
+				it is the version of you the whole fest reads.
+			</p>
+		</header>
+
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">What it asks for</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta"><b>3</b> minutes</span>
+			</div>
+
+			<ol class="ap-steps">
+				{STEPS.map((s, i) => (
+					<li class="ap-step">
+						<span class="ap-step-n">{String(i + 1).padStart(2, '0')}</span>
+						<span class="ap-step-icon" set:html={s.icon} />
+						<div class="ap-step-body">
+							<h2 class="ap-step-label">{s.label}</h2>
+							<p class="ap-step-text">{s.text}</p>
+						</div>
+					</li>
+				))}
+			</ol>
+		</section>
+
+		<section class="section ap-form-section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">The form</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">College email only</span>
+			</div>
+
+			<div class="ap-frame">
+				{/* title/aria-label rather than nothing: the frame is the only thing a
+				    screen reader has to go on before the embed loads. */}
+				<iframe
+					class="ap-embed"
+					id="apEmbed"
+					src={EMBED}
+					title="Anvesha '26 crew details form"
+					loading="lazy"
+					width="100%"
+					height="760"
+					frameborder="0"
+					marginheight="0"
+					marginwidth="0"
+				></iframe>
+
+				{/* Shown only if the embed cannot load — a blocked iframe otherwise leaves a
+				    blank rectangle with nothing to click. */}
+				<noscript>
+					<p class="ap-fallback">
+						The form needs JavaScript. Open it directly at
+						<a href={`https://tally.so/r/${FORM_ID}`}>tally.so/r/{FORM_ID}</a>.
+					</p>
+				</noscript>
+			</div>
+
+			<p class="ap-note">
+				Trouble with the embed? The form also lives at
+				<a class="ap-link" href={`https://tally.so/r/${FORM_ID}`} target="_blank" rel="noopener">
+					tally.so/r/{FORM_ID}</a>.
+				Responses go to the fest desk; your phone number is used to reach you during the
+				fest and is not published.
+			</p>
+		</section>
+	</div>
+</SiteLayout>
+
+<script>
+	// Tally's widget script rewrites [data-tally-src] iframes and drives dynamic height.
+	// It is loaded once and re-run on every client-router navigation, because the script
+	// only scans the document when it first executes — without the re-run the embed keeps
+	// its fallback height after any in-app navigation.
+	const SRC = 'https://tally.so/widgets/embed.js';
+
+	function loadTally() {
+		if (!document.getElementById('apEmbed')) return;
+
+		const w = window as unknown as { Tally?: { loadEmbeds: () => void } };
+		if (w.Tally) return w.Tally.loadEmbeds();
+
+		if (document.querySelector(`script[src="${SRC}"]`)) return;
+		const s = document.createElement('script');
+		s.src = SRC;
+		s.async = true;
+		// A blocked or failed widget script must not leave a dead panel: the iframe has a
+		// real src of its own, so it still renders at its fallback height.
+		s.onerror = () => console.error('[apply] Tally embed script failed to load');
+		document.body.appendChild(s);
+	}
+
+	document.addEventListener('astro:page-load', loadTally);
+</script>
+
+<style is:global>
+	/* ---- what it asks for ---- */
+	.ap-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+	.ap-step {
+		display: grid; grid-template-columns: auto auto minmax(0, 1fr);
+		align-items: start; gap: 0 16px;
+		padding: 18px 0;
+		border-bottom: 1.5px solid var(--hair);
+	}
+	.ap-step:first-child { padding-top: 4px; }
+	.ap-step:last-child { border-bottom: 0; padding-bottom: 4px; }
+	.ap-step-n {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .1em; color: var(--accent); padding-top: 3px;
+	}
+	.ap-step-icon { display: block; line-height: 0; color: var(--secondary); padding-top: 1px; }
+	.ap-step-icon svg { width: 19px; height: 19px; stroke-width: 1.8; }
+	.ap-step-body { min-width: 0; }
+	.ap-step-label {
+		margin: 0 0 6px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(14px, 1.6vw, 16px);
+		line-height: 1.1; letter-spacing: -0.01em; text-transform: uppercase;
+	}
+	.ap-step-text {
+		margin: 0; max-width: 72ch;
+		font-size: 13px; line-height: 1.65; color: var(--ink-60); text-wrap: pretty;
+	}
+
+	/* ---- the embed ----
+	   Tally's own card, title and background are switched off in the embed URL, so the
+	   only frame around the questions is this one — hard ink border and the offset purple
+	   shadow every other panel on the site carries. */
+	.ap-frame {
+		position: relative;
+		padding: clamp(14px, 2vw, 26px);
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop);
+	}
+	.ap-embed {
+		display: block; width: 100%; border: 0;
+		/* A floor, not a height: Tally's script replaces this the moment it measures the
+		   form. Without one the iframe collapses to 150px while the script loads. */
+		min-height: 760px;
+	}
+	.ap-fallback, .ap-note {
+		margin: 16px 0 0; max-width: 72ch;
+		font-size: 12.5px; line-height: 1.7; color: var(--ink-60);
+	}
+	.ap-fallback { margin: 0; }
+	.ap-link, .ap-fallback a {
+		color: var(--secondary); text-decoration: underline;
+		text-underline-offset: 3px; text-decoration-color: var(--accent);
+		text-decoration-thickness: 2px;
+	}
+	.ap-link:hover, .ap-fallback a:hover { color: var(--accent); }
+
+	@media (max-width: 720px) {
+		.ap-step { grid-template-columns: auto minmax(0, 1fr); gap: 0 12px; }
+		/* the number is the marker on a phone; two glyph columns beside 300px of text is
+		   more furniture than the row can carry */
+		.ap-step-icon { display: none; }
+		.ap-frame { padding: 12px; }
+		.ap-embed { min-height: 900px; }
+	}
+</style>

@@ -1,218 +1,58 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
+import { EVENTS_API } from '../lib/api';
 
 import iMic from 'lucide-static/icons/mic-vocal.svg?raw';
 import iTelescope from 'lucide-static/icons/telescope.svg?raw';
 import iGlobe from 'lucide-static/icons/globe.svg?raw';
 import iBrain from 'lucide-static/icons/brain.svg?raw';
-import iCpu from 'lucide-static/icons/cpu.svg?raw';
-import iCamera from 'lucide-static/icons/camera.svg?raw';
-import iDna from 'lucide-static/icons/dna.svg?raw';
 import iWrench from 'lucide-static/icons/wrench.svg?raw';
 import iBot from 'lucide-static/icons/bot.svg?raw';
 import iCode from 'lucide-static/icons/code.svg?raw';
 import iTrophy from 'lucide-static/icons/trophy.svg?raw';
-import iRocket from 'lucide-static/icons/rocket.svg?raw';
 import iAtom from 'lucide-static/icons/atom.svg?raw';
-import iSatellite from 'lucide-static/icons/satellite.svg?raw';
-import iLeaf from 'lucide-static/icons/leaf.svg?raw';
-import iX from 'lucide-static/icons/x.svg?raw';
-import iChevL from 'lucide-static/icons/chevron-left.svg?raw';
-import iChevR from 'lucide-static/icons/chevron-right.svg?raw';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iUsers from 'lucide-static/icons/users.svg?raw';
 import iPresentation from 'lucide-static/icons/presentation.svg?raw';
-import iRadio from 'lucide-static/icons/radio.svg?raw';
-import iWind from 'lucide-static/icons/wind.svg?raw';
-import iGlassWater from 'lucide-static/icons/glass-water.svg?raw';
-import iMicroscope from 'lucide-static/icons/microscope.svg?raw';
-import iPenTool from 'lucide-static/icons/pen-tool.svg?raw';
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iChevL from 'lucide-static/icons/chevron-left.svg?raw';
+import iChevR from 'lucide-static/icons/chevron-right.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 
-type Ev = {
-	id: string; name: string; track: string; time: string; venue: string;
-	cap: string; short: string; full: string; icon: string;
-	year?: string; summary?: string;
-};
-
-// ponytail: ONE record per event. The timeline, the clock and the file popup are three
-// readings of this same array — nothing is written twice, so nothing can disagree.
-const DAYS: { id: string; label: string; date: string; iso: string; note: string; items: Ev[] }[] = [
-	{
-		id: 'fri', label: 'Friday', date: '06 Feb', iso: '2026-02-06', note: 'Opening day',
-		items: [
-			{ id: 'e01', name: 'Frontiers Lecture', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iMic,
-			  short: 'Opening keynote on where the next decade of research actually goes.',
-			  full: 'The fest opens with a survey of the problems that will still be open in 2036 — and the handful that almost certainly will not be. Expect an argument rather than a summary: the speaker has spent twenty years being publicly wrong about timelines and is unusually candid about why. Doors open thirty minutes early; the first two rows are held for visiting school groups.' },
-			{ id: 'e02', name: 'Arduino from Scratch', track: 'Workshop', time: '11:30', venue: 'Lab 204', cap: '40 seats', icon: iCpu,
-			  short: 'Build and flash a working sensor rig. Boards provided, keep your code.',
-			  full: 'Three hours from an empty breadboard to a device that logs temperature and humidity to an SD card. Boards, sensors and jumpers are provided and stay with the lab, but the firmware you write is yours to take. No prior electronics experience assumed — the first forty minutes are spent on why a pull-up resistor exists at all. Bring a laptop with a USB-A port or an adapter.' },
-			{ id: 'e03', name: 'What the Telescope Saw', track: 'Talk', time: '14:30', venue: 'Main Auditorium', cap: '600 seats', icon: iTelescope,
-			  short: 'Deep-field imaging, and reading light that left before Earth existed.',
-			  full: 'A working tour of how a deep-field image is actually assembled: the stacking, the calibration frames, the artefacts that get mistaken for discoveries every few years. The second half looks at three images in detail and asks what each one is genuinely evidence of. Slides are shared afterwards; the raw frames are available on request for anyone who wants to reduce them independently.' },
-			{ id: 'e04', name: 'Robowars', track: 'Competition', time: '15:00', venue: 'Arena, Ground 2', cap: '32 teams', icon: iBot,
-			  short: '8kg class, single elimination. Pit access opens an hour before.',
-			  full: 'Single-elimination brackets in the 8kg class, three minutes a bout, judged on damage and control if no knockout. Standard safety rules apply: link removal within five seconds, no untethered projectiles, no fire. The pits open at 14:00 and a scrutineer signs off every machine before it enters the arena. Spare parts trading in the pit lane is a tradition and not officially discouraged.' },
-			{ id: 'e05', name: 'Astrophotography Basics', track: 'Workshop', time: '18:00', venue: 'Rooftop, Block C', cap: '25 seats', icon: iCamera,
-			  short: 'Stacking, tracking and noise. Bring a camera if you have one.',
-			  full: 'Starts indoors with the theory of why a single long exposure loses to fifty short ones, then moves to the roof once it is properly dark. Two tracking mounts and a pair of DSLRs are shared between the group; bring your own body if you have one, any mount is fine. Runs late and is entirely weather-dependent — the fallback is a processing session on last year’s data, which is honestly not a bad outcome.' },
-		],
-	},
-	{
-		id: 'sat', label: 'Saturday', date: '07 Feb', iso: '2026-02-07', note: 'Busiest day',
-		items: [
-			{ id: 'e06', name: 'Code Sprint', track: 'Competition', time: '09:00', venue: 'Computer Centre', cap: '60 teams', icon: iCode,
-			  short: 'Six hours, five problems, no internet. Teams of three.',
-			  full: 'Five problems, increasing in difficulty, scored on correctness first and runtime second. Machines are provided and locked down; language support covers C++, Python, Java and Rust. No internet, no phones, offline documentation available on every desk. Teams of exactly three from any institution. The last problem has gone unsolved for two consecutive years and the setters seem pleased about it.' },
-			{ id: 'e07', name: 'Reading a Genome', track: 'Workshop', time: '10:00', venue: 'Bio Lab 1', cap: '30 seats', icon: iDna,
-			  short: 'Hands-on sequence analysis with real annotated data.',
-			  full: 'Work through a real annotated bacterial genome from raw reads to a called variant, using the same open tooling a research group would. The dataset is small enough to run on a laptop and large enough to be genuinely messy. Half the session is spent on the parts papers tend to skip: quality trimming, coverage gaps, and how to tell a sequencing artefact from a finding.' },
-			{ id: 'e08', name: 'Panel: Climate Futures', track: 'Talk', time: '11:00', venue: 'Seminar Hall B', cap: '250 seats', icon: iGlobe,
-			  short: 'Four researchers disagree productively about the next fifty years.',
-			  full: 'An atmospheric physicist, an agricultural economist, a materials chemist and a policy researcher, none of whom fully agree with the others. The format is deliberately adversarial: each opens with the strongest version of a position the other three doubt. Audience questions take the second half and are taken unfiltered — submit them at the door or from your seat.' },
-			{ id: 'e09', name: 'Fabrication Clinic', track: 'Workshop', time: '13:00', venue: 'Makerspace', cap: '20 seats', icon: iWrench,
-			  short: 'Laser cutter, 3D printer and the mistakes everyone makes first.',
-			  full: 'A clinic rather than a class: bring a part you want made, or use one of the sample briefs. Covers kerf compensation, tolerance stacking, when a printed part should have been cut instead, and the specific ways a first design fails on each machine. You leave with the part, assuming it survives. Closed-toe shoes required, no exceptions.' },
-			{ id: 'e10', name: 'Minds and Machines', track: 'Talk', time: '16:00', venue: 'Main Auditorium', cap: '600 seats', icon: iBrain,
-			  short: 'What cognition research still knows that machine learning does not.',
-			  full: 'A careful look at the places where human cognition remains stubbornly better understood than its artificial analogues — and at the borrowed vocabulary that causes most of the confusion between the two fields. Includes a live demonstration involving the audience that reliably fails in an instructive way.' },
-			{ id: 'e11', name: 'Quiz Bowl', track: 'Competition', time: '17:30', venue: 'Seminar Hall A', cap: '48 teams', icon: iTrophy,
-			  short: 'Four rounds across physics, bio, chem and history of science.',
-			  full: 'Four themed rounds, buzzer format, escalating point values, with a written tiebreak held in reserve. Teams of four. The history-of-science round is the one that decides it most years, and the one teams prepare for least. Open to school and university teams in separate brackets running simultaneously.' },
-		],
-	},
-	{
-		id: 'sun', label: 'Sunday', date: '08 Feb', iso: '2026-02-08', note: 'Closing day',
-		items: [
-			{ id: 'e12', name: 'Water Rocketry', track: 'Competition', time: '10:30', venue: 'Ground 1', cap: '40 teams', icon: iRocket,
-			  short: 'Distance and payload. Build on site from the standard kit.',
-			  full: 'Everything is built on the day from an identical kit — two-litre bottles, fixed nozzle, a fin sheet and tape. Two categories: maximum distance, and maximum payload returned intact. Pressure is capped and checked at the launcher. Weather rarely stops this one; it has run in light rain twice and the results were better, which nobody has satisfactorily explained.' },
-			{ id: 'e13', name: 'Closing & Prizes', track: 'Talk', time: '16:00', venue: 'Main Auditorium', cap: '600 seats', icon: iAtom,
-			  short: 'Results across every competition, then the expo awards.',
-			  full: 'Results read out for all four competitions, followed by the expo jury awards across the six halls. Runs about ninety minutes. Teams should send at least one member; unclaimed prizes are held at the fest desk for a week and then quietly absorbed into next year’s budget.' },
-		],
-	},
+/**
+ * event_type -> icon. The column is free text typed by an organiser, so this is a
+ * lookup with a fallback rather than a switch that can be exhaustive: an unrecognised
+ * type gets the calendar and the page still renders.
+ *
+ * ponytail: matched on a lowercased SUBSTRING, so 'Guest Talk', 'Invited talk' and
+ * 'talk' all land on the microphone without anyone having to type an exact enum.
+ * Order matters — the first hit wins, so the specific entries come before the vague.
+ */
+const ICONS: [string, string][] = [
+	['workshop', iWrench],
+	['competition', iTrophy],
+	['hackathon', iCode],
+	['robot', iBot],
+	['quiz', iBrain],
+	['panel', iUsers],
+	['expo', iAtom],
+	['exhibit', iAtom],
+	['observ', iTelescope],
+	['star', iTelescope],
+	['lab', iFlask],
+	['screening', iPresentation],
+	['outreach', iGlobe],
+	['talk', iMic],
+	['lecture', iMic],
+	['keynote', iMic],
+	['ceremony', iPresentation],
 ];
 
-// Past editions. ponytail: the dial carries DATES, not events — nine fixed positions
-// that never reflow. Events hang off the selected date, so a busy day costs a longer
-// list rather than an unreadable ring.
-const HISTORY: { id: string; day: string; date: string; edition: string; items: Ev[] }[] = [
-	{ id: 'h25c', day: '09', date: '09 Feb 2025', edition: "Anvesha '25", items: [
-		{ id: 'a01', name: 'Fusion, Honestly', track: 'Talk', time: '11:00', venue: 'Main Auditorium', cap: '600 seats', icon: iAtom,
-		  short: 'A plasma physicist on why the thirty-year joke is finally shifting.',
-		  full: 'A deliberately unhyped account of where magnetic confinement actually stands, delivered by someone who has spent a career inside the field and is visibly tired of the press cycle around it.',
-		  summary: 'Ran forty minutes over because the audience would not stop asking questions, and nobody left. The recording became the most-watched thing the fest has ever published.' },
-		{ id: 'a12', name: 'Fermentation Lab', track: 'Workshop', time: '13:30', venue: 'Bio Lab 1', cap: '30 seats', icon: iFlask,
-		  short: 'Yeast, bacteria and the chemistry that turns one into the other.',
-		  full: 'A hands-on look at controlled fermentation, from pH curves to why a batch goes wrong, ending with everyone taking a starter culture home in a jar.',
-		  summary: 'Eleven of thirty starter cultures were reported alive and in use a month later, which the lab now treats as an actual success metric.' },
-		{ id: 'a13', name: 'Closing Panel: What Held Up', track: 'Talk', time: '17:00', venue: 'Seminar Hall A', cap: '250 seats', icon: iUsers,
-		  short: 'Three past speakers revisit their own predictions from years back.',
-		  full: 'Three researchers who spoke at earlier editions returned to grade their own five-year-old predictions in public, on stage, without having seen the questions in advance.',
-		  summary: 'Every speaker scored themselves lower than the audience did. The transcript is now assigned reading for the outreach mentorship programme.' },
-	]},
-	{ id: 'h25b', day: '08', date: '08 Feb 2025', edition: "Anvesha '25", items: [
-		{ id: 'a02', name: 'Swarm Robotics Trials', track: 'Competition', time: '14:00', venue: 'Arena', cap: '24 teams', icon: iBot,
-		  short: 'Twenty-four teams, one arena, no central controller allowed.',
-		  full: 'Teams fielded fleets of six identical units that had to map and clear an arena with no shared coordinator and no human input after the start signal.',
-		  summary: 'Won by a team whose units simply refused to move for the first ninety seconds, which turned out to be a deliberate and extremely effective strategy.' },
-		{ id: 'a20', name: 'Water You Drinking', track: 'Workshop', time: '11:00', venue: 'Bio Lab 2', cap: '25 seats', icon: iGlassWater,
-		  short: 'Testing campus water fountains for hardness, chlorine and pH.',
-		  full: 'A campus-wide water quality survey run entirely by attendees, testing every public fountain for hardness, residual chlorine and pH with a shared field kit.',
-		  summary: 'One fountain outside the old gym tested well outside normal hardness range and was flagged to facilities, which traced it to a corroded section of pipe.' },
-		{ id: 'a09', name: 'Night Sky Walk', track: 'Workshop', time: '19:30', venue: 'Ground 1', cap: '80 seats', icon: iTelescope,
-		  short: 'No instruments. Just a laser pointer and two hours of naked-eye sky.',
-		  full: 'A guided tour of everything visible without equipment, built around the argument that learning the sky by eye first makes every telescope afterwards more useful.',
-		  summary: 'Cloud cover rolled in at the halfway mark and the session continued anyway, as a talk about navigation. Attendance did not drop.' },
-	]},
-	{ id: 'h25a', day: '07', date: '07 Feb 2025', edition: "Anvesha '25", items: [
-		{ id: 'a10', name: 'Opening: Ten Years On', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iMic,
-		  short: 'The tenth edition opened by reading out the first edition\u2019s programme.',
-		  full: 'The tenth Anvesha opened by projecting the 2015 programme — six events, one room, forty attendees — and walking through what each of those six became.',
-		  summary: 'Four of the six original organisers attended. The programme sheet is now framed in the fest office.' },
-		{ id: 'a14', name: 'Radio Astronomy for Beginners', track: 'Workshop', time: '14:00', venue: 'Rooftop, Block C', cap: '20 seats', icon: iRadio,
-		  short: 'A coffee-can antenna, pointed at the sun, on the roof at noon.',
-		  full: 'Building the simplest possible radio telescope from a coffee can and a USB dongle, aimed at the sun to pick up the loudest thing in the sky before attempting anything fainter.',
-		  summary: 'Detected the sun on the first attempt in nine of ten builds. The tenth was traced to a cable fault and fixed live to enthusiastic applause.' },
-	]},
-	{ id: 'h24c', day: '11', date: '11 Feb 2024', edition: "Anvesha '24", items: [
-		{ id: 'a05', name: 'Adversarial Inputs', track: 'Talk', time: '16:30', venue: 'Seminar Hall A', cap: '250 seats', icon: iCode,
-		  short: 'Breaking vision models live, on stage, with a printed sticker.',
-		  full: 'A demonstration-heavy session on why image classifiers fail in ways that look absurd to humans, ending with a live attack on a model the audience chose.',
-		  summary: 'The live attack failed twice before working on the third attempt, which the speaker described afterwards as the most honest possible outcome.' },
-		{ id: 'a15', name: 'Closing Ceremony', track: 'Talk', time: '18:30', venue: 'Main Auditorium', cap: '600 seats', icon: iPresentation,
-		  short: 'Results, thanks, and the traditional argument over next year\u2019s theme.',
-		  full: 'Prizes read out across all four competitions and the expo jury awards, followed by an open floor where next year\u2019s theme is debated more loudly than strictly necessary.',
-		  summary: 'The theme vote ended in an exact tie and was settled by a coin toss on stage, which is now apparently a tradition too.' },
-	]},
-	{ id: 'h24b', day: '10', date: '10 Feb 2024', edition: "Anvesha '24", items: [
-		{ id: 'a04', name: 'CubeSat Ground Station', track: 'Workshop', time: '15:30', venue: 'Rooftop, Block C', cap: '20 seats', icon: iSatellite,
-		  short: 'Built an antenna, then caught an actual satellite pass.',
-		  full: 'A turnstile antenna assembled from hardware-store parts, wired to a software-defined radio, aimed at a published pass schedule.',
-		  summary: 'Decoded weather imagery from three consecutive passes. The antenna is still on the roof and still works, which was not the original plan.' },
-		{ id: 'a11', name: 'Materials Teardown', track: 'Workshop', time: '11:00', venue: 'Makerspace', cap: '25 seats', icon: iWrench,
-		  short: 'Six consumer objects, cut in half, explained layer by layer.',
-		  full: 'A lithium cell, a running shoe, a smartphone screen, a food pouch, a helmet liner and a bank card, sectioned on a bandsaw and read as engineering documents.',
-		  summary: 'The food pouch turned out to be the most complex object on the table at seven distinct layers, which surprised everyone including the presenter.' },
-	]},
-	{ id: 'h24a', day: '09', date: '09 Feb 2024', edition: "Anvesha '24", items: [
-		{ id: 'a03', name: 'The Soil Project', track: 'Workshop', time: '10:00', venue: 'Bio Lab 2', cap: '35 seats', icon: iLeaf,
-		  short: 'Testing campus soil, and what the results said about the campus.',
-		  full: 'Participants sampled eleven sites across campus and ran a full nutrient and contamination panel over a single day, then mapped the results.',
-		  summary: 'Found lead above threshold at two sites near the old workshop. The findings were passed to the estates office and both areas were remediated over that summer.' },
-		{ id: 'a16', name: 'Opening: Wind and Weather', track: 'Talk', time: '10:00', venue: 'Main Auditorium', cap: '600 seats', icon: iWind,
-		  short: 'A meteorologist opens the fest by explaining the week\u2019s forecast.',
-		  full: 'An unusually literal opening talk: the visiting meteorologist walked through exactly how the week\u2019s forecast was produced, using the fest itself as the worked example.',
-		  summary: 'The forecast for the outdoor water rocketry session was wrong by six hours, which the speaker admitted on stage the following day.' },
-	]},
-	{ id: 'h23c', day: '12', date: '12 Feb 2023', edition: "Anvesha '23", items: [
-		{ id: 'a08', name: 'First Light', track: 'Talk', time: '18:00', venue: 'Rooftop, Block C', cap: '120 seats', icon: iRocket,
-		  short: 'The talk that started the outreach programme, given outdoors.',
-		  full: 'An informal evening talk on why access to a telescope changes what a child believes is possible, given standing on a roof to whoever turned up.',
-		  summary: 'Two attendees volunteered on the spot to take equipment into schools. That became the Mobile Lab, which has now reached 148 schools.' },
-		{ id: 'a17', name: 'Closing: Prize Giving', track: 'Talk', time: '15:00', venue: 'Main Auditorium', cap: '600 seats', icon: iTrophy,
-		  short: 'Every competition\u2019s results, read out in reverse order.',
-		  full: 'The full results of the weekend, deliberately read from last place to first in every category, on the theory that it keeps the room listening longer.',
-		  summary: 'It worked — attendance for the closing session was higher than any single competition final that year.' },
-	]},
-	{ id: 'h23b', day: '11', date: '11 Feb 2023', edition: "Anvesha '23", items: [
-		{ id: 'a07', name: 'Bridge Collapse Trials', track: 'Competition', time: '13:00', venue: 'Ground 2', cap: '30 teams', icon: iWrench,
-		  short: 'Balsa bridges, one loading rig, and a very loud afternoon.',
-		  full: 'Fixed span, fixed material budget, loaded to destruction on a hydraulic rig with the load-to-mass ratio decided on the spot.',
-		  summary: 'The winning bridge held 214 times its own mass. Second place held more but weighed enough to lose on ratio, and the protest that followed lasted longer than the event.' },
-		{ id: 'a18', name: 'Under the Microscope', track: 'Workshop', time: '10:30', venue: 'Bio Lab 1', cap: '25 seats', icon: iMicroscope,
-		  short: 'Pond water, cheek cells and whatever else people brought in jars.',
-		  full: 'An open microscopy session where attendees were encouraged to bring their own samples — pond water, garden soil, tap water left standing — and see what turned up.',
-		  summary: 'Someone brought in aquarium water that turned out to host a rotifer nobody in the room could immediately identify, which became the most-photographed slide of the day.' },
-	]},
-	{ id: 'h23a', day: '10', date: '10 Feb 2023', edition: "Anvesha '23", items: [
-		{ id: 'a06', name: 'Zero to Telescope', track: 'Workshop', time: '09:30', venue: 'Makerspace', cap: '15 seats', icon: iTelescope,
-		  short: 'Grind a mirror by hand. It takes far longer than anyone expects.',
-		  full: 'A full day of hand-grinding and figuring a six-inch primary mirror, then testing it with a Foucault rig built in the same session.',
-		  summary: 'Nine of fifteen mirrors reached a usable figure by close. The other six were taken home unfinished and at least three were eventually completed.' },
-		{ id: 'a19', name: 'Ink, Paper, Circuit', track: 'Workshop', time: '14:00', venue: 'Makerspace', cap: '20 seats', icon: iPenTool,
-		  short: 'Conductive ink pens, drawn circuits, and a paper piano that worked.',
-		  full: 'A crossover session between printmaking and electronics: attendees drew working circuits with conductive ink pens on plain paper, ending with a playable paper piano.',
-		  summary: 'The paper piano survived exactly one day before conductive ink cracked along a fold, which sparked an entirely unplanned discussion on material fatigue.' },
-	]},
-];
-
-const ALL = [
-	...DAYS.flatMap((d) => d.items.map((e) => ({ ...e, when: `${d.label} ${d.date}` }))),
-	...HISTORY.flatMap((h) => h.items.map((e) => ({ ...e, when: `${h.edition} \u00b7 ${h.date}` }))),
-];
-const pastTotal = HISTORY.reduce((n, h) => n + h.items.length, 0);
-
-// handed to the client once, as JSON — no second copy of the copy
-const PAYLOAD = {
-	events: Object.fromEntries(ALL.map((e: any) => [e.id, {
-		name: e.name, track: e.track, time: e.time, venue: e.venue, cap: e.cap,
-		short: e.short, full: e.full, when: e.when,
-		summary: e.summary ?? null,
-	}])),
-	ring: HISTORY.map((h) => ({ day: h.day, date: h.date, edition: h.edition, ids: h.items.map((i) => i.id) })),
-};
+// Handed to the client once, as JSON. The API base has to travel this way too — it is
+// baked in at build time from PUBLIC_EVENTS_API_URL and a module script cannot read
+// import.meta.env of the *page*.
+const PAYLOAD = { icons: ICONS, fallbackIcon: iCalendar, api: EVENTS_API };
 ---
 
 <SiteLayout title="Events · Anvesha '26">
@@ -222,28 +62,18 @@ const PAYLOAD = {
 			<div class="sechead">
 				<span class="sechead-label">History</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{pastTotal}</b> sessions · <b>{HISTORY.length}</b> dates</span>
+				<span class="sechead-meta" id="histMeta">loading…</span>
 			</div>
 
-			<div class="dial">
+			<div class="dial" id="dialWrap">
 				<div class="dial-face" id="dialFace">
 					<span class="dial-pointer" aria-hidden="true"></span>
 					<span class="dial-ring-line" aria-hidden="true"></span>
-					<div class="dial-ring" id="dialRing">
-						{HISTORY.map((h, i) => (
-							<button
-								class="dial-tick"
-								style={`--a:${(i * 360) / HISTORY.length}deg`}
-								data-i={i}
-								aria-label={`${h.date}, ${h.edition}`}
-							>
-								<span class="dial-tick-in">
-									<b>{h.day}</b>
-									<small>{h.edition.slice(-3)}</small>
-								</span>
-							</button>
-						))}
-					</div>
+					{/* Ticks are built at runtime from /api/events/past — one per DATE, not
+					    per event, so a busy day costs a longer list rather than an
+					    unreadable ring. */}
+					<div class="dial-ring" id="dialRing"></div>
+
 					{/* The number card, like the one under the glass in the middle of a rotary
 					    dial. It sits outside .dial-ring so it stays upright while the wheel
 					    turns, and it is what the empty hub used to be. It carries the day's
@@ -252,16 +82,16 @@ const PAYLOAD = {
 					    can hold a number nobody has counted for themselves.
 					    aria-hidden: the panel beside the dial states all of it in prose. */}
 					<div class="dial-card" aria-hidden="true">
-						<span class="dial-card-ed" id="dlCardEd">Anvesha '25</span>
-						<b class="dial-card-day" id="dlCardNum">3</b>
+						<span class="dial-card-ed" id="dlCardEd">&nbsp;</span>
+						<b class="dial-card-day" id="dlCardNum">—</b>
 						<span class="dial-card-mon" id="dlCardWord">Events</span>
-						<span class="dial-card-pos" id="dlCardPos">01 / 09</span>
+						<span class="dial-card-pos" id="dlCardPos">00 / 00</span>
 					</div>
 				</div>
 
 				<div class="dial-read">
-					<p class="eyebrow" id="dlEdition">Anvesha '25</p>
-					<h3 class="dial-date" id="dlDate">09 Feb 2025</h3>
+					<p class="eyebrow" id="dlEdition">&nbsp;</p>
+					<h3 class="dial-date" id="dlDate">Loading…</h3>
 
 					<ol class="dial-list" id="dlList"></ol>
 
@@ -269,7 +99,7 @@ const PAYLOAD = {
 						<button class="btn cbtn" id="dlPrev" aria-label="Earlier date" set:html={iChevL}></button>
 						<span class="dial-ctl-mid">
 							<span class="dial-rule" aria-hidden="true"></span>
-							<span class="dial-pos" id="dlPos">01 / 09</span>
+							<span class="dial-pos" id="dlPos">00 / 00</span>
 							<span class="dial-hint">Drag / click dial to travel back</span>
 							<span class="dial-rule" aria-hidden="true"></span>
 						</span>
@@ -277,6 +107,10 @@ const PAYLOAD = {
 					</div>
 				</div>
 			</div>
+
+			{/* Replaces the whole dial when there is nothing behind us yet, or when the
+			    fetch fails. Hidden by default; the script decides. */}
+			<p class="ev-note" id="histNote" hidden></p>
 		</section>
 
 		<!-- separator between what happened and what is coming -->
@@ -284,42 +118,13 @@ const PAYLOAD = {
 			<span class="band-label">Upcoming</span>
 		</div>
 
-
 		<!-- ============ TIMELINE ============ -->
-		{DAYS.map((day) => (
-			<section class="section tl-day" data-reveal>
-				<div class="sechead">
-					<span class="sechead-label">{day.label} {day.date}</span>
-					<span class="sechead-rule"></span>
-					<span class="sechead-meta"><b>{day.items.length}</b> · {day.note}</span>
-				</div>
-
-				<div class="tl-scroll scroll-y">
-					<ol class="tl">
-						{day.items.map((e) => (
-							<li class="tl-item" data-at={`${day.iso}T${e.time}`}>
-								<time class="tl-time">{e.time}</time>
-								<span class="tl-rail" aria-hidden="true"><span class="tl-dot"></span></span>
-
-								<button class="tl-card" data-ev={e.id} aria-label={`Open ${e.name}`}>
-									<span class="tl-top">
-										<span class="tl-track">{e.track}</span>
-										<span class="tl-next" hidden>Next up</span>
-										<span class="tl-venue">{e.venue}</span>
-									</span>
-									<span class="tl-head">
-										<span class="tl-icon" set:html={e.icon} />
-										<span class="tl-name">{e.name}</span>
-									</span>
-									<span class="tl-short">{e.short}</span>
-								</button>
-							</li>
-						))}
-					</ol>
-				</div>
-			</section>
-		))}
-
+		{/* One section per day, built at runtime from /api/events. Static markup here
+		    would freeze the schedule into whichever build shipped it — and the whole
+		    point of the events Worker is that a day moves itself into History the
+		    moment its last event ends. */}
+		<div id="tlDays" data-reveal></div>
+		<p class="ev-note" id="tlNote">Loading the schedule…</p>
 	</div>
 
 	<Fragment slot="overlays">
@@ -340,6 +145,13 @@ const PAYLOAD = {
 					</div>
 
 					<div class="file-content">
+						{/* Only ever in the file, never in the timeline: a poster per row would
+						    turn a schedule into a gallery and bury the times, which are the
+						    thing a schedule is read for. */}
+						<figure class="file-poster" id="fPosterWrap" hidden>
+							<img id="fPoster" alt="" loading="lazy" />
+						</figure>
+
 						<span class="file-chip" id="fTrack">TALK</span>
 						<h2 class="file-title" id="fName"></h2>
 
@@ -356,7 +168,7 @@ const PAYLOAD = {
 
 				<div class="file-foot">
 					<span class="file-stamp" id="fStamp" hidden>ARCHIVED</span>
-					<a class="cta file-reg" id="fReg" href="mailto:register@anvesha26.in">
+					<a class="cta file-reg" id="fReg" href="#">
 						<span id="fRegLabel">REGISTER</span>
 						<span set:html={iArrowRight} />
 					</a>
@@ -371,19 +183,52 @@ const PAYLOAD = {
 <script>
 	import { gsap } from 'gsap';
 
-	type Rec = {
-		name: string; track: string; time: string; venue: string; cap: string;
-		short: string; full: string; when: string;
-		summary: string | null;
+	/** Exactly the columns the events Worker returns. */
+	type Row = {
+		event_id: string; name: string; venue: string; description: string;
+		starts_at: string; ends_at: string; event_type: string;
+		registration_link?: string | null;
+		gallery_link?: string | null;
+		summary?: string | null;
+		has_poster?: number | boolean;
 	};
+	/** A Row plus the two strings only the page cares about. */
+	type Rec = Row & { when: string; clock: string; past: boolean };
 	type Ring = { day: string; date: string; edition: string; ids: string[] };
+	type Day = { iso: string; label: string; items: Rec[] };
 
 	// ponytail: same shape as /merch — Astro module scripts run once per session, so with
 	// the client router this must re-init against each freshly swapped DOM.
 	let ac: AbortController | null = null;
 	let inited: HTMLElement | null = null;
 
-	function initEvents() {
+	// Timestamps from the Worker are naive IST ('2026-02-14 15:00'). Everything here
+	// compares them as STRINGS, which is chronological for that format and, unlike
+	// new Date(...), gives the same answer on a laptop set to another timezone.
+	const IST_OFFSET_MIN = 330;
+	const istNow = () =>
+		new Date(Date.now() + IST_OFFSET_MIN * 60_000).toISOString().slice(0, 16).replace('T', ' ');
+
+	const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+	/** Parsed as UTC, so the calendar day an organiser typed is the one that renders. */
+	function dparts(iso: string) {
+		const d = new Date(iso + 'T00:00:00Z');
+		return {
+			wd: WD[d.getUTCDay()],
+			dd: String(d.getUTCDate()).padStart(2, '0'),
+			mon: MON[d.getUTCMonth()],
+			yr: d.getUTCFullYear(),
+		};
+	}
+
+	// Every string below comes out of D1, typed by an organiser, and goes into innerHTML.
+	// Escaping is the only thing between a pasted `<img onerror>` and running script.
+	const esc = (s: unknown) =>
+		String(s ?? '').replace(/[&<>"']/g, (c) =>
+			({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+	async function initEvents() {
 		const wrap = document.getElementById('fileWrap');
 		if (!wrap || wrap === inited) return;
 		inited = wrap;
@@ -399,15 +244,142 @@ const PAYLOAD = {
 		const rm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const pad = (n: number) => String(n).padStart(2, '0');
 
-		const payload: { events: Record<string, Rec>; ring: Ring[] } =
-			JSON.parse($('evData').textContent || '{"events":{},"ring":[]}');
-		const data = payload.events, ring = payload.ring;
+		const cfg: { icons: [string, string][]; fallbackIcon: string; api: string } =
+			JSON.parse($('evData').textContent || '{"icons":[],"fallbackIcon":"","api":""}');
 
-		// ---- file popup ----
+		/** First substring hit wins; an unknown type still gets a calendar. */
+		const iconFor = (t: string) => {
+			const k = (t || '').toLowerCase();
+			return (cfg.icons.find(([n]) => k.includes(n)) ?? [, cfg.fallbackIcon])[1];
+		};
+
+		const tlDays = $('tlDays'), tlNote = $('tlNote'), histNote = $('histNote'), histMeta = $('histMeta');
+		const dialWrap = $('dialWrap');
+
+		// ---------- load ----------
+		let upcoming: Row[] = [], past: Row[] = [];
+		try {
+			const get = async (path: string) => {
+				const res = await fetch(cfg.api + path, { signal });
+				if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+				return (await res.json()).events as Row[];
+			};
+			[upcoming, past] = await Promise.all([get('/api/events'), get('/api/events/past')]);
+		} catch (err) {
+			if (signal.aborted) return;
+			console.error('[events] load failed', err);
+			// Both notes, not one. The dial and the timeline are separate columns and one
+			// of them is display:none on a phone — a message written only into the hidden
+			// one is a blank page with no explanation.
+			tlDays.innerHTML = '';
+			tlNote.textContent = 'Could not reach the schedule. Refresh, or try again in a moment.';
+			tlNote.hidden = false;
+			dialWrap.style.display = 'none';
+			histNote.textContent = 'Past editions are unavailable right now.';
+			histNote.hidden = false;
+			histMeta.textContent = 'offline';
+			return;
+		}
+		if (signal.aborted) return;
+
+		// ---------- shape it ----------
+		const clockOf = (r: Row) => `${r.starts_at.slice(11)} – ${r.ends_at.slice(11)}`;
+
+		/** Rows -> one group per calendar date, in the order the rows arrived. */
+		function byDate(rows: Row[]): { iso: string; items: Row[] }[] {
+			const out: { iso: string; items: Row[] }[] = [];
+			for (const r of rows) {
+				const iso = r.starts_at.slice(0, 10);
+				let g = out.find((x) => x.iso === iso);
+				if (!g) out.push((g = { iso, items: [] }));
+				g.items.push(r);
+			}
+			return out;
+		}
+
+		const data: Record<string, Rec> = {};
+
+		const days: Day[] = byDate(upcoming).map((g) => {
+			const p = dparts(g.iso);
+			const label = `${p.wd} ${p.dd} ${p.mon}`;
+			for (const r of g.items) data[r.event_id] = { ...r, when: label, clock: clockOf(r), past: false };
+			return { iso: g.iso, label, items: g.items as Rec[] };
+		});
+
+		// /api/events/past comes back newest-first (ORDER BY ends_at DESC), which is the
+		// order the dial wants — but it also reverses the events WITHIN a day, so each
+		// group is flipped back so a day reads forward.
+		// ponytail: 12 ticks is where a dial stops being readable. Older dates are still
+		// in the database and still served; they just don't get a position on the wheel.
+		const ring: Ring[] = byDate(past)
+			.slice(0, 12)
+			.map((g) => {
+				const p = dparts(g.iso);
+				const date = `${p.dd} ${p.mon} ${p.yr}`;
+				const edition = `Anvesha '${String(p.yr).slice(2)}`;
+				const items = [...g.items].reverse();
+				for (const r of items) data[r.event_id] = { ...r, when: `${edition} · ${date}`, clock: clockOf(r), past: true };
+				return { day: p.dd, date, edition, ids: items.map((i) => i.event_id) };
+			});
+
+		// ---------- timeline ----------
+		function cardHTML(r: Row): string {
+			return `<li class="tl-item" data-at="${esc(r.starts_at)}">
+				<time class="tl-time">${esc(r.starts_at.slice(11))}</time>
+				<span class="tl-rail" aria-hidden="true"><span class="tl-dot"></span></span>
+				<button class="tl-card" data-ev="${esc(r.event_id)}" aria-label="Open ${esc(r.name)}">
+					<span class="tl-top">
+						<span class="tl-track">${esc(r.event_type)}</span>
+						<span class="tl-next" hidden>Next up</span>
+						<span class="tl-venue">${esc(r.venue)}</span>
+					</span>
+					<span class="tl-head">
+						<span class="tl-icon">${iconFor(r.event_type)}</span>
+						<span class="tl-name">${esc(r.name)}</span>
+					</span>
+					<span class="tl-short">${esc(r.description)}</span>
+				</button>
+			</li>`;
+		}
+
+		tlDays.innerHTML = days
+			.map(
+				(d) => `<section class="section tl-day">
+					<div class="sechead">
+						<span class="sechead-label">${esc(d.label)}</span>
+						<span class="sechead-rule"></span>
+						<span class="sechead-meta"><b>${d.items.length}</b> ${d.items.length === 1 ? 'event' : 'events'}</span>
+					</div>
+					<div class="tl-scroll scroll-y"><ol class="tl">${d.items.map(cardHTML).join('')}</ol></div>
+				</section>`,
+			)
+			.join('');
+
+		tlNote.hidden = days.length > 0;
+		if (!days.length) tlNote.textContent = 'Nothing on the schedule yet — the programme goes up closer to the fest.';
+
+		// Not [data-reveal]: the page's entrance tween captured its targets before this
+		// fetch resolved, so these would sit at opacity 0 until the watchdog cleared the
+		// gate. Their own tween is both simpler and correctly timed.
+		if (!rm) gsap.from(tlDays.children, { opacity: 0, y: 14, duration: 0.4, stagger: 0.06, ease: 'power3.out' });
+
+		// ---- next up ----
+		// Marked here rather than at build time: a static build would freeze whichever
+		// event was next when the site was compiled.
+		const nowStamp = istNow();
+		const rows = Array.from(document.querySelectorAll<HTMLElement>('.tl-item[data-at]'));
+		const next = rows.find((li) => li.dataset.at! > nowStamp);
+		if (next) {
+			next.classList.add('next');
+			next.querySelector('.tl-next')?.removeAttribute('hidden');
+		}
+
+		// ---------- file popup ----------
 		const fileEl = wrap.querySelector('.file') as HTMLElement;
 		const fTrack = $('fTrack'), fRef = $('fRef'), fName = $('fName'), fRows = $('fRows');
 		const fFull = $('fFull'), fSum = $('fSum'), fSumText = $('fSumText');
 		const fStamp = $('fStamp'), fReg = $<HTMLAnchorElement>('fReg'), fRegLabel = $('fRegLabel');
+		const fPosterWrap = $('fPosterWrap'), fPoster = $<HTMLImageElement>('fPoster');
 
 		let fileOpen = false;
 		gsap.set(wrap, { autoAlpha: 0 });
@@ -417,28 +389,41 @@ const PAYLOAD = {
 			const r = data[id];
 			if (!r) return;
 
-			fTrack.textContent = r.track.toUpperCase();
-			fRef.textContent = `ANV / ${id.toUpperCase()}`;
+			// Set before the dialog opens, so the browser has the request in flight by the
+			// time the panel has finished animating in. `alt` is the event's own name —
+			// the poster is the artwork for it, not a separate thing needing description.
+			const hasPoster = Boolean(r.has_poster);
+			fPosterWrap.hidden = !hasPoster;
+			if (hasPoster) {
+				fPoster.src = `${cfg.api}/api/events/${encodeURIComponent(id)}/poster`;
+				fPoster.alt = `Poster for ${r.name}`;
+			} else {
+				fPoster.removeAttribute('src');
+			}
+
+			fTrack.textContent = (r.event_type || 'Event').toUpperCase();
+			fRef.textContent = `ANV / ${id}`;
 			fName.textContent = r.name;
 			fRows.innerHTML = ([
-				['When', r.when], ['Time', r.time], ['Venue', r.venue], ['Capacity', r.cap],
+				['When', r.when], ['Time', r.clock], ['Venue', r.venue], ['Type', r.event_type],
 			] as [string, string][])
-				.map(([k, v]) => `<div class="file-row"><dt>${k}</dt><span class="file-lead"></span><dd>${v}</dd></div>`).join('');
-			fFull.textContent = r.full;
+				.map(([k, v]) => `<div class="file-row"><dt>${esc(k)}</dt><span class="file-lead"></span><dd>${esc(v)}</dd></div>`)
+				.join('');
+			fFull.textContent = r.description || '';
 
-			// a past event swaps its register button for a stamp and gains a summary
-			// past records swap the register call-to-action for the gallery
-			const past = Boolean(r.summary);
-			fSum.hidden = !past;
-			fStamp.hidden = !past;
-			if (past) {
-				fSumText.textContent = r.summary!;
-				fRegLabel.textContent = 'VIEW GALLERY';
-				fReg.href = `/gallery/${id}`;
-			} else {
-				fRegLabel.textContent = 'REGISTER';
-				fReg.href = `mailto:register@anvesha26.in?subject=${encodeURIComponent(`Register: ${r.name}`)}`;
-			}
+			// A past record swaps the register call-to-action for the gallery, and gains
+			// the stamp. The flag is set where the two lists are shaped, not sniffed from
+			// which columns came back: an archived event with no summary written up yet is
+			// still past, and would fail a truthiness test on the value.
+			fSum.hidden = !r.summary;
+			fStamp.hidden = !r.past;
+			if (r.summary) fSumText.textContent = r.summary;
+
+			const link = r.past ? r.gallery_link : r.registration_link;
+			fRegLabel.textContent = r.past ? 'VIEW GALLERY' : 'REGISTER';
+			// display, not [hidden]: `.cta` sets display itself and would win the cascade.
+			fReg.style.display = link ? '' : 'none';
+			if (link) fReg.href = link;
 
 			setFile(true);
 		}
@@ -459,25 +444,31 @@ const PAYLOAD = {
 		for (const b of document.querySelectorAll<HTMLElement>('[data-ev]'))
 			b.onclick = () => openFile(b.dataset.ev!);
 
-		// ---- next up ----
-		// Marked client-side, not at build time: a static build would freeze whichever
-		// event was next when the site was compiled.
-		const rows = Array.from(document.querySelectorAll<HTMLElement>('.tl-item[data-at]'));
-		const now = Date.now();
-		// ponytail: fall back to the first row once the whole fest is in the past, so the
-		// treatment stays visible while these dates are still placeholders. Drop the
-		// fallback when the schedule is real and an ended fest should show nothing.
-		const next = rows.find((li) => new Date(li.dataset.at!).getTime() > now) ?? rows[0];
-		if (next) {
-			next.classList.add('next');
-			next.querySelector('.tl-next')?.removeAttribute('hidden');
-		}
-
-		// ---- history dial ----
+		// ---------- history dial ----------
 		// ponytail: the RING rotates and a fixed pointer at 12 o'clock reads the selection —
 		// that is what makes it feel like a dial rather than a clock with a moving hand.
 		// Ticks carry only dates; their events render in the panel beside it.
+		histMeta.innerHTML = `<b>${past.length}</b> ${past.length === 1 ? 'session' : 'sessions'} · <b>${ring.length}</b> ${ring.length === 1 ? 'date' : 'dates'}`;
+
+		// Nothing to spin. Every angle below divides by the tick count, so this is a
+		// guard against a division by zero as much as an empty state.
+		if (!ring.length) {
+			dialWrap.style.display = 'none';
+			histNote.textContent = 'No past sessions on record yet. Events land here automatically once they finish.';
+			histNote.hidden = false;
+			return;
+		}
+
 		const face = $('dialFace'), ringEl = $('dialRing');
+		ringEl.innerHTML = ring
+			.map(
+				(h, i) => `<button class="dial-tick" style="--a:${(i * 360) / ring.length}deg" data-i="${i}"
+					aria-label="${esc(h.date)}, ${esc(h.edition)}">
+					<span class="dial-tick-in"><b>${esc(h.day)}</b><small>${esc(h.edition.slice(-3))}</small></span>
+				</button>`,
+			)
+			.join('');
+
 		const ticks = Array.from(ringEl.querySelectorAll<HTMLElement>('.dial-tick'));
 		const inners = ticks.map((t) => t.querySelector('.dial-tick-in') as HTMLElement);
 		const dlEdition = $('dlEdition'), dlDate = $('dlDate'), dlList = $('dlList'), dlPos = $('dlPos');
@@ -512,10 +503,10 @@ const PAYLOAD = {
 
 			dlList.innerHTML = r.ids.map((id) => {
 				const e = data[id];
-				return `<li><button class="dial-ev" data-ev="${id}">
-					<span class="dial-ev-time">${e.time}</span>
-					<span class="dial-ev-name">${e.name}</span>
-					<span class="dial-ev-short">${e.short}</span>
+				return `<li><button class="dial-ev" data-ev="${esc(id)}">
+					<span class="dial-ev-time">${esc(e.starts_at.slice(11))}</span>
+					<span class="dial-ev-name">${esc(e.name)}</span>
+					<span class="dial-ev-short">${esc(e.description)}</span>
 				</button></li>`;
 			}).join('');
 			for (const b of dlList.querySelectorAll<HTMLElement>('[data-ev]'))
@@ -584,6 +575,16 @@ const PAYLOAD = {
 </script>
 
 <style is:global>
+	/* Loading, empty and offline all speak through one line. It sits in the page flow
+	   rather than inside either column, because the dial's read panel is display:none on
+	   a phone and a message written only there would be a blank page with no reason. */
+	.ev-note {
+		margin: 0; padding: clamp(22px, 4vw, 34px) clamp(16px, 3vw, 28px);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12.5px; letter-spacing: .04em; text-align: center; color: var(--ink-40);
+	}
+	.ev-note[hidden] { display: none; }
+
 	/* ============ TIMELINE ============
 	   Time in the gutter, a continuous rail, and each event as a real plate. The rail is
 	   one absolutely-positioned line on the list, not a border per row — stacked borders
@@ -671,7 +672,13 @@ const PAYLOAD = {
 		font-weight: 800; font-size: clamp(14px, 1.5vw, 16px);
 		line-height: 1.1; letter-spacing: -0.01em; text-transform: uppercase;
 	}
-	.tl-short { font-size: 12.5px; line-height: 1.55; color: var(--ink-60); }
+	/* The description column is free text with no length limit at the top end, so both
+	   places it appears in a card are clamped. The full text is one click away in the
+	   file popup, which is the only thing on the page that scrolls to fit it. */
+	.tl-short {
+		font-size: 12.5px; line-height: 1.55; color: var(--ink-60);
+		display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+	}
 
 	/* ---- next up ---- */
 	.tl-next {
@@ -840,6 +847,7 @@ const PAYLOAD = {
 	.dial-ev-short {
 		font-size: 12px; line-height: 1.5;
 		color: color-mix(in srgb, var(--primary) 68%, transparent);
+		display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 	}
 
 	/* prev and next flank the row at its full width — same width as .dial-list above it,
@@ -912,6 +920,23 @@ const PAYLOAD = {
 		background: var(--sink); border: 1.5px solid var(--hair);
 	}
 	.file-content { padding: 22px 22px 24px; min-width: 0; }
+
+	/* Full-bleed inside the content column, and framed like everything else on the page.
+	   max-height so a tall portrait poster cannot push the title, the record rows and the
+	   register button below the fold on a laptop — the file is a record first. */
+	.file-poster {
+		margin: 0 0 16px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--sink); overflow: hidden; line-height: 0;
+	}
+	.file-poster img {
+		display: block; width: 100%; height: auto;
+		/* A poster is portrait and would happily take the whole dialog; capped so the
+		   title, the record rows and the register button are on screen with it. The rest
+		   of the image is one scroll away, which is the right trade for a file. */
+		max-height: min(330px, 38vh); object-fit: contain;
+	}
+	.file-poster[hidden] { display: none; }
 
 	.file-chip {
 		display: inline-block; margin-bottom: 12px; padding: 5px 11px;

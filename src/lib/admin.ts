@@ -46,8 +46,16 @@ export function toLogin(): never {
  * A 401 or 403 always means the session is over — expired, signed out elsewhere, or
  * the kill switch was thrown while the tab sat open. All three end the same way, which
  * is what makes `active = 0` take effect immediately rather than at next login.
+ *
+ * `base` defaults to the merch Worker. The events Worker is a separate deployment but
+ * reads the SAME admin_login table, so one session token authenticates both and the
+ * only thing that differs is the host — hence an override rather than a second client.
  */
-export async function adminFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+export async function adminFetch<T = unknown>(
+	path: string,
+	init: RequestInit = {},
+	base: string = API,
+): Promise<T> {
 	const session = getSession();
 	if (!session) toLogin();
 
@@ -56,7 +64,7 @@ export async function adminFetch<T = unknown>(path: string, init: RequestInit = 
 	// parse the body at all.
 	const isForm = init.body instanceof FormData;
 
-	const res = await fetch(API + path, {
+	const res = await fetch(base + path, {
 		...init,
 		headers: {
 			...(isForm ? {} : { 'Content-Type': 'application/json' }),

@@ -1,42 +1,1417 @@
 ---
 /**
- * Events admin — placeholder.
+ * Events admin. Same shape as Merch: a task rail on the left picks what you are doing,
+ * the panes to its right change to suit. Edit mode adds the programme rail
+ * (styles/catalogue-tree.css) so both sides of the site browse events identically.
  *
- * Deliberately inert: the tab exists so the shape of the panel is settled, but there is
- * no events table in D1 yet and nothing here pretends to write one. Building a form
- * against a schema that does not exist would only have to be thrown away.
+ * Writes go to the EVENTS Worker, which is a separate deployment from the merch API —
+ * but reads the same admin_login table, so the session token in this tab authenticates
+ * both. adminFetch takes the base as its third argument for exactly that.
+ *
+ * Two tables sit behind this, and they are not equally editable:
+ *   events_scheduled — everything is editable, and the row can be deleted
+ *   events_done      — the event already happened, so only the write-up it did not
+ *                      have on the day (gallery link, summary) can be added
  */
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import '../../styles/catalogue-tree.css';
+
+import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
+import iAdd from 'lucide-static/icons/calendar-plus.svg?raw';
+import iEdit from 'lucide-static/icons/square-pen.svg?raw';
+import iPlus from 'lucide-static/icons/plus.svg?raw';
+import iTrash from 'lucide-static/icons/trash-2.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
 ---
 
 <AdminLayout title="Events — Admin — Anvesha '26">
-	<div class="a-wrap">
-		<div class="a-head">
-			<h1 class="a-title">EVENTS</h1>
-			<p class="a-sub">Event management is not wired up yet.</p>
-		</div>
+	<div class="a-wrap ev-shell" data-task="add">
+		<!-- TASK RAIL -->
+		<nav class="ev-tasks" aria-label="Event tasks">
+			<button class="btn ev-task on" data-task-btn="add" aria-current="true" type="button">
+				<span class="ev-task-icon" set:html={iAdd} />
+				<span class="ev-task-label">Add event</span>
+			</button>
+			<button class="btn ev-task" data-task-btn="edit" type="button">
+				<span class="ev-task-icon" set:html={iEdit} />
+				<span class="ev-task-label">Edit event</span>
+			</button>
 
-		<div class="e-body">
-			<div class="e-card">
-				<p class="a-eyebrow">Coming next</p>
-				<p class="e-text">
-					The events page on the storefront is still built from hard-coded content.
-					Once events move into the database, this is where they will be edited —
-					same two-pane shape as Merch.
+		</nav>
+
+		<div class="ev-panes">
+			<!-- PROGRAMME — edit mode only -->
+			<aside class="ev-list-pane" id="evListPane">
+				<p class="a-eyebrow">Programme <b id="evCount">—</b></p>
+				<div class="tree" id="evTree" role="tree" aria-label="Events"></div>
+				<p class="a-err ev-list-err" id="evListErr" hidden></p>
+			</aside>
+
+			<!-- WORK AREA -->
+			<section class="ev-work">
+				<!-- ============ ADD ============
+				     Several drafts staged, then sent in one go. Three bands: a fixed head,
+				     the scrolling drafts, and a footer that stays put — with six sessions
+				     staged, the submit button must not be a scroll away. -->
+				<div class="ev-new" id="evNew">
+					<div class="ev-head">
+						<p class="a-eyebrow">New events</p>
+						<p class="ev-hint">
+							One card per session. Stage as many as you like, then send them together.
+							Everything except the registration link is required.
+						</p>
+					</div>
+
+					<div class="ev-scroll">
+						<div id="evDrafts"></div>
+						<button class="btn ev-draft-add" id="evDraftAdd" type="button">
+							<span class="ev-add-icon" set:html={iPlus} />
+							<span>ANOTHER EVENT</span>
+						</button>
+					</div>
+
+					<div class="ev-foot">
+						<!-- Kept in the footer: an error about a card scrolled off screen would
+						     otherwise never be seen. -->
+						<p class="a-err" id="nErr" hidden></p>
+						<p class="ev-saved" id="nSaved" hidden></p>
+						<div class="ev-actions">
+							<button class="btn a-btn-primary ev-save" id="nSubmit" type="button">ADD TO SCHEDULE</button>
+							<button class="btn a-btn-secondary" id="nClear" type="button">CLEAR ALL</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- ============ EDIT ============ -->
+				<p class="ev-empty" id="evEmpty" hidden>Pick an event from the rail to edit it.</p>
+
+				<form class="ev-form" id="evForm" hidden novalidate>
+					{/* The scroller and the bento are two elements on purpose. As one, the
+					    grid inherited the scroller's fixed height and split it between its
+					    rows — which on a phone squashed the poster and preview cells to
+					    40px each while their contents overflowed. */}
+					<div class="ev-scroll">
+					<div class="ev-bento">
+						<div class="ev-cell ev-cell-fields">
+							<!-- Wire across the gap into the preview: this form feeds it. -->
+							<span class="ev-wire" aria-hidden="true"></span>
+							<div class="ev-cell-head">
+								<p class="a-eyebrow">Details</p>
+								<span class="ev-id" id="fId">EVT_</span>
+							</div>
+
+							<!-- Only ever shown for an archived event, where most of the record
+							     is history and the API will not take a change to it. -->
+							<p class="ev-locked" id="fLocked" hidden>
+								Archived. Name, times and venue are the record of what happened and are
+								read-only; add the write-up below.
+							</p>
+
+							<label class="field">
+								<span class="field-label">Name</span>
+								<input class="field-input" id="fName" type="text" maxlength="160" required />
+							</label>
+
+							<div class="ev-row2">
+								<label class="field">
+									<span class="field-label">Type</span>
+									<input class="field-input" id="fType" type="text" maxlength="40" list="evTypes" required />
+									<datalist id="evTypes"></datalist>
+								</label>
+								<label class="field">
+									<span class="field-label">Venue</span>
+									<input class="field-input" id="fVenue" type="text" maxlength="160" required />
+								</label>
+							</div>
+
+							<div class="ev-row2">
+								<label class="field">
+									<span class="field-label">Starts</span>
+									<input class="field-input" id="fStart" type="datetime-local" required />
+								</label>
+								<label class="field">
+									<span class="field-label">Ends</span>
+									<input class="field-input" id="fEnd" type="datetime-local" required />
+								</label>
+							</div>
+
+							<label class="field ev-field-grow">
+								<span class="field-label">Description</span>
+								<textarea class="field-input" id="fDesc" maxlength="4000" rows="5" required></textarea>
+							</label>
+
+							<label class="field" id="fRegField">
+								<span class="field-label">Registration link — optional</span>
+								<input class="field-input" id="fReg" type="url" maxlength="500"
+								       placeholder="https://…" />
+							</label>
+
+							<!-- Archive-only. The two things an event does not have until after it. -->
+							<label class="field" id="fGalField" hidden>
+								<span class="field-label">Gallery link — Drive folder</span>
+								<input class="field-input" id="fGal" type="url" maxlength="500"
+								       placeholder="https://drive.google.com/…" />
+							</label>
+							<label class="field" id="fSumField" hidden>
+								<span class="field-label">Summary — what actually happened</span>
+								<textarea class="field-input" id="fSum" maxlength="4000" rows="4"></textarea>
+							</label>
+						</div>
+
+						{/* The right half is its own vertical bento: the poster on top, taller,
+						    because it is the thing being judged; the storefront preview under it. */}
+						<div class="ev-right">
+						<aside class="ev-cell ev-poster-cell">
+							<div class="ev-cell-head">
+								<p class="a-eyebrow">Poster</p>
+								<span class="ev-poster-state" id="fPosterState">None</span>
+							</div>
+
+							<label class="ev-drop ev-drop-lg" id="fPosterDrop">
+								<input type="file" accept="image/jpeg,image/png,image/webp,image/avif"
+								       id="fPosterInput" hidden />
+								<img class="ev-drop-img" id="fPosterImg" alt="" hidden />
+								<span class="ev-drop-text" id="fPosterText">Drop an image, or click to choose</span>
+							</label>
+
+							<p class="a-err ev-poster-err" id="fPosterErr" hidden></p>
+							<div class="ev-poster-actions">
+								<button class="btn a-btn-secondary" id="fPosterPick" type="button">CHOOSE FILE</button>
+								<button class="btn a-btn-danger" id="fPosterDel" type="button" hidden>REMOVE</button>
+							</div>
+							<p class="ev-poster-hint">JPEG, PNG, WebP or AVIF · 6MB max · saved as soon as it is picked</p>
+						</aside>
+
+						<!-- What a visitor will see on /events. Redrawn on every keystroke. -->
+						<aside class="ev-cell ev-preview">
+							<p class="a-eyebrow">Storefront preview</p>
+
+							<div class="pv-item">
+								<time class="pv-time" id="pvTime">--:--</time>
+								<span class="pv-rail" aria-hidden="true"><span class="pv-dot"></span></span>
+								<div class="pv-card">
+									<span class="pv-top">
+										<span class="pv-chip" id="pvChip">TYPE</span>
+										<span class="pv-venue" id="pvVenue">VENUE</span>
+									</span>
+									<span class="pv-head">
+										<span class="pv-name" id="pvName">Event name</span>
+									</span>
+									<span class="pv-desc" id="pvDesc"></span>
+								</div>
+							</div>
+
+							<dl class="pv-rows">
+								<div class="pv-row"><dt>When</dt><span class="pv-lead"></span><dd id="pvWhen">—</dd></div>
+								<div class="pv-row"><dt>Time</dt><span class="pv-lead"></span><dd id="pvClock">—</dd></div>
+								<div class="pv-row"><dt>Length</dt><span class="pv-lead"></span><dd id="pvLen">—</dd></div>
+							</dl>
+
+							<p class="pv-cta" id="pvCta">No registration link — the button is hidden.</p>
+						</aside>
+						</div>
+					</div>
+					</div>
+
+					<div class="ev-foot">
+						<p class="a-err" id="eErr" hidden></p>
+						<p class="ev-saved" id="eSaved" hidden>Saved.</p>
+						<div class="ev-actions">
+							<button class="btn a-btn-primary ev-save" id="eSave" type="submit">SAVE CHANGES</button>
+							<button class="btn a-btn-secondary" id="eReset" type="button">REVERT</button>
+							<button class="btn a-btn-danger" id="eDelete" type="button">DELETE EVENT</button>
+						</div>
+					</div>
+				</form>
+			</section>
+		</div>
+	</div>
+
+	<!-- ============ DELETE CONFIRM ============ -->
+	<div class="ov" id="delModal" hidden>
+		<div class="ov-panel ov-narrow" role="dialog" aria-modal="true" aria-labelledby="delTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="delTitle">DELETE EVENT</span>
+				<button class="btn x" id="delClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body">
+				<p class="ov-warn">
+					This removes the event from the schedule for good. It cannot be undone, and it
+					will not appear in the archive — only events that actually ran get archived.
 				</p>
-				<p class="a-note">Nothing here writes to the database.</p>
+				<p class="ov-id" id="delName">—</p>
+				<p class="a-err" id="delErr" hidden></p>
+			</div>
+			<div class="ov-foot">
+				<button class="btn a-btn-danger armed" id="delGo" type="button">DELETE EVENT</button>
+				<button class="btn a-btn-secondary" id="delCancel" type="button">CANCEL</button>
 			</div>
 		</div>
 	</div>
+
+	<!-- One draft card. Cloned per event so the markup lives in one place. -->
+	<template id="evDraftTpl">
+	  <div class="ev-draft-row">
+		<div class="ev-draft">
+			<div class="ev-draft-head">
+				<span class="ev-draft-n"></span>
+				<button class="btn ev-draft-del" type="button" aria-label="Remove this event">
+					<span set:html={iTrash} />
+				</button>
+			</div>
+
+			<label class="field">
+				<span class="field-label">Name</span>
+				<input class="field-input" data-name type="text" maxlength="160" />
+			</label>
+
+			<div class="ev-row2">
+				<label class="field">
+					<span class="field-label">Type</span>
+					<input class="field-input" data-type type="text" maxlength="40" list="evTypes"
+					       placeholder="Talk, Workshop, Competition…" />
+				</label>
+				<label class="field">
+					<span class="field-label">Venue</span>
+					<input class="field-input" data-venue type="text" maxlength="160" />
+				</label>
+			</div>
+
+			<div class="ev-row2">
+				<label class="field">
+					<span class="field-label">Starts</span>
+					<input class="field-input" data-start type="datetime-local" />
+				</label>
+				<label class="field">
+					<span class="field-label">Ends</span>
+					<input class="field-input" data-end type="datetime-local" />
+				</label>
+			</div>
+
+			<label class="field ev-field-grow">
+				<span class="field-label">Description</span>
+				<textarea class="field-input" data-desc maxlength="4000" rows="3"></textarea>
+			</label>
+
+			<label class="field">
+				<span class="field-label">Registration link — optional</span>
+				<input class="field-input" data-reg type="url" maxlength="500" placeholder="https://…" />
+			</label>
+
+			<p class="ev-draft-err" data-err hidden></p>
+		</div>
+
+		<!-- The poster rides in its own box beside the card, uploaded straight after the
+		     event row it belongs to is created. -->
+		<aside class="ev-poster-box">
+			<p class="ev-poster-head">
+				<span>Poster</span>
+				<b data-postersize>optional</b>
+			</p>
+
+			<label class="ev-drop" data-drop>
+				<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-poster hidden />
+				<img class="ev-drop-img" data-preview alt="" hidden />
+				<span class="ev-drop-text" data-droptext>Drop an image, or click to choose</span>
+			</label>
+
+			<button class="btn ev-drop-clear" type="button" data-posterclear hidden>REMOVE</button>
+			<p class="ev-poster-hint">JPEG, PNG, WebP or AVIF · 6MB max</p>
+		</aside>
+	  </div>
+	</template>
 </AdminLayout>
 
+<script>
+	import { adminFetch } from '../../lib/admin';
+	import { EVENTS_API } from '../../lib/api';
+	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
+
+	type Row = {
+		event_id: string; name: string; venue: string; description: string;
+		starts_at: string; ends_at: string; event_type: string;
+		registration_link?: string | null;
+		gallery_link?: string | null;
+		summary?: string | null;
+		has_poster?: number | boolean;
+	};
+	type Rec = Row & { past: boolean };
+
+	// Every write goes to the events Worker; the session token is the merch panel's.
+	const evFetch = <T,>(path: string, init: RequestInit = {}) =>
+		adminFetch<T>(path, init, EVENTS_API);
+
+	// ---------- the IST clock ----------
+	// The Worker stores naive IST ('2026-09-11 10:00') and <input type="datetime-local">
+	// speaks 'YYYY-MM-DDTHH:MM'. One character apart, so the conversion is a swap rather
+	// than a Date round-trip — which would reinterpret the stamp in the browser's own
+	// timezone and shift every event by the offset.
+	const toInput = (s: string) => (s || '').replace(' ', 'T').slice(0, 16);
+	const fromInput = (s: string) => (s || '').replace('T', ' ').slice(0, 16);
+
+	const IST_OFFSET_MIN = 330;
+	const istNow = () =>
+		new Date(Date.now() + IST_OFFSET_MIN * 60_000).toISOString().slice(0, 16).replace('T', ' ');
+	const stampMs = (s: string) => Date.parse(s.replace(' ', 'T') + ':00Z');
+
+	const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+	/** Read as UTC so the calendar day typed into the form is the one that renders. */
+	function dparts(iso: string) {
+		const d = new Date(iso + 'T00:00:00Z');
+		return { wd: WD[d.getUTCDay()], dd: String(d.getUTCDate()).padStart(2, '0'), mon: MON[d.getUTCMonth()] };
+	}
+	function runLength(a: string, b: string): string {
+		const m = Math.round((stampMs(b) - stampMs(a)) / 60_000);
+		if (!isFinite(m) || m <= 0) return '—';
+		if (m < 60) return `${m} min`;
+		const h = Math.floor(m / 60), r = m % 60;
+		return r ? `${h} hr ${r} min` : `${h} hr`;
+	}
+
+	const esc = (s: unknown) =>
+		String(s ?? '').replace(/[&<>"']/g, (c) =>
+			({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+	/** The formats R2 serves back without transcoding — the Worker rejects the rest. */
+	const POSTER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+	const MAX_POSTER_BYTES = 6 * 1024 * 1024;
+
+	/** Null when the file is fine, a sentence when it is not. */
+	function badPoster(f: File): string | null {
+		if (!POSTER_TYPES.includes(f.type)) return `${f.type || 'That file'} is not a JPEG, PNG, WebP or AVIF`;
+		if (f.size > MAX_POSTER_BYTES) return `That poster is ${(f.size / 1048576).toFixed(1)}MB — the limit is 6MB`;
+		return null;
+	}
+
+	/** Cache-busted: the poster URL never changes, so a replaced image would otherwise
+	 *  keep showing the old one for as long as the browser held it. */
+	const posterUrl = (id: string, v: number | string = '') =>
+		`${EVENTS_API}/api/events/${encodeURIComponent(id)}/poster${v ? `?v=${v}` : ''}`;
+
+	/** http(s) only — the value lands in an href on the public page. */
+	function badLink(v: string): string | null {
+		if (!v.trim()) return null;
+		try {
+			const u = new URL(v.trim());
+			if (u.protocol !== 'https:' && u.protocol !== 'http:') return 'Link must start with https://';
+			return null;
+		} catch {
+			return 'Link must be a full URL starting with https://';
+		}
+	}
+
+	// ponytail: same shape as the other panels — Astro module scripts run once per
+	// session, so with the client router this must re-init against each swapped DOM.
+	let inited: HTMLElement | null = null;
+
+	function initEventsAdmin() {
+		const shell = document.querySelector<HTMLElement>('.ev-shell');
+		if (!shell || shell === inited) return;
+		inited = shell;
+
+		const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+
+		const tree = $('evTree'), evCount = $('evCount'), listErr = $('evListErr');
+		const typesList = $<HTMLDataListElement>('evTypes');
+		const emptyMsg = $('evEmpty'), form = $<HTMLFormElement>('evForm');
+		const draftsBox = $('evDrafts'), draftTpl = $<HTMLTemplateElement>('evDraftTpl');
+
+		const f = {
+			id: $('fId'), name: $<HTMLInputElement>('fName'), type: $<HTMLInputElement>('fType'),
+			venue: $<HTMLInputElement>('fVenue'), start: $<HTMLInputElement>('fStart'),
+			end: $<HTMLInputElement>('fEnd'), desc: $<HTMLTextAreaElement>('fDesc'),
+			reg: $<HTMLInputElement>('fReg'), gal: $<HTMLInputElement>('fGal'),
+			sum: $<HTMLTextAreaElement>('fSum'),
+			regField: $('fRegField'), galField: $('fGalField'), sumField: $('fSumField'),
+			locked: $('fLocked'),
+		};
+		const poster = {
+			drop: $('fPosterDrop'), input: $<HTMLInputElement>('fPosterInput'),
+			img: $<HTMLImageElement>('fPosterImg'), text: $('fPosterText'),
+			state: $('fPosterState'), err: $('fPosterErr'),
+			pick: $<HTMLButtonElement>('fPosterPick'), del: $<HTMLButtonElement>('fPosterDel'),
+		};
+		const eErr = $('eErr'), eSaved = $('eSaved'), eSave = $<HTMLButtonElement>('eSave');
+		const nErr = $('nErr'), nSaved = $('nSaved'), nSubmit = $<HTMLButtonElement>('nSubmit');
+
+		let scheduled: Rec[] = [];
+		let done: Rec[] = [];
+		let openFolders = new Set<string>(['scheduled']);
+		let current: Rec | null = null;
+
+		// ---------- tasks ----------
+		function setTask(task: string) {
+			shell.dataset.task = task;
+			for (const b of shell.querySelectorAll<HTMLElement>('[data-task-btn]')) {
+				const on = b.dataset.taskBtn === task;
+				b.classList.toggle('on', on);
+				if (on) b.setAttribute('aria-current', 'true');
+				else b.removeAttribute('aria-current');
+			}
+			if (task === 'edit' && !current) { emptyMsg.hidden = false; form.hidden = true; }
+		}
+		for (const b of shell.querySelectorAll<HTMLElement>('[data-task-btn]'))
+			b.onclick = () => setTask(b.dataset.taskBtn!);
+
+		// ---------- load ----------
+		async function load(keepSelection = true) {
+			try {
+				const [a, b] = await Promise.all([
+					fetch(EVENTS_API + '/api/events').then((r) => r.json()),
+					fetch(EVENTS_API + '/api/events/past').then((r) => r.json()),
+				]);
+				scheduled = (a.events as Row[]).map((r) => ({ ...r, past: false }));
+				done = (b.events as Row[]).map((r) => ({ ...r, past: true }));
+				listErr.hidden = true;
+			} catch (e) {
+				// The rail is the only place this can be said, and it is visible in edit
+				// mode at every width.
+				listErr.textContent = 'Could not reach the events service.';
+				listErr.hidden = false;
+				return;
+			}
+
+			evCount.textContent = String(scheduled.length + done.length);
+
+			// Types offered to both forms come from what is already in use, so the set
+			// grows by someone typing a new one rather than by a deploy.
+			const types = [...new Set([...scheduled, ...done].map((r) => r.event_type).filter(Boolean))].sort();
+			typesList.innerHTML = types.map((t) => `<option value="${esc(t)}"></option>`).join('');
+
+			renderTree();
+
+			// A save re-reads the list; the row that was open should stay open.
+			if (keepSelection && current) {
+				const again = [...scheduled, ...done].find((r) => r.event_id === current!.event_id);
+				if (again) select(again);
+				else { current = null; form.hidden = true; emptyMsg.hidden = false; }
+			}
+		}
+
+		// ---------- rail ----------
+		function rowHTML(r: Rec, last: boolean) {
+			const p = dparts(r.starts_at.slice(0, 10));
+			return `<button class="tnode titem${last ? ' last' : ''}${current?.event_id === r.event_id ? ' active' : ''}"
+				data-ev="${esc(r.event_id)}" role="treeitem" type="button">
+				<i class="tnum">${esc(r.starts_at.slice(11))}</i>
+				<span class="tname">${esc(r.name)}</span>
+				<span class="tmeta">${esc(p.dd)} ${esc(p.mon)}</span>
+			</button>`;
+		}
+
+		function folderHTML(key: string, label: string, rows: Rec[]) {
+			const open = openFolders.has(key);
+			return `<button class="tnode tcat${open ? ' open' : ''}" data-folder="${key}" type="button">
+					<span class="tcaret">${caretRight}</span>
+					<span class="tname">${esc(label)}</span>
+					<span class="tmeta">${rows.length}</span>
+				</button>
+				<div class="tkids"${open ? '' : ' hidden'}>
+					${rows.map((r, i) => rowHTML(r, i === rows.length - 1)).join('')}
+				</div>`;
+		}
+
+		function renderTree() {
+			tree.innerHTML =
+				folderHTML('scheduled', 'Scheduled', scheduled) +
+				folderHTML('archive', 'Archive', done);
+
+			for (const b of tree.querySelectorAll<HTMLElement>('[data-folder]'))
+				b.onclick = () => {
+					const k = b.dataset.folder!;
+					openFolders.has(k) ? openFolders.delete(k) : openFolders.add(k);
+					renderTree();
+				};
+			for (const b of tree.querySelectorAll<HTMLElement>('[data-ev]'))
+				b.onclick = () => {
+					const r = [...scheduled, ...done].find((x) => x.event_id === b.dataset.ev);
+					if (r) { setTask('edit'); select(r); }
+				};
+		}
+
+		// ---------- editor ----------
+		function select(r: Rec) {
+			current = r;
+			emptyMsg.hidden = true;
+			form.hidden = false;
+			eErr.hidden = true;
+			eSaved.hidden = true;
+
+			f.id.textContent = r.event_id;
+			f.name.value = r.name;
+			f.type.value = r.event_type ?? '';
+			f.venue.value = r.venue ?? '';
+			f.start.value = toInput(r.starts_at);
+			f.end.value = toInput(r.ends_at);
+			f.desc.value = r.description ?? '';
+			f.reg.value = r.registration_link ?? '';
+			f.gal.value = r.gallery_link ?? '';
+			f.sum.value = r.summary ?? '';
+
+			// An archived event is a record of something that already happened. The API
+			// will only take gallery_link and summary for it, so the rest is shown as a
+			// read-only record rather than as fields that silently fail to save.
+			for (const el of [f.name, f.type, f.venue, f.start, f.end, f.desc]) el.readOnly = r.past;
+			f.start.disabled = r.past;
+			f.end.disabled = r.past;
+			f.locked.hidden = !r.past;
+			f.regField.hidden = r.past;
+			f.galField.hidden = !r.past;
+			f.sumField.hidden = !r.past;
+			$<HTMLButtonElement>('eDelete').hidden = r.past;
+
+			showPoster(r);
+			paintPreview();
+			renderTree();
+		}
+
+		/** The cell has exactly two states, and the buttons follow the picture. */
+		function showPoster(r: Rec, bust: number | '' = '') {
+			poster.err.hidden = true;
+			poster.input.value = '';
+			const has = Boolean(r.has_poster);
+			poster.img.hidden = !has;
+			poster.text.hidden = has;
+			poster.del.hidden = !has;
+			poster.state.textContent = has ? 'Uploaded' : 'None';
+			poster.pick.textContent = has ? 'REPLACE' : 'CHOOSE FILE';
+			disarmPosterDelete();
+			if (has) poster.img.src = posterUrl(r.event_id, bust || Date.now());
+			else poster.img.removeAttribute('src');
+		}
+
+		// REMOVE deletes an object out of R2, so it arms first. Two clicks, no dialog —
+		// a modal for something one re-upload undoes is more ceremony than it is worth.
+		let posterArmed = false;
+		function disarmPosterDelete() {
+			posterArmed = false;
+			poster.del.classList.remove('armed');
+			poster.del.textContent = 'REMOVE';
+		}
+
+		async function uploadPoster(id: string, file: File) {
+			const body = new FormData();
+			body.set('poster', file);
+			// No Content-Type: the browser must set it itself so the multipart boundary
+			// is included, or the Worker cannot parse the body at all.
+			await evFetch(`/api/events/${id}/poster`, { method: 'POST', body });
+		}
+
+		poster.pick.onclick = () => poster.input.click();
+		poster.input.onchange = async () => {
+			const file = poster.input.files?.[0];
+			if (!file || !current) return;
+			const bad = badPoster(file);
+			if (bad) { poster.err.textContent = bad; poster.err.hidden = false; poster.input.value = ''; return; }
+
+			poster.err.hidden = true;
+			poster.state.textContent = 'Uploading…';
+			poster.pick.disabled = true;
+			try {
+				await uploadPoster(current.event_id, file);
+				current.has_poster = 1;
+				showPoster(current);
+				await load();
+			} catch (e) {
+				poster.err.textContent = (e as Error).message;
+				poster.err.hidden = false;
+				showPoster(current);
+			} finally {
+				poster.pick.disabled = false;
+			}
+		};
+
+		poster.del.onclick = async () => {
+			if (!current) return;
+			if (!posterArmed) {
+				posterArmed = true;
+				poster.del.classList.add('armed');
+				poster.del.textContent = 'CONFIRM REMOVE';
+				return;
+			}
+			poster.del.disabled = true;
+			try {
+				await evFetch(`/api/events/${current.event_id}/poster`, { method: 'DELETE' });
+				current.has_poster = 0;
+				showPoster(current);
+				await load();
+			} catch (e) {
+				poster.err.textContent = (e as Error).message;
+				poster.err.hidden = false;
+			} finally {
+				poster.del.disabled = false;
+			}
+		};
+
+		// Drag and drop onto the plate, which is what anyone will try first.
+		// No AbortSignal: unlike the storefront these listeners sit on page-local nodes
+		// that the client router discards wholesale, and this function only ever runs
+		// once per swapped DOM (the `inited` guard above).
+		for (const ev of ['dragenter', 'dragover'] as const)
+			poster.drop.addEventListener(ev, (e) => { e.preventDefault(); poster.drop.classList.add('over'); });
+		for (const ev of ['dragleave', 'drop'] as const)
+			poster.drop.addEventListener(ev, () => poster.drop.classList.remove('over'));
+		poster.drop.addEventListener('drop', (e) => {
+			e.preventDefault();
+			const file = (e as DragEvent).dataTransfer?.files?.[0];
+			if (!file) return;
+			// Route through the same handler as the picker: one validation path, not two.
+			const dt = new DataTransfer();
+			dt.items.add(file);
+			poster.input.files = dt.files;
+			poster.input.dispatchEvent(new Event('change'));
+		});
+
+		/** The storefront's own timeline row, redrawn from the fields on every keystroke. */
+		function paintPreview() {
+			const start = fromInput(f.start.value), end = fromInput(f.end.value);
+			$('pvTime').textContent = start.slice(11) || '--:--';
+			$('pvChip').textContent = (f.type.value || 'Event').toUpperCase();
+			$('pvVenue').textContent = (f.venue.value || 'VENUE').toUpperCase();
+			$('pvName').textContent = f.name.value || 'Event name';
+			$('pvDesc').textContent = f.desc.value || 'The description shows here, clamped to two lines.';
+
+			const iso = start.slice(0, 10);
+			if (iso.length === 10) {
+				const p = dparts(iso);
+				$('pvWhen').textContent = `${p.wd} ${p.dd} ${p.mon}`;
+			} else $('pvWhen').textContent = '—';
+			$('pvClock').textContent = start && end ? `${start.slice(11)} – ${end.slice(11)}` : '—';
+			$('pvLen').textContent = start && end ? runLength(start, end) : '—';
+
+			const cta = $('pvCta');
+			if (current?.past) {
+				cta.textContent = f.gal.value.trim()
+					? 'VIEW GALLERY button shows, linking to the Drive folder.'
+					: 'No gallery link — the button is hidden.';
+			} else {
+				cta.textContent = f.reg.value.trim()
+					? 'REGISTER button shows, linking to the form.'
+					: 'No registration link — the button is hidden.';
+			}
+		}
+		for (const el of [f.name, f.type, f.venue, f.start, f.end, f.desc, f.reg, f.gal])
+			el.addEventListener('input', paintPreview);
+
+		$('eReset').onclick = () => { if (current) select(current); };
+
+		form.onsubmit = async (e) => {
+			e.preventDefault();
+			if (!current) return;
+			eErr.hidden = true;
+			eSaved.hidden = true;
+
+			try {
+				if (current.past) {
+					const bad = badLink(f.gal.value);
+					if (bad) throw new Error(bad);
+					await evFetch(`/api/events/past/${current.event_id}`, {
+						method: 'PUT',
+						body: JSON.stringify({ gallery_link: f.gal.value.trim(), summary: f.sum.value.trim() }),
+					});
+				} else {
+					const body = readScheduled({
+						name: f.name.value, event_type: f.type.value, venue: f.venue.value,
+						starts_at: f.start.value, ends_at: f.end.value,
+						description: f.desc.value, registration_link: f.reg.value,
+					});
+					await evFetch(`/api/events/${current.event_id}`, { method: 'PUT', body: JSON.stringify(body) });
+				}
+				// After load(), not before: load() re-selects the row it just refetched, and
+				// select() clears this flag — so the confirmation flashed and vanished.
+				await load();
+				eSaved.hidden = false;
+			} catch (err) {
+				eErr.textContent = (err as Error).message;
+				eErr.hidden = false;
+			} finally {
+				eSave.disabled = false;
+			}
+		};
+
+		/** Client-side mirror of the Worker's own checks — the server still owns the rule,
+		 *  this just says which field is wrong without a round trip. */
+		function readScheduled(v: Record<string, string>) {
+			const need: [string, string][] = [
+				['name', 'Name'], ['event_type', 'Type'], ['venue', 'Venue'],
+				['starts_at', 'Start time'], ['ends_at', 'End time'], ['description', 'Description'],
+			];
+			for (const [k, label] of need) if (!v[k]?.trim()) throw new Error(`${label} is required`);
+			const starts_at = fromInput(v.starts_at), ends_at = fromInput(v.ends_at);
+			if (ends_at <= starts_at) throw new Error('The end time must be after the start time');
+			const bad = badLink(v.registration_link ?? '');
+			if (bad) throw new Error(bad);
+			return {
+				name: v.name.trim(), event_type: v.event_type.trim(), venue: v.venue.trim(),
+				description: v.description.trim(), starts_at, ends_at,
+				registration_link: v.registration_link?.trim() || null,
+			};
+		}
+
+		// ---------- delete ----------
+		const delModal = $('delModal');
+		const closeDel = () => { delModal.hidden = true; };
+		$('eDelete').onclick = () => {
+			if (!current || current.past) return;
+			$('delName').textContent = current.name;
+			$('delErr').hidden = true;
+			delModal.hidden = false;
+		};
+		$('delClose').onclick = closeDel;
+		$('delCancel').onclick = closeDel;
+		delModal.onclick = (e) => { if (e.target === delModal) closeDel(); };
+		$('delGo').onclick = async () => {
+			if (!current) return;
+			const btn = $<HTMLButtonElement>('delGo');
+			btn.disabled = true;
+			try {
+				await evFetch(`/api/events/${current.event_id}`, { method: 'DELETE' });
+				current = null;
+				closeDel();
+				form.hidden = true;
+				emptyMsg.hidden = false;
+				await load(false);
+			} catch (err) {
+				$('delErr').textContent = (err as Error).message;
+				$('delErr').hidden = false;
+			} finally {
+				btn.disabled = false;
+			}
+		};
+
+		// ---------- add: staged drafts ----------
+		// Several cards filled in, then sent together, exactly like the merch panel. A
+		// fest programme arrives as a day at a time, not one session at a time.
+		function renumber() {
+			[...draftsBox.children].forEach((d, i) => {
+				(d.querySelector('.ev-draft-n') as HTMLElement).textContent = `EVENT ${String(i + 1).padStart(2, '0')}`;
+				// The last card cannot be removed — an empty add pane has nothing to fill in.
+				(d.querySelector('.ev-draft-del') as HTMLButtonElement).disabled = draftsBox.children.length === 1;
+			});
+		}
+
+		/** Staged, not uploaded: there is no event id to attach a poster to until the row
+		 *  has been created, so the file waits in its input and goes up straight after. */
+		function wirePosterDrop(row: HTMLElement) {
+			const input = row.querySelector('[data-poster]') as HTMLInputElement;
+			const img = row.querySelector('[data-preview]') as HTMLImageElement;
+			const text = row.querySelector('[data-droptext]') as HTMLElement;
+			const size = row.querySelector('[data-postersize]') as HTMLElement;
+			const clear = row.querySelector('[data-posterclear]') as HTMLButtonElement;
+			const drop = row.querySelector('[data-drop]') as HTMLElement;
+			const err = row.querySelector('[data-err]') as HTMLElement;
+
+			const paint = () => {
+				const f = input.files?.[0];
+				if (!f) {
+					// revokeObjectURL: without it every re-pick leaks a blob for the life of
+					// the tab, and a long add session can stage a dozen of them.
+					if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+					img.hidden = true; img.removeAttribute('src');
+					text.hidden = false; clear.hidden = true; size.textContent = 'optional';
+					return;
+				}
+				if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+				img.src = URL.createObjectURL(f);
+				img.hidden = false; text.hidden = true; clear.hidden = false;
+				size.textContent = `${(f.size / 1048576).toFixed(1)}MB`;
+			};
+
+			input.onchange = () => {
+				const f = input.files?.[0];
+				if (f) {
+					const bad = badPoster(f);
+					if (bad) { err.textContent = bad; err.hidden = false; input.value = ''; }
+					else err.hidden = true;
+				}
+				paint();
+			};
+			clear.onclick = (e) => { e.preventDefault(); input.value = ''; paint(); };
+
+			for (const ev of ['dragenter', 'dragover'] as const)
+				drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); });
+			for (const ev of ['dragleave', 'drop'] as const)
+				drop.addEventListener(ev, () => drop.classList.remove('over'));
+			drop.addEventListener('drop', (e) => {
+				e.preventDefault();
+				const f = (e as DragEvent).dataTransfer?.files?.[0];
+				if (!f) return;
+				const dt = new DataTransfer();
+				dt.items.add(f);
+				input.files = dt.files;
+				input.dispatchEvent(new Event('change'));
+			});
+		}
+
+		function addDraft(seed?: { starts_at?: string; ends_at?: string; venue?: string; event_type?: string }) {
+			const node = draftTpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+			// Carry the day, venue and type forward from the card above: entering a
+			// programme means six sessions in one room on one date, and retyping the date
+			// six times is the difference between this being usable and not.
+			if (seed) {
+				const q = <T extends HTMLElement>(s: string) => node.querySelector(s) as T;
+				if (seed.starts_at) q<HTMLInputElement>('[data-start]').value = seed.starts_at;
+				if (seed.ends_at) q<HTMLInputElement>('[data-end]').value = seed.ends_at;
+				if (seed.venue) q<HTMLInputElement>('[data-venue]').value = seed.venue;
+				if (seed.event_type) q<HTMLInputElement>('[data-type]').value = seed.event_type;
+			}
+			(node.querySelector('.ev-draft-del') as HTMLButtonElement).onclick = () => {
+				if (draftsBox.children.length === 1) return;
+				node.remove();
+				renumber();
+			};
+			wirePosterDrop(node);
+			draftsBox.appendChild(node);
+			renumber();
+			return node;
+		}
+
+		$('evDraftAdd').onclick = () => {
+			const last = draftsBox.lastElementChild as HTMLElement | null;
+			const q = (s: string) => (last?.querySelector(s) as HTMLInputElement | null)?.value ?? '';
+			// the new card starts where the previous one ended
+			const prevEnd = q('[data-end]');
+			addDraft({ starts_at: prevEnd, ends_at: '', venue: q('[data-venue]'), event_type: q('[data-type]') });
+			draftsBox.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		};
+
+		$('nClear').onclick = () => {
+			draftsBox.innerHTML = '';
+			addDraft();
+			nErr.hidden = true;
+			nSaved.hidden = true;
+		};
+
+		nSubmit.onclick = async () => {
+			nErr.hidden = true;
+			nSaved.hidden = true;
+
+			const cards = [...draftsBox.children] as HTMLElement[];
+			const bodies: ReturnType<typeof readScheduled>[] = [];
+			let firstBad: HTMLElement | null = null;
+
+			// Validate everything BEFORE posting anything. Half a programme in the database
+			// and half in a form is worse than nothing sent at all.
+			for (const card of cards) {
+				const q = (s: string) => (card.querySelector(s) as HTMLInputElement | HTMLTextAreaElement).value;
+				const err = card.querySelector('[data-err]') as HTMLElement;
+				err.hidden = true;
+				try {
+					bodies.push(readScheduled({
+						name: q('[data-name]'), event_type: q('[data-type]'), venue: q('[data-venue]'),
+						starts_at: q('[data-start]'), ends_at: q('[data-end]'),
+						description: q('[data-desc]'), registration_link: q('[data-reg]'),
+					}));
+				} catch (e) {
+					err.textContent = (e as Error).message;
+					err.hidden = false;
+					firstBad ??= card;
+				}
+			}
+
+			if (firstBad) {
+				nErr.textContent = 'Some cards are incomplete — see the message on each.';
+				nErr.hidden = false;
+				firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				return;
+			}
+
+			nSubmit.disabled = true;
+			nSubmit.textContent = 'SENDING…';
+			let sent = 0;
+			const posterFails: string[] = [];
+			try {
+				// Sequential, not Promise.all: if the fourth one is rejected the message has
+				// to name which, and a parallel batch would leave three already written with
+				// no way to say which card matched which failure.
+				for (const body of bodies) {
+					const made = await evFetch<{ event_id: string }>('/api/events', {
+						method: 'POST', body: JSON.stringify(body),
+					});
+					// The poster can only go up once the row exists to hang it on. A failure
+					// here must not lose the event that was just created, so it is reported
+					// and the loop carries on — the poster can be added from Edit.
+					const file = (cards[sent].querySelector('[data-poster]') as HTMLInputElement).files?.[0];
+					if (file) {
+						try { await uploadPoster(made.event_id, file); }
+						catch (e) { posterFails.push(`${body.name}: ${(e as Error).message}`); }
+					}
+					cards[sent].remove();
+					sent++;
+				}
+				nSaved.textContent = posterFails.length
+					? `${sent} event${sent === 1 ? '' : 's'} added — but the poster failed on ${posterFails.length}. Add it from Edit.`
+					: `${sent} event${sent === 1 ? '' : 's'} added.`;
+				nSaved.hidden = false;
+				addDraft();
+				await load(false);
+			} catch (err) {
+				nErr.textContent = sent
+					? `${sent} added, then: ${(err as Error).message}. The rest are still here.`
+					: (err as Error).message;
+				nErr.hidden = false;
+				renumber();
+				await load(false);
+			} finally {
+				nSubmit.disabled = false;
+				nSubmit.textContent = 'ADD TO SCHEDULE';
+			}
+		};
+
+		// ---------- go ----------
+		addDraft();
+		setTask('add');
+		load(false);
+	}
+
+	document.addEventListener('astro:page-load', initEventsAdmin);
+</script>
+
 <style is:global>
-	.e-body { flex: 1; min-height: 0; overflow-y: auto; display: grid; place-items: center; padding: 30px 20px; }
-	.e-card {
-		width: min(520px, 100%);
-		padding: 26px;
+	/* ponytail: the rail/pane chassis is a second copy of the merch panel's, under an
+	   ev- prefix rather than a shared stylesheet. Extracting it would mean unpicking
+	   ~30 rule blocks that are threaded through 1000 lines of merch-specific CSS with
+	   .m-shell[data-task=…] combinators pointing at merch-only elements — a real
+	   regression risk on a page that works, to save 40 lines here. The pieces that
+	   already ARE shared files (catalogue-tree.css, admin-controls.css) are reused.
+	   Extract the chassis the day a third panel needs it. */
+
+	/* ---- shell: task rail | programme | work area ---- */
+	/* One variable drives both rails, so they cannot drift out of alignment. */
+	/* Two rails, two widths. One shared 280px value made the task rail — which holds two
+	   labels — as wide as the programme rail, which holds an event name, a time and a
+	   date and was wrapping names onto three lines to do it. */
+	.ev-shell { flex-direction: row; --task-rail: 224px; --list-rail: 312px; }
+	.ev-tasks {
+		flex: none; width: var(--task-rail); box-sizing: border-box;
+		display: flex; flex-direction: column; gap: 6px;
+		padding: 20px 14px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	.ev-task {
+		display: flex; align-items: center; gap: 10px;
+		box-sizing: border-box; width: 100%;
+		padding: 12px 13px; text-align: left;
+		font-size: 12.5px; font-weight: 700;
+	}
+	.ev-task.on { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+	.ev-task-icon { display: grid; place-items: center; flex: none; }
+	.ev-task-icon svg { width: 16px; height: 16px; stroke-width: 2; }
+	.ev-task-label { flex: 1; }
+	.ev-add-icon { display: grid; place-items: center; }
+	.ev-add-icon svg { width: 14px; height: 14px; stroke-width: 2.6; }
+
+	.ev-panes {
+		flex: 1; min-height: 0;
+		display: grid; grid-template-columns: var(--list-rail) minmax(0, 1fr);
+	}
+	/* The programme rail only belongs to the edit task; the work area takes the full
+	   width for the other one rather than leaving a dead column. */
+	.ev-shell:not([data-task='edit']) .ev-list-pane { display: none; }
+	.ev-shell:not([data-task='edit']) .ev-panes { grid-template-columns: 1fr; }
+	.ev-shell:not([data-task='add']) .ev-new { display: none; }
+	.ev-shell:not([data-task='edit']) .ev-form,
+	.ev-shell:not([data-task='edit']) .ev-empty { display: none; }
+
+	/* ---- left: programme ---- */
+	.ev-list-pane {
+		display: flex; flex-direction: column; min-height: 0;
+		padding: 20px 18px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	/* The rail itself is styles/catalogue-tree.css — the storefront's own component. */
+	.ev-list-pane .a-eyebrow b { color: var(--accent); font-weight: 500; }
+	/* Scoped to this page, not pushed into catalogue-tree.css: merch's rows carry a short
+	   number and a price and wrap fine. An event name beside a time badge and a date does
+	   not, and a rail of three-line rows is unreadable at fifteen of them. */
+	.ev-list-pane .titem .tname {
+		display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+		overflow: hidden; line-height: 1.25;
+	}
+	.ev-list-pane .titem .tmeta { white-space: nowrap; }
+	.ev-list-pane .tnum { font-variant-numeric: tabular-nums; padding: 0 4px; }
+	.ev-list-err { margin-top: 12px; }
+
+	/* ---- right: work area ----
+	   Three bands in both modes: a fixed head, a scrolling body, and a footer that stays
+	   put. With eight cards staged the submit button must not be a scroll away. */
+	.ev-work {
+		min-height: 0; overflow: hidden;
+		display: flex; flex-direction: column;
+		padding: 24px 30px 30px;
+	}
+	.ev-new, .ev-form { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+	.ev-head { flex: none; display: flex; flex-direction: column; gap: 10px; }
+	.ev-hint { margin: -6px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.6; color: var(--ink-60); }
+	.ev-scroll {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: flex; flex-direction: column; gap: 14px;
+		/* room for the focus shadow on controls sitting at the very edge */
+		padding: 4px 6px 4px 4px; margin: -4px -6px -4px -4px;
+	}
+	.ev-foot {
+		flex: none;
+		display: flex; flex-direction: column; gap: 10px;
+		padding-top: 14px;
+		/* The rule is what tells you the body above is scrolled, not ended. */
+		border-top: var(--stroke) solid var(--secondary);
+		background: var(--primary);
+	}
+	.ev-actions { display: flex; gap: 10px; padding-top: 4px; }
+	.ev-save { flex: 1; }
+	.ev-empty { margin: 0; font-size: 13px; color: var(--ink-40); }
+	.ev-saved {
+		margin: 0; font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+	}
+	/* minmax(0,…), not 1fr: a grid item's automatic minimum is its content size, and a
+	   <input type="datetime-local"> has a wide intrinsic width — so a plain 1fr track
+	   refused to shrink and the second field ran out past the cell's border. */
+	.ev-row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+
+	/* ---- bento: the form beside what it produces ---- */
+	.ev-bento {
+		--wire: 30px;
+		display: block;
+	}
+	.ev-bento {
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: var(--wire); align-items: stretch;
+	}
+	/* The bento fills the scroll area and both cells end level, instead of sitting as two
+	   short boxes with 400px of paper under them. The slack goes to the description —
+	   the one field that is actually better for being taller. */
+	/* 1 0 auto for the same reason the drafts grid needs it: `flex: 1` gives a zero basis
+	   with shrink allowed, so on a short window the bento's box collapsed and took the
+	   poster and preview cells down to 40px each with it. Grow into spare height, never
+	   shrink below content. */
+	.ev-form .ev-scroll > .ev-bento { flex: 1 0 auto; }
+	.ev-field-grow { flex: 1; min-height: 0; }
+	.ev-field-grow textarea { flex: 1; min-height: 96px; }
+	.ev-cell {
+		position: relative;
+		display: flex; flex-direction: column; gap: 13px;
+		padding: 18px; min-height: 0;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ev-cell .a-eyebrow { margin: 0; }
+	.ev-cell-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+	.ev-id {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .06em; color: var(--ink-40); word-break: break-all;
+	}
+	/* A wire from the form into the preview, saying which feeds which. An element rather
+	   than a pseudo because the box needs both a line and a terminal node. */
+	.ev-wire {
+		position: absolute; right: calc(var(--wire) * -1); top: 30px;
+		width: var(--wire); height: 1.5px;
+		background: var(--secondary);
+	}
+	.ev-wire::after {
+		content: ''; position: absolute; box-sizing: border-box;
+		right: -6px; top: 50%; transform: translateY(-50%);
+		width: 10px; height: 10px;
+		background: var(--accent);
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+	}
+	.ev-locked {
+		margin: 0; padding: 11px 13px;
+		font-size: 12.5px; line-height: 1.55; color: var(--ink-60);
+		background: var(--sink);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+	}
+	/* A read-only field must not look like one you simply have not typed in yet. */
+	.field-input:read-only, .field-input:disabled {
+		color: var(--ink-60); background: var(--sink); border-color: var(--hair);
+		cursor: default;
+	}
+	.field-input:read-only:focus, .field-input:disabled:focus { transform: none; box-shadow: none; }
+
+	/* ---- preview: the storefront's own timeline row ---- */
+	.ev-preview { background: var(--sink); gap: 16px; }
+	.pv-item {
+		display: grid; grid-template-columns: 46px 20px minmax(0, 1fr);
+		align-items: start; gap: 0 10px;
+	}
+	.pv-time {
+		padding-top: 15px; text-align: right;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; font-variant-numeric: tabular-nums; color: var(--secondary);
+	}
+	.pv-rail { display: grid; place-items: center; padding-top: 17px; }
+	.pv-dot {
+		width: 10px; height: 10px; border-radius: 50%;
+		background: var(--primary); border: var(--stroke) solid var(--secondary);
+	}
+	.pv-card {
+		display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+		padding: 13px 15px 14px; min-width: 0;
+		background: var(--primary); color: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.pv-top { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; }
+	.pv-chip {
+		flex: none; padding: 3px 8px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--accent); border: 1.5px solid var(--accent); border-radius: var(--r);
+	}
+	.pv-venue {
+		margin-left: auto; min-width: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-60);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+	.pv-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+	.pv-name {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; line-height: 1.12;
+		letter-spacing: -0.01em; text-transform: uppercase; overflow-wrap: anywhere;
+	}
+	/* Clamped to two lines exactly as the storefront card clamps it, so the preview
+	   answers the question the field cannot: how much of this will anyone actually see. */
+	.pv-desc {
+		font-size: 12px; line-height: 1.55; color: var(--ink-60);
+		display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+	}
+
+	/* the file popup's own form rows: label, dotted leader, value */
+	.pv-rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+	.pv-row {
+		display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: baseline;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px;
+	}
+	.pv-row dt { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-60); }
+	.pv-lead { border-bottom: 1.5px dotted var(--hair); transform: translateY(-3px); }
+	.pv-row dd { margin: 0; color: var(--secondary); text-align: right; }
+	/* auto on top: the cell stretches to match the form beside it, and the note reads as
+	   the foot of a display case rather than floating in the middle of one. A `margin: 0`
+	   here silently undid a margin-top set earlier in the sheet. */
+	.pv-cta { margin: auto 0 0; font-size: 12px; line-height: 1.55; color: var(--ink-60); font-style: italic; }
+
+	/* ---- add: staged drafts ---- */
+	/* ---- poster plate ----
+	   One component, two sizes: staged beside a draft card, and live in the editor.
+	   aspect-ratio, not a fixed height — a poster is portrait and the box should say so
+	   before anything is in it. */
+	.ev-drop {
+		position: relative; display: grid; place-items: center; overflow: hidden;
+		aspect-ratio: 3 / 4; width: 100%;
+		cursor: pointer; text-align: center;
+		background: var(--sink);
+		border: var(--stroke) dashed var(--hair); border-radius: var(--r);
+		transition: border-color .13s ease, background .13s ease;
+	}
+	.ev-drop:hover, .ev-drop.over { border-color: var(--accent); background: var(--primary); }
+	.ev-drop-img {
+		position: absolute; inset: 0;
+		width: 100%; height: 100%; object-fit: contain;
+		background: var(--primary);
+	}
+	.ev-drop-text {
+		padding: 0 16px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; line-height: 1.7; letter-spacing: .1em; text-transform: uppercase;
+		color: var(--ink-60);
+	}
+	/* Both plates fill the box they are in rather than dictating its height — the 3/4
+	   ratio is only the floor for when there is nothing else setting one. */
+	.ev-drop-lg { aspect-ratio: auto; flex: 1; min-height: 190px; }
+	.ev-draft-row .ev-drop { aspect-ratio: auto; flex: 1; min-height: 170px; }
+
+	.ev-poster-box {
+		display: flex; flex-direction: column; gap: 10px;
+		padding: 18px; min-width: 0;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ev-poster-head {
+		display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.ev-poster-head b { font-weight: 500; color: var(--accent); }
+	.ev-poster-hint {
+		margin: 0; font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; line-height: 1.6; letter-spacing: .06em; color: var(--ink-60);
+	}
+	.ev-drop-clear {
+		align-self: flex-start; padding: 8px 11px;
+		font-size: 9.5px; font-weight: 800; letter-spacing: .12em;
+		color: var(--accent); border-color: var(--accent);
+	}
+
+	/* ---- editor: poster over preview ---- */
+	.ev-right {
+		display: grid; gap: var(--wire); min-height: 0;
+		/* The preview sizes to its own content and the poster takes everything left over,
+		   with a floor so it never collapses. Two fractions instead clipped the preview's
+		   last line whenever the description ran long — a fr track is a share of the
+		   height, not a promise to fit what is in it. */
+		grid-template-rows: minmax(200px, 1fr) auto;
+	}
+	.ev-poster-cell { background: var(--sink); }
+	.ev-poster-state {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .06em; color: var(--ink-60);
+	}
+	.ev-poster-actions { display: flex; gap: 8px; }
+	.ev-poster-actions .btn { flex: 1; padding: 11px 12px; font-size: 10px; letter-spacing: .12em; }
+	.ev-poster-err { font-size: 11.5px; padding: 9px 11px; }
+
+	/* ---- add: the card and its poster, side by side ---- */
+	.ev-draft-row {
+		display: grid; grid-template-columns: minmax(0, 1fr) 232px;
+		gap: 14px; align-items: stretch;
+	}
+	.ev-draft-row > .ev-draft { margin: 0; }
+
+	/* Cards tile instead of stacking. One card stretched across a wide monitor put a
+	   40-character Name field at 1368px, which is unreadable and looks broken; auto-fill
+	   gives each card a 480px floor and lets a second one sit beside it rather than a
+	   screen further down. min(100%, …) so the track still collapses on a phone. */
+	/* flex:1 — .ev-scroll is a flex column with a definite height, so the grid can claim
+	   what is left instead of sitting at the top of it. A single card then stretches, its
+	   description grows and its poster plate grows, and the pane stops being mostly empty
+	   paper. With several cards it simply overflows and scrolls, as before. */
+	#evDrafts {
+		/* 1 0 auto, not 1: grow into the spare height, but never shrink below the cards'
+		   own height. `flex: 1` sets a 0 basis with shrink allowed, so with two cards the
+		   grid's BOX stayed at the pane height while its content overflowed — and the
+		   button after it rendered on top of the overflow. */
+		display: grid; flex: 1 0 auto; align-items: stretch; gap: 14px;
+		/* Wider floor than before: a row is now a card PLUS a 232px poster box, and at
+		   480px the fields were squeezed into a column narrower than the plate. */
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 720px), 1fr));
+	}
+	.ev-draft {
+		display: flex; flex-direction: column; gap: 12px;
+		padding: 18px; min-height: 0;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.ev-draft-head { display: flex; align-items: center; justify-content: space-between; }
+	.ev-draft-n {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.ev-draft-del { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+	.ev-draft-del svg { width: 13px; height: 13px; stroke-width: 2.2; }
+	.ev-draft-del:disabled { opacity: .35; cursor: not-allowed; }
+	.ev-draft-err { margin: 0; font-size: 12px; color: var(--accent); }
+	.ev-draft-add {
+		/* flex:none — .ev-scroll is a flex column and the grid above now takes flex:1, so
+		   a shrinkable sibling gets squeezed below its own content height and its label
+		   spills back over the card. The button sets its own size; the grid takes the rest. */
+		flex: none; align-self: flex-start;
+		display: flex; align-items: center; gap: 8px;
+		padding: 11px 14px;
+		font-size: 10.5px; font-weight: 800; letter-spacing: .12em;
+	}
+
+	/* ---- destructive ---- */
+	/* Only fills once armed — a permanently red button in a row of three is just noise
+	   until it matters. */
+	.a-btn-danger {
+		box-sizing: border-box; padding: 15px 18px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+		color: var(--accent); border-color: var(--accent);
+	}
+	.a-btn-danger.armed { color: var(--primary); background: var(--accent); }
+	.a-btn-danger:disabled { opacity: .45; cursor: wait; }
+
+	/* ---- modal ---- */
+	.ov {
+		position: fixed; inset: 0; z-index: 60;
+		display: grid; place-items: center; padding: 22px;
+		background: color-mix(in srgb, var(--secondary) 45%, transparent);
+	}
+	.ov-panel {
+		width: min(430px, 100%); max-height: 86vh; min-width: 0;
+		display: flex; flex-direction: column;
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
-	.e-text { margin: 0 0 14px; font-size: 13.5px; line-height: 1.7; color: var(--ink-60); }
+	.ov-narrow { width: min(420px, 100%); }
+	.ov-head {
+		flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+		padding: 18px 20px; border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.ov-title {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 12px; letter-spacing: .08em;
+	}
+	.ov-head .btn.x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; }
+	.ov-head .btn.x svg { width: 14px; height: 14px; stroke-width: 2.4; }
+	.ov-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+	.ov-foot {
+		flex: none; display: flex; gap: 10px; padding: 16px 20px;
+		border-top: var(--stroke) solid var(--secondary);
+	}
+	.ov-foot .a-btn-danger { flex: 1; }
+	.ov-warn { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.ov-id {
+		margin: 0 0 12px; padding: 10px 12px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere;
+		background: var(--sink); border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	@media (max-width: 1180px) {
+		/* Below this the poster box and the fields are both too narrow side by side, so
+		   the plate goes under the card and lies down — a portrait box across the full
+		   width would be a screen of its own. */
+		.ev-draft-row { grid-template-columns: minmax(0, 1fr); }
+		/* Stacked there is no column height to fill, so the plate goes back to setting
+		   its own — landscape, because a portrait box across the full width of the pane
+		   would be a screen of its own. */
+		.ev-draft-row .ev-drop { aspect-ratio: 16 / 7; flex: none; min-height: 0; }
+	}
+	@media (max-width: 900px) {
+		/* Stacked, the right column has the whole width, so the two cells sit in normal
+		   flow instead of splitting a height they no longer have. */
+		.ev-right { grid-template-rows: auto auto; }
+		.ev-drop-lg { min-height: 240px; }
+		/* Side by side, both halves of the bento become unusable before the phone
+		   breakpoint — the preview card needs about 300px to stop wrapping its own chip
+		   row, and the form needs the same. */
+		.ev-bento { grid-template-columns: minmax(0, 1fr); }
+		/* stacked, the wire points at nothing */
+		.ev-wire { display: none; }
+	}
+	@media (max-width: 720px) {
+		/* The rail becomes a row of tabs across the top — a 280px column would eat most
+		   of a phone screen. */
+		.ev-shell { flex-direction: column; }
+		.ev-tasks {
+			width: auto; flex-direction: row; gap: 8px;
+			padding: 12px; overflow-x: auto; scrollbar-width: none;
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		}
+		.ev-tasks::-webkit-scrollbar { display: none; }
+		.ev-task { width: auto; flex: none; padding: 10px 13px; }
+
+		.ev-panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+		.ev-list-pane {
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+			padding: 16px;
+		}
+		/* The cap belongs on the scroller, not the pane: the pane's overflow is visible,
+		   so a long programme would spill straight over the form below. .tree already
+		   carries overflow-y, and stacked it has no definite height to fill. */
+		/* 26dvh, not 34: the rail, the pinned footer and this cap all come out of one
+		   screen, and at 34 the form between them was left about 110px of scroll. */
+		.ev-list-pane .tree { flex: none; min-height: 0; max-height: 26vh; max-height: 26dvh; }
+		.ev-work { padding: 14px; }
+		.ev-row2 { grid-template-columns: minmax(0, 1fr); }
+		/* Save gets its own full-width row; the other two share the one below. Every
+		   pixel the footer takes comes straight out of the form above it, so the
+		   controls shrink here rather than the work area. */
+		.ev-actions { flex-wrap: wrap; gap: 8px; padding-top: 0; }
+		.ev-save { flex: 1 1 100%; }
+		.ev-actions .a-btn-secondary, .ev-actions .a-btn-danger { flex: 1; }
+		.ev-work .a-btn-primary, .ev-work .a-btn-secondary, .ev-work .a-btn-danger {
+			padding: 12px 14px; font-size: 10.5px;
+		}
+		.ev-foot { padding-top: 10px; gap: 8px; }
+	}
 </style>

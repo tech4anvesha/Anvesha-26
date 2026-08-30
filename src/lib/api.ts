@@ -24,3 +24,14 @@ export const SITE = (import.meta.env.PUBLIC_SITE_URL ?? 'https://anvesha26.in').
 	/\/$/,
 	'',
 );
+
+/**
+ * The EVENTS Worker, which is a separate deployment from the merch one above.
+ *
+ * Set PUBLIC_EVENTS_API_URL in Vercel (and .env). The fallback is the live Worker
+ * rather than localhost: the events page is public and read-only, so an unconfigured
+ * build should still show a real schedule instead of an empty one.
+ */
+export const EVENTS_API = (
+	import.meta.env.PUBLIC_EVENTS_API_URL ?? 'https://anvesha-events-api.tech4anvesha.workers.dev'
+).replace(/\/$/, '');
