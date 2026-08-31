@@ -489,7 +489,8 @@ import iX from 'lucide-static/icons/x.svg?raw';
 
 		let scheduled: Rec[] = [];
 		let done: Rec[] = [];
-		let openFolders = new Set<string>();
+		// One at a time — an accordion, not a set of independent disclosures.
+		let openFolder: string | null = null;
 		let current: Rec | null = null;
 		let task = 'add';
 		// Archives opens on what still needs doing; 'all' is there for going back to one
@@ -513,6 +514,7 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			$('arcFilter').hidden = task !== 'archives';
 			if (task === 'archives' && current && !current.past) current = null;
 
+			paintCounts();
 			renderTree();
 			if (task !== 'add' && !current) { emptyMsg.hidden = false; form.hidden = true; }
 		}
@@ -544,16 +546,7 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				return;
 			}
 
-			evCount.textContent = String(task === 'archives' ? done.length : scheduled.length + done.length);
-
-			// The badge is the whole point of the tab: how many finished sessions are
-			// still missing the write-up nobody remembers to come back for.
-			const todo = done.filter((r) => !r.summary).length;
-			$('fcTodo').textContent = String(todo);
-			$('fcAll').textContent = String(done.length);
-			const badge = $('todoBadge');
-			badge.textContent = String(todo);
-			badge.hidden = todo === 0;
+			paintCounts();
 
 
 			renderTree();
@@ -571,22 +564,26 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		// the date beside the name, which left an event title about 120px to wrap into —
 		// three-line rows all the way down. The date is now said once, in the folder.
 		const rowHTML = (r: Rec, last: boolean) => `<button
-			class="tnode titem${last ? ' last' : ''}${current?.event_id === r.event_id ? ' active' : ''}"
+			class="tnode titem${last ? ' last' : ''}"
 			data-ev="${esc(r.event_id)}" role="treeitem" type="button">
 			<i class="tnum">${esc(r.starts_at.slice(11))}</i>
 			<span class="tname">${esc(r.name)}</span>
 			${r.past && !r.summary ? '<span class="toff">TO DO</span>' : ''}
 		</button>`;
 
+		/**
+		 * Every folder renders its children — open or not. They used to be dropped from
+		 * the DOM, which is why nothing could animate: there was nothing to animate FROM.
+		 * The inner wrapper is what the 0fr → 1fr grid trick needs to measure against.
+		 */
 		function folderHTML(key: string, label: string, meta: string, rows: Rec[]) {
-			const open = openFolders.has(key);
-			return `<button class="tnode tcat${open ? ' open' : ''}" data-folder="${esc(key)}" type="button">
+			return `<button class="tnode tcat" data-folder="${esc(key)}" type="button" aria-expanded="false">
 					<span class="tcaret">${caretRight}</span>
 					<span class="tname">${esc(label)}</span>
 					<span class="tmeta">${esc(meta)}</span>
 				</button>
-				<div class="tkids"${open ? '' : ' hidden'}>
-					${rows.map((r, i) => rowHTML(r, i === rows.length - 1)).join('')}
+				<div class="tkids" data-kids="${esc(key)}">
+					<div class="tkids-in">${rows.map((r, i) => rowHTML(r, i === rows.length - 1)).join('')}</div>
 				</div>`;
 		}
 
@@ -600,6 +597,46 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				g.items.push(r);
 			}
 			return out;
+		}
+
+		/**
+		 * Classes only, no re-render — an accordion that rebuilt the rail on every click
+		 * would replace the very nodes the transition is running on.
+		 *
+		 * One folder at a time: opening a second closes the first, and both animate.
+		 */
+		function paintFolders() {
+			for (const cat of tree.querySelectorAll<HTMLElement>('[data-folder]')) {
+				const on = cat.dataset.folder === openFolder;
+				cat.classList.toggle('open', on);
+				cat.setAttribute('aria-expanded', String(on));
+			}
+			for (const kids of tree.querySelectorAll<HTMLElement>('[data-kids]'))
+				kids.classList.toggle('open', kids.dataset.kids === openFolder);
+		}
+
+		/**
+		 * The rail's header counts what the rail is currently showing. Setting them only
+		 * in load() left the header reading 36 — scheduled plus archived — after a switch
+		 * to Archives, which shows 23.
+		 */
+		function paintCounts() {
+			evCount.textContent = String(task === 'archives' ? done.length : scheduled.length + done.length);
+
+			// The badge is the whole point of the tab: how many finished sessions are
+			// still missing the write-up nobody remembers to come back for.
+			const todo = done.filter((r) => !r.summary).length;
+			$('fcTodo').textContent = String(todo);
+			$('fcAll').textContent = String(done.length);
+			const badge = $('todoBadge');
+			badge.textContent = String(todo);
+			badge.hidden = todo === 0;
+		}
+
+		/** The selected row moves; nothing else about the rail changes. */
+		function paintActive() {
+			for (const row of tree.querySelectorAll<HTMLElement>('[data-ev]'))
+				row.classList.toggle('active', row.dataset.ev === current?.event_id);
 		}
 
 		function renderTree() {
@@ -637,18 +674,33 @@ import iX from 'lucide-static/icons/x.svg?raw';
 					+ folderHTML('archive', 'Archive', String(done.length), done);
 			}
 
-			// First paint has nothing open; opening the first folder is almost always what
-			// someone wants, and an all-collapsed rail reads as an empty pane.
-			if (!openFolders.size) {
-				const first = tree.querySelector<HTMLElement>('[data-folder]');
-				if (first) { openFolders.add(first.dataset.folder!); return renderTree(); }
+			// Whatever was open may not exist in this list — Archives and Edit hold
+			// different folders. Fall back to the one holding the selected row, then to
+			// the first that has anything in it: an all-collapsed rail reads as an empty
+			// pane, and the first render happens before the fetch resolves, when Archive
+			// is the only folder there is — picking it then left it stuck open for good.
+			const cats = [...tree.querySelectorAll<HTMLElement>('[data-folder]')];
+			const keys = cats.map((b) => b.dataset.folder!);
+			const firstFilled = cats.find(
+				(b) => tree.querySelector(`[data-kids="${CSS.escape(b.dataset.folder!)}"] [data-ev]`),
+			)?.dataset.folder;
+			if (!openFolder || !keys.includes(openFolder)) {
+				const holding = current && tree.querySelector<HTMLElement>(`[data-ev="${CSS.escape(current.event_id)}"]`);
+				openFolder = holding?.closest<HTMLElement>('[data-kids]')?.dataset.kids ?? firstFilled ?? null;
 			}
+
+			paintFolders();
+			paintActive();
+			// Straight to the end state on first paint: a rail that unfurls itself every
+			// time the list reloads would be motion nobody asked for.
+			tree.querySelector('[data-kids].open')?.classList.add('instant');
+			requestAnimationFrame(() => tree.querySelector('[data-kids].instant')?.classList.remove('instant'));
 
 			for (const b of tree.querySelectorAll<HTMLElement>('[data-folder]'))
 				b.onclick = () => {
 					const k = b.dataset.folder!;
-					openFolders.has(k) ? openFolders.delete(k) : openFolders.add(k);
-					renderTree();
+					openFolder = openFolder === k ? null : k;
+					paintFolders();
 				};
 			for (const b of tree.querySelectorAll<HTMLElement>('[data-ev]'))
 				b.onclick = () => {
@@ -707,7 +759,9 @@ import iX from 'lucide-static/icons/x.svg?raw';
 
 			showPoster(r);
 			paintPreview();
-			renderTree();
+			// paintActive, not renderTree: rebuilding the rail here replaced the nodes a
+			// collapse/expand was animating and snapped the open folder shut.
+			paintActive();
 		}
 
 		/** The cell has exactly two states, and the buttons follow the picture. */
@@ -1219,6 +1273,32 @@ import iX from 'lucide-static/icons/x.svg?raw';
 	/* The rail's rows are `time · name` now that the folder carries the date, so the
 	   name gets the whole middle column instead of 120px to wrap into. */
 	.ev-list-pane .titem { grid-template-columns: auto minmax(0, 1fr) auto; }
+
+	/* ---- collapse / expand ----
+	   grid-template-rows 0fr → 1fr animates to the content's OWN height, so nothing has
+	   to be measured in JS and a folder with two rows and one with twenty both open at
+	   the same speed. The shared catalogue-tree.css already sets overflow:hidden on
+	   .tkids, which is what stops the rows spilling out mid-transition.
+
+	   visibility comes along for the ride: it flips discretely — instantly on the way
+	   open, at the end on the way shut — which keeps collapsed rows out of the tab order
+	   without a second timer to manage. */
+	.ev-list-pane .tkids {
+		display: grid; grid-template-rows: 0fr;
+		visibility: hidden;
+		transition: grid-template-rows .28s cubic-bezier(.32, 0, .18, 1), visibility .28s;
+	}
+	.ev-list-pane .tkids.open { grid-template-rows: 1fr; visibility: visible; }
+	/* min-height:0 or the grid item refuses to shrink below its content and the row
+	   never actually closes. */
+	.ev-list-pane .tkids-in { min-height: 0; overflow: hidden; }
+	/* First paint lands on the end state — a rail that unfurls itself every time the
+	   list reloads is motion nobody asked for. */
+	.ev-list-pane .tkids.instant { transition: none; }
+
+	@media (prefers-reduced-motion: reduce) {
+		.ev-list-pane .tkids { transition: none; }
+	}
 	.ev-add-icon { display: grid; place-items: center; }
 	.ev-add-icon svg { width: 14px; height: 14px; stroke-width: 2.6; }
 
