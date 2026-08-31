@@ -192,6 +192,21 @@ describe('POST /api/events', () => {
 	});
 });
 
+describe('GET /api/events/past', () => {
+	it('reads both tables, so an ended event is never in neither list', async () => {
+		const { db, seen } = fakeDb([]);
+		await worker.fetch(new Request('https://api.test/api/events/past'), env(db), ctx());
+		const q = seen.find((s) => /FROM events_done/.test(s.sql))!;
+		assert.ok(q, 'the archive query should run');
+		// The union is the whole fix: without the second branch a row that has ended but
+		// not yet been swept is dropped from Upcoming and absent from the archive.
+		assert.match(q.sql, /UNION ALL/);
+		assert.match(q.sql, /FROM events_scheduled WHERE ends_at <= \?/);
+		assert.equal(q.args.length, 1, 'bound to one IST cutoff');
+		assert.match(String(q.args[0]), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+	});
+});
+
 describe('GET /api/events', () => {
 	it('hides a row the cron has not swept yet', async () => {
 		const past = { event_id: 'EVT_00000000', ends_at: '2020-01-01 10:00' };

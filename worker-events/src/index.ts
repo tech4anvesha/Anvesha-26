@@ -409,11 +409,27 @@ async function listScheduled(env: Env, cors: Cors): Promise<Response> {
 }
 
 async function listDone(env: Env, cors: Cors): Promise<Response> {
+	// Two sources, not one. listScheduled drops an event the moment its end time passes,
+	// but the row only reaches events_done on the next cron tick — so for up to fifteen
+	// minutes it was in NEITHER list and simply disappeared off the site. The union makes
+	// the sweep pure bookkeeping: what a visitor sees is decided by the clock, not by
+	// when the cron last ran.
+	//
+	// gallery_link and summary are NULL for the not-yet-moved rows because they are
+	// columns events_scheduled does not have — which is exactly right, since nobody can
+	// have written up an event that finished four minutes ago.
 	const { results } = await env.DB.prepare(
 		`SELECT event_id, name, starts_at, ends_at, venue, description, gallery_link, summary, event_type,
 		        poster_path IS NOT NULL AS has_poster
-		   FROM events_done ORDER BY ends_at DESC`,
-	).all();
+		   FROM events_done
+		 UNION ALL
+		 SELECT event_id, name, starts_at, ends_at, venue, description, NULL, NULL, event_type,
+		        poster_path IS NOT NULL
+		   FROM events_scheduled WHERE ends_at <= ?
+		 ORDER BY ends_at DESC`,
+	)
+		.bind(istStamp())
+		.all();
 	return json({ events: results }, {}, cors);
 }
 
@@ -476,6 +492,13 @@ async function updateDone(env: Env, req: Request, id: string, cors: Cors): Promi
 	const body = await readJson<{ gallery_link?: unknown; summary?: unknown }>(req);
 	const gallery_link = link(body.gallery_link, 'gallery_link');
 	const summary = str(body.summary, 'summary', 4000, false) || null;
+
+	// The archive now lists events that have ended but not yet been moved, so an admin
+	// can open one before the cron has run. Sweeping first — it is idempotent and cheap —
+	// is what stops that write 404ing on a row that is still in the other table.
+	const where = await findEvent(env, id);
+	if (where?.tbl === 'scheduled') await sweep(env);
+
 	const res = await env.DB.prepare(
 		`UPDATE events_done SET gallery_link = ?, summary = ? WHERE event_id = ?`,
 	)
