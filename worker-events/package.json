@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "wrangler dev --persist-to ../worker/.wrangler/state",
     "deploy": "wrangler deploy",
-    "test": "node --test 'test/**/*.test.ts'",
+    "test": "node --import ./test/cloudflare-stub.mjs --test 'test/**/*.test.ts'",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:local": "wrangler d1 execute anvesha --local --persist-to ../worker/.wrangler/state --file=./schema.sql",
     "db:remote": "wrangler d1 execute anvesha --remote --file=./schema.sql",

@@ -11,6 +11,7 @@
  *   GET    /api/events/:id/poster   poster image, streamed from R2   [public]
  *   POST   /api/events/:id/poster   upload/replace a poster          [admin]
  *   DELETE /api/events/:id/poster   remove a poster                  [admin]
+ *   GET    /api/live                live updates socket              [public]
  *
  * Separate deployment from the merch Worker, same D1 database. It shares nothing with
  * merch but the admin_login table — signing in on the existing admin panel has to let
@@ -29,6 +30,7 @@ export interface Env {
 	DB: D1Database;
 	// The merch bucket. Posters live under the `events/` prefix inside it.
 	MEDIA: R2Bucket;
+	HUB: DurableObjectNamespace<import('./hub.ts').EventsHub>;
 	ALLOWED_ORIGINS: string;
 	ENVIRONMENT: string;
 }
@@ -212,6 +214,28 @@ function parseEvent(body: EventBody) {
 }
 
 // ============================================================
+// live updates
+// ============================================================
+
+/**
+ * Tells every connected browser that something moved.
+ *
+ * Fire-and-forget on purpose: the write it follows is already committed, so a hub that
+ * is unreachable must cost the caller nothing but a log line. `reason` lets a listener
+ * decide whether it cares — the storefront refetches for anything, the admin panel
+ * ignores its own saves because it already has the answer.
+ */
+async function broadcast(env: Env, reason: string): Promise<void> {
+	try {
+		// One well-known name = one object = every viewer on the same fan-out point.
+		const hub = env.HUB.get(env.HUB.idFromName('events'));
+		await hub.broadcast(JSON.stringify({ type: 'events', reason, at: Date.now() }));
+	} catch (e) {
+		console.error('events: broadcast failed', e);
+	}
+}
+
+// ============================================================
 // posters
 // ============================================================
 
@@ -316,6 +340,7 @@ async function putPoster(env: Env, req: Request, id: string, cors: Cors): Promis
 		.run();
 	if (row.poster_path && row.poster_path !== key) await env.MEDIA.delete(row.poster_path);
 	await purgePoster(req, id);
+	await broadcast(env, 'poster');
 
 	return json({ event_id: id, has_poster: true }, {}, cors);
 }
@@ -332,6 +357,7 @@ async function deletePoster(env: Env, req: Request, id: string, cors: Cors): Pro
 		.run();
 	if (row.poster_path) await env.MEDIA.delete(row.poster_path);
 	await purgePoster(req, id);
+	await broadcast(env, 'poster');
 
 	return json({ event_id: id, has_poster: false }, {}, cors);
 }
@@ -402,6 +428,7 @@ async function createEvent(env: Env, req: Request, cors: Cors): Promise<Response
 	)
 		.bind(event_id, e.name, e.starts_at, e.ends_at, e.venue, e.description, e.registration_link, e.event_type)
 		.run();
+	await broadcast(env, 'created');
 	return json({ event_id, ...e }, { status: 201 }, cors);
 }
 
@@ -418,6 +445,7 @@ async function updateEvent(env: Env, req: Request, id: string, cors: Cors): Prom
 		.bind(e.name, e.starts_at, e.ends_at, e.venue, e.description, e.registration_link, e.event_type, id)
 		.run();
 	if (!res.meta.changes) throw notFound('No such event');
+	await broadcast(env, 'updated');
 	return json({ event_id: id, ...e }, {}, cors);
 }
 
@@ -433,6 +461,7 @@ async function deleteEvent(env: Env, req: Request, id: string, cors: Cors): Prom
 		await env.MEDIA.delete(row.poster_path).catch((e) => console.error('events: poster delete failed', e));
 		await purgePoster(req, id);
 	}
+	await broadcast(env, 'deleted');
 	return json({ ok: true }, {}, cors);
 }
 
@@ -453,12 +482,17 @@ async function updateDone(env: Env, req: Request, id: string, cors: Cors): Promi
 		.bind(gallery_link, summary, id)
 		.run();
 	if (!res.meta.changes) throw notFound('No such event');
+	await broadcast(env, 'updated');
 	return json({ event_id: id, gallery_link, summary }, {}, cors);
 }
 
 // ============================================================
 // entry points
 // ============================================================
+
+// The Durable Object class must be exported from the entry point for the runtime to
+// find it — the binding in wrangler.jsonc only names it.
+export { EventsHub } from './hub.ts';
 
 export default {
 	async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -474,7 +508,15 @@ export default {
 			if (method === 'POST' && pathname === '/api/events') return await createEvent(env, req, cors);
 			if (method === 'POST' && pathname === '/api/events/sweep') {
 				await requireAdmin(env, req);
-				return json({ moved: await sweep(env) }, {}, cors);
+				const moved = await sweep(env);
+				if (moved) await broadcast(env, 'archived');
+				return json({ moved }, {}, cors);
+			}
+
+			// The socket itself. No CORS headers: a WebSocket upgrade is not a CORS
+			// request, and the browser never applies the check to one.
+			if (method === 'GET' && pathname === '/api/live') {
+				return await env.HUB.get(env.HUB.idFromName('events')).fetch(req);
 			}
 
 			const poster = pathname.match(/^\/api\/events\/([^/]+)\/poster$/);
@@ -510,7 +552,14 @@ export default {
 	async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
 		ctx.waitUntil(
 			sweep(env)
-				.then((n) => n && console.log(`events: archived ${n}`))
+				.then(async (n) => {
+					if (!n) return;
+					console.log(`events: archived ${n}`);
+					// The whole point of the socket. This is the one change nobody triggered
+					// and nobody is watching for — a page open since this morning would
+					// otherwise keep an ended event under Upcoming until it was reloaded.
+					await broadcast(env, 'archived');
+				})
 				.catch((e) => console.error('events: sweep failed', e)),
 		);
 	},

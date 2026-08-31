@@ -24,6 +24,14 @@
 			"bucket_name": "anvesha-merch"
 		}
 	],
+	// Fan-out point for live schedule updates. Workers share no memory, so the list of
+	// connected browsers has to live somewhere single-instance.
+	"durable_objects": {
+		"bindings": [{ "name": "HUB", "class_name": "EventsHub" }]
+	},
+	// new_sqlite_classes, not new_classes: the SQLite backend is the one available on
+	// the Workers free plan.
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventsHub"] }],
 	// Every 15 minutes: an event whose end time has passed moves to events_done. The
 	// public list also filters by end time, so nothing shows as upcoming in the gap —
 	// this only has to be frequent enough that the past-events page is not stale, not

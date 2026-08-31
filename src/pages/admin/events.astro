@@ -19,6 +19,7 @@ import '../../styles/catalogue-tree.css';
 import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 import iAdd from 'lucide-static/icons/calendar-plus.svg?raw';
 import iEdit from 'lucide-static/icons/square-pen.svg?raw';
+import iArchive from 'lucide-static/icons/archive.svg?raw';
 import iPlus from 'lucide-static/icons/plus.svg?raw';
 import iTrash from 'lucide-static/icons/trash-2.svg?raw';
 import iX from 'lucide-static/icons/x.svg?raw';
@@ -36,14 +37,27 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				<span class="ev-task-icon" set:html={iEdit} />
 				<span class="ev-task-label">Edit event</span>
 			</button>
-
+			<button class="btn ev-task" data-task-btn="archives" type="button">
+				<span class="ev-task-icon" set:html={iArchive} />
+				<span class="ev-task-label">Archives</span>
+				<b class="ev-task-badge" id="todoBadge" hidden>0</b>
+			</button>
 		</nav>
 
 		<div class="ev-panes">
 			<!-- PROGRAMME — edit mode only -->
 			<aside class="ev-list-pane" id="evListPane">
-				<p class="a-eyebrow">Programme <b id="evCount">—</b></p>
+				<p class="a-eyebrow"><span id="evListLabel">Programme</span> <b id="evCount">—</b></p>
+
+				{/* Archives only. The question that pane exists to answer is "which ones
+				    still need writing up", so it gets a filter rather than a scroll. */}
+				<div class="ev-arcfilter" id="arcFilter" hidden>
+					<button class="fchip on" data-arc="todo" type="button">Needs write-up<i id="fcTodo">0</i></button>
+					<button class="fchip" data-arc="all" type="button">All<i id="fcAll">0</i></button>
+				</div>
+
 				<div class="tree" id="evTree" role="tree" aria-label="Events"></div>
+				<p class="ev-list-empty" id="evListEmpty" hidden>Everything here has a write-up.</p>
 				<p class="a-err ev-list-err" id="evListErr" hidden></p>
 			</aside>
 
@@ -352,7 +366,7 @@ import iX from 'lucide-static/icons/x.svg?raw';
 </AdminLayout>
 
 <script>
-	import { adminFetch } from '../../lib/admin';
+	import { adminFetch, onCatalogueChange } from '../../lib/admin';
 	import { EVENTS_API } from '../../lib/api';
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 
@@ -384,6 +398,8 @@ import iX from 'lucide-static/icons/x.svg?raw';
 	const stampMs = (s: string) => Date.parse(s.replace(' ', 'T') + ':00Z');
 
 	const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const MONTH = ['January', 'February', 'March', 'April', 'May', 'June',
+		'July', 'August', 'September', 'October', 'November', 'December'];
 	const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 	/** Read as UTC so the calendar day typed into the form is the one that renders. */
 	function dparts(iso: string) {
@@ -466,11 +482,16 @@ import iX from 'lucide-static/icons/x.svg?raw';
 
 		let scheduled: Rec[] = [];
 		let done: Rec[] = [];
-		let openFolders = new Set<string>(['scheduled']);
+		let openFolders = new Set<string>();
 		let current: Rec | null = null;
+		let task = 'add';
+		// Archives opens on what still needs doing; 'all' is there for going back to one
+		// already written.
+		let arcView: 'todo' | 'all' = 'todo';
 
 		// ---------- tasks ----------
-		function setTask(task: string) {
+		function setTask(next: string) {
+			task = next;
 			shell.dataset.task = task;
 			for (const b of shell.querySelectorAll<HTMLElement>('[data-task-btn]')) {
 				const on = b.dataset.taskBtn === task;
@@ -478,10 +499,25 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				if (on) b.setAttribute('aria-current', 'true');
 				else b.removeAttribute('aria-current');
 			}
-			if (task === 'edit' && !current) { emptyMsg.hidden = false; form.hidden = true; }
+
+			// The rail shows a different list per task, so switching has to redraw it —
+			// and a row selected under Edit may not even be in the Archives list.
+			$('evListLabel').textContent = task === 'archives' ? 'Archive' : 'Programme';
+			$('arcFilter').hidden = task !== 'archives';
+			if (task === 'archives' && current && !current.past) current = null;
+
+			renderTree();
+			if (task !== 'add' && !current) { emptyMsg.hidden = false; form.hidden = true; }
 		}
 		for (const b of shell.querySelectorAll<HTMLElement>('[data-task-btn]'))
 			b.onclick = () => setTask(b.dataset.taskBtn!);
+
+		for (const b of $('arcFilter').querySelectorAll<HTMLElement>('[data-arc]'))
+			b.onclick = () => {
+				arcView = b.dataset.arc as 'todo' | 'all';
+				for (const c of $('arcFilter').querySelectorAll('.fchip')) c.classList.toggle('on', c === b);
+				renderTree();
+			};
 
 		// ---------- load ----------
 		async function load(keepSelection = true) {
@@ -501,7 +537,16 @@ import iX from 'lucide-static/icons/x.svg?raw';
 				return;
 			}
 
-			evCount.textContent = String(scheduled.length + done.length);
+			evCount.textContent = String(task === 'archives' ? done.length : scheduled.length + done.length);
+
+			// The badge is the whole point of the tab: how many finished sessions are
+			// still missing the write-up nobody remembers to come back for.
+			const todo = done.filter((r) => !r.summary).length;
+			$('fcTodo').textContent = String(todo);
+			$('fcAll').textContent = String(done.length);
+			const badge = $('todoBadge');
+			badge.textContent = String(todo);
+			badge.hidden = todo === 0;
 
 			// Types offered to both forms come from what is already in use, so the set
 			// grows by someone typing a new one rather than by a deploy.
@@ -519,32 +564,82 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		}
 
 		// ---------- rail ----------
-		function rowHTML(r: Rec, last: boolean) {
-			const p = dparts(r.starts_at.slice(0, 10));
-			return `<button class="tnode titem${last ? ' last' : ''}${current?.event_id === r.event_id ? ' active' : ''}"
-				data-ev="${esc(r.event_id)}" role="treeitem" type="button">
-				<i class="tnum">${esc(r.starts_at.slice(11))}</i>
-				<span class="tname">${esc(r.name)}</span>
-				<span class="tmeta">${esc(p.dd)} ${esc(p.mon)}</span>
-			</button>`;
-		}
+		// Grouped by DATE, not into one flat Scheduled folder. Every row used to repeat
+		// the date beside the name, which left an event title about 120px to wrap into —
+		// three-line rows all the way down. The date is now said once, in the folder.
+		const rowHTML = (r: Rec, last: boolean) => `<button
+			class="tnode titem${last ? ' last' : ''}${current?.event_id === r.event_id ? ' active' : ''}"
+			data-ev="${esc(r.event_id)}" role="treeitem" type="button">
+			<i class="tnum">${esc(r.starts_at.slice(11))}</i>
+			<span class="tname">${esc(r.name)}</span>
+			${r.past && !r.summary ? '<span class="toff">TO DO</span>' : ''}
+		</button>`;
 
-		function folderHTML(key: string, label: string, rows: Rec[]) {
+		function folderHTML(key: string, label: string, meta: string, rows: Rec[]) {
 			const open = openFolders.has(key);
-			return `<button class="tnode tcat${open ? ' open' : ''}" data-folder="${key}" type="button">
+			return `<button class="tnode tcat${open ? ' open' : ''}" data-folder="${esc(key)}" type="button">
 					<span class="tcaret">${caretRight}</span>
 					<span class="tname">${esc(label)}</span>
-					<span class="tmeta">${rows.length}</span>
+					<span class="tmeta">${esc(meta)}</span>
 				</button>
 				<div class="tkids"${open ? '' : ' hidden'}>
 					${rows.map((r, i) => rowHTML(r, i === rows.length - 1)).join('')}
 				</div>`;
 		}
 
+		/** Rows -> one bucket per key, in the order the rows arrive. */
+		function bucket(rows: Rec[], keyOf: (r: Rec) => string) {
+			const out: { key: string; items: Rec[] }[] = [];
+			for (const r of rows) {
+				const key = keyOf(r);
+				let g = out.find((x) => x.key === key);
+				if (!g) out.push((g = { key, items: [] }));
+				g.items.push(r);
+			}
+			return out;
+		}
+
 		function renderTree() {
-			tree.innerHTML =
-				folderHTML('scheduled', 'Scheduled', scheduled) +
-				folderHTML('archive', 'Archive', done);
+			const listEmpty = $('evListEmpty');
+			listEmpty.hidden = true;
+
+			if (task === 'archives') {
+				const rows = arcView === 'todo' ? done.filter((r) => !r.summary) : done;
+				// Archived events go back years, so they bucket by month — a folder per
+				// date would be forty folders to scroll past.
+				tree.innerHTML = bucket(rows, (r) => r.starts_at.slice(0, 7))
+					.map((g) => {
+						const todo = g.items.filter((r) => !r.summary).length;
+						// MONTH, not dparts: this key is a month, not a date, and dparts
+						// hands back a weekday and a day-of-month that mean nothing here.
+						return folderHTML(`m${g.key}`, `${MONTH[+g.key.slice(5) - 1]} ${g.key.slice(0, 4)}`,
+							todo ? `${todo} to do` : `${g.items.length}`, g.items);
+					})
+					.join('');
+				if (!rows.length) {
+					listEmpty.textContent = arcView === 'todo'
+						? 'Every archived session has a write-up.'
+						: 'Nothing has been archived yet.';
+					listEmpty.hidden = false;
+				}
+			} else {
+				tree.innerHTML =
+					bucket(scheduled, (r) => r.starts_at.slice(0, 10))
+						.map((g) => {
+							const p = dparts(g.key);
+							return folderHTML(g.key, `${p.wd.slice(0, 3)} ${p.dd} ${p.mon}`,
+								String(g.items.length), g.items);
+						})
+						.join('')
+					+ folderHTML('archive', 'Archive', String(done.length), done);
+			}
+
+			// First paint has nothing open; opening the first folder is almost always what
+			// someone wants, and an all-collapsed rail reads as an empty pane.
+			if (!openFolders.size) {
+				const first = tree.querySelector<HTMLElement>('[data-folder]');
+				if (first) { openFolders.add(first.dataset.folder!); return renderTree(); }
+			}
 
 			for (const b of tree.querySelectorAll<HTMLElement>('[data-folder]'))
 				b.onclick = () => {
@@ -555,7 +650,9 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			for (const b of tree.querySelectorAll<HTMLElement>('[data-ev]'))
 				b.onclick = () => {
 					const r = [...scheduled, ...done].find((x) => x.event_id === b.dataset.ev);
-					if (r) { setTask('edit'); select(r); }
+					if (!r) return;
+					if (task === 'add') setTask('edit');
+					select(r);
 				};
 		}
 
@@ -1024,6 +1121,12 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		addDraft();
 		setTask('add');
 		load(false);
+
+		// Another admin's save, or the cron archiving something, should show up here too —
+		// a stale rail is how two people end up editing an event that has already moved.
+		// keepSelection: whatever row is open stays open if it still exists.
+		const stop = onCatalogueChange(() => load(true), ['events'], EVENTS_API);
+		document.addEventListener('astro:before-swap', stop, { once: true });
 	}
 
 	document.addEventListener('astro:page-load', initEventsAdmin);
@@ -1060,6 +1163,44 @@ import iX from 'lucide-static/icons/x.svg?raw';
 	.ev-task-icon { display: grid; place-items: center; flex: none; }
 	.ev-task-icon svg { width: 16px; height: 16px; stroke-width: 2; }
 	.ev-task-label { flex: 1; }
+	/* How many finished sessions still have no write-up. Hidden at zero — a badge that
+	   always reads 0 is furniture. */
+	.ev-task-badge {
+		flex: none; min-width: 18px; padding: 2px 5px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; font-weight: 500; text-align: center;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	.ev-task.on .ev-task-badge { background: var(--primary); color: var(--secondary); }
+
+	.ev-arcfilter { display: flex; gap: 6px; margin-bottom: 4px; }
+	/* .fchip is defined on the storefront's events page, which this one does not load —
+	   so the chips arrived with no display, no gap and no border, and the count ran into
+	   the label. Styled here in full rather than reaching for a class that is not there. */
+	.ev-arcfilter .fchip {
+		flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+		box-sizing: border-box; padding: 8px 9px; appearance: none; cursor: pointer;
+		background: var(--primary); color: var(--secondary);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+		transition: background .13s ease, color .13s ease, border-color .13s ease;
+	}
+	.ev-arcfilter .fchip i { font-style: normal; font-size: 9px; color: var(--ink-60); }
+	.ev-arcfilter .fchip:hover { border-color: var(--secondary); }
+	.ev-arcfilter .fchip.on {
+		background: var(--secondary); color: var(--primary); border-color: var(--secondary);
+	}
+	.ev-arcfilter .fchip.on i { color: var(--accent-lit); }
+	.ev-list-empty {
+		margin: 14px 0 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; line-height: 1.6; color: var(--ink-60);
+	}
+
+	/* The rail's rows are `time · name` now that the folder carries the date, so the
+	   name gets the whole middle column instead of 120px to wrap into. */
+	.ev-list-pane .titem { grid-template-columns: auto minmax(0, 1fr) auto; }
 	.ev-add-icon { display: grid; place-items: center; }
 	.ev-add-icon svg { width: 14px; height: 14px; stroke-width: 2.6; }
 
@@ -1069,11 +1210,13 @@ import iX from 'lucide-static/icons/x.svg?raw';
 	}
 	/* The programme rail only belongs to the edit task; the work area takes the full
 	   width for the other one rather than leaving a dead column. */
-	.ev-shell:not([data-task='edit']) .ev-list-pane { display: none; }
-	.ev-shell:not([data-task='edit']) .ev-panes { grid-template-columns: 1fr; }
+	.ev-shell[data-task='add'] .ev-list-pane { display: none; }
+	.ev-shell[data-task='add'] .ev-panes { grid-template-columns: minmax(0, 1fr); }
 	.ev-shell:not([data-task='add']) .ev-new { display: none; }
-	.ev-shell:not([data-task='edit']) .ev-form,
-	.ev-shell:not([data-task='edit']) .ev-empty { display: none; }
+	/* Archives edits an archived event through the very same form — it is already the
+	   read-only-plus-write-up shape, so a second one would be a copy that drifts. */
+	.ev-shell[data-task='add'] .ev-form,
+	.ev-shell[data-task='add'] .ev-empty { display: none; }
 
 	/* ---- left: programme ---- */
 	.ev-list-pane {

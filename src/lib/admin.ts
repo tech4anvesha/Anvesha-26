@@ -94,13 +94,16 @@ export async function adminFetch<T = unknown>(
 export function onCatalogueChange(
 	onChange: (reason: string) => void,
 	types: readonly string[] = ['catalogue'],
+	base: string = API,
 ): () => void {
 	let socket: WebSocket | null = null;
 	let retry = 0;
 	let timer: number | undefined;
 	let stopped = false;
 
-	const url = API.replace(/^http/, 'ws') + '/api/live';
+	// `base` so the events Worker — a separate deployment with its own hub — can use the
+	// same reconnect-with-backoff client instead of a second copy of it.
+	const url = base.replace(/^http/, 'ws') + '/api/live';
 
 	function connect() {
 		if (stopped) return;
