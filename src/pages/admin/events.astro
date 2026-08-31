@@ -14,6 +14,7 @@
  *                      have on the day (gallery link, summary) can be added
  */
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { EVENT_TYPES } from '../../lib/event-types';
 import '../../styles/catalogue-tree.css';
 
 import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
@@ -129,8 +130,13 @@ import iX from 'lucide-static/icons/x.svg?raw';
 							<div class="ev-row2">
 								<label class="field">
 									<span class="field-label">Type</span>
-									<input class="field-input" id="fType" type="text" maxlength="40" list="evTypes" required />
-									<datalist id="evTypes"></datalist>
+									{/* A closed list now, not free text with a datalist. Free text is what put
+									    'eref' and 'hjgthfng' in the column, and every value that is not on the
+									    list falls back to the calendar icon on the public page. */}
+									<select class="field-input" id="fType" required>
+										<option value="" disabled>Choose a type…</option>
+										{EVENT_TYPES.map((t) => <option value={t.label}>{t.label}</option>)}
+									</select>
 								</label>
 								<label class="field">
 									<span class="field-label">Venue</span>
@@ -282,8 +288,10 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			<div class="ev-row2">
 				<label class="field">
 					<span class="field-label">Type</span>
-					<input class="field-input" data-type type="text" maxlength="40" list="evTypes"
-					       placeholder="Talk, Workshop, Competition…" />
+					<select class="field-input" data-type>
+						<option value="" selected disabled>Choose a type…</option>
+						{EVENT_TYPES.map((t) => <option value={t.label}>{t.label}</option>)}
+					</select>
 				</label>
 				<label class="field">
 					<span class="field-label">Venue</span>
@@ -458,12 +466,11 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 		const tree = $('evTree'), evCount = $('evCount'), listErr = $('evListErr');
-		const typesList = $<HTMLDataListElement>('evTypes');
 		const emptyMsg = $('evEmpty'), form = $<HTMLFormElement>('evForm');
 		const draftsBox = $('evDrafts'), draftTpl = $<HTMLTemplateElement>('evDraftTpl');
 
 		const f = {
-			id: $('fId'), name: $<HTMLInputElement>('fName'), type: $<HTMLInputElement>('fType'),
+			id: $('fId'), name: $<HTMLInputElement>('fName'), type: $<HTMLSelectElement>('fType'),
 			venue: $<HTMLInputElement>('fVenue'), start: $<HTMLInputElement>('fStart'),
 			end: $<HTMLInputElement>('fEnd'), desc: $<HTMLTextAreaElement>('fDesc'),
 			reg: $<HTMLInputElement>('fReg'), gal: $<HTMLInputElement>('fGal'),
@@ -548,10 +555,6 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			badge.textContent = String(todo);
 			badge.hidden = todo === 0;
 
-			// Types offered to both forms come from what is already in use, so the set
-			// grows by someone typing a new one rather than by a deploy.
-			const types = [...new Set([...scheduled, ...done].map((r) => r.event_type).filter(Boolean))].sort();
-			typesList.innerHTML = types.map((t) => `<option value="${esc(t)}"></option>`).join('');
 
 			renderTree();
 
@@ -666,7 +669,18 @@ import iX from 'lucide-static/icons/x.svg?raw';
 
 			f.id.textContent = r.event_id;
 			f.name.value = r.name;
-			f.type.value = r.event_type ?? '';
+			// Rows written before the dropdown existed can hold anything. Rather than
+			// silently reset such a row to blank — and lose the value on the next save —
+			// its own type is added to the list, marked as off-list.
+			const type = r.event_type ?? '';
+			const known = [...f.type.options].some((o) => o.value === type);
+			if (type && !known) {
+				const opt = document.createElement('option');
+				opt.value = type;
+				opt.textContent = `${type} (not on the list)`;
+				f.type.appendChild(opt);
+			}
+			f.type.value = type;
 			f.venue.value = r.venue ?? '';
 			f.start.value = toInput(r.starts_at);
 			f.end.value = toInput(r.ends_at);
@@ -678,7 +692,11 @@ import iX from 'lucide-static/icons/x.svg?raw';
 			// An archived event is a record of something that already happened. The API
 			// will only take gallery_link and summary for it, so the rest is shown as a
 			// read-only record rather than as fields that silently fail to save.
-			for (const el of [f.name, f.type, f.venue, f.start, f.end, f.desc]) el.readOnly = r.past;
+			for (const el of [f.name, f.venue, f.desc]) el.readOnly = r.past;
+			// readOnly does nothing to a <select> or a date input — they only honour
+			// `disabled`. Without this the Type dropdown on an archived event stayed
+			// open, offering a change the API would refuse.
+			f.type.disabled = r.past;
 			f.start.disabled = r.past;
 			f.end.disabled = r.past;
 			f.locked.hidden = !r.past;
@@ -1325,12 +1343,19 @@ import iX from 'lucide-static/icons/x.svg?raw';
 		background: var(--sink);
 		border: 1.5px solid var(--hair); border-radius: var(--r);
 	}
-	/* A read-only field must not look like one you simply have not typed in yet. */
-	.field-input:read-only, .field-input:disabled {
+	/* A read-only field must not look like one you simply have not typed in yet.
+	   Qualified to input/textarea on purpose: :read-only matches ANY element that is not
+	   editable, which includes every <select> on the page — so an unqualified rule grey-ed
+	   out the Type dropdown and its `background` shorthand wiped the caret drawn by
+	   admin-controls.css. Selects are locked with `disabled`, which is below. */
+	input.field-input:read-only, textarea.field-input:read-only, .field-input:disabled {
 		color: var(--ink-60); background: var(--sink); border-color: var(--hair);
 		cursor: default;
 	}
-	.field-input:read-only:focus, .field-input:disabled:focus { transform: none; box-shadow: none; }
+	input.field-input:read-only:focus, textarea.field-input:read-only:focus,
+	.field-input:disabled:focus { transform: none; box-shadow: none; }
+	/* the caret would otherwise still be painted over a field nobody can open */
+	select.field-input:disabled { background-image: none; padding-right: 13px; }
 
 	/* ---- preview: the storefront's own timeline row ---- */
 	.ev-preview { background: var(--sink); gap: 16px; }
