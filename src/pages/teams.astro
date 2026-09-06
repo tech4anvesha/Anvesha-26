@@ -32,261 +32,330 @@ import iCode from 'lucide-static/icons/code.svg?raw';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iInfo from 'lucide-static/icons/info.svg?raw';
 
-// TODO(anvesha): real names, roll numbers, batches, schools, positions and one-liners.
-// The shape is what matters here — one array drives the rail, the card and every count.
-// Institute rows are faculty and carry no roll number, hence the em dash.
+// The crew, as submitted. Names, roll numbers, batches, positions, institute emails,
+// portraits and the one-liners are all straight out of the intake form — nothing on this
+// page is typed twice, and adding a person is one entry here.
+//
+// INSTITUTE is deliberately NOT one of the departments. It is faculty, it is not a team
+// anyone joins, and listing it alongside Tech and Decor made it read as one more student
+// department. The rail shows it as its own entity above the departments instead.
+// TODO(anvesha): the institute rows are still placeholders — the intake form went to the
+// student committee only, so there are no real faculty submissions to fill these from.
+const INSTITUTE = {
+	name: 'Institute', icon: iBuilding,
+	// `faculty: true` is what switches the card into its short form. These five have a
+	// photograph, a name and a title and nothing else — no roll number, no batch, no
+	// one-liner — so the card drops the fields grid rather than printing five em dashes.
+	// Names, titles and portraits are from iisertvm.ac.in.
+	faculty: true,
+	members: [
+		{ name: 'Prof. Srinivasa Murty Srinivasula', role: 'Director',
+		  school: 'School of Biology', photo: '/img/crew/director.jpg' },
+		{ name: 'Prof. Mahesh Hariharan', role: 'Deputy Director',
+		  school: 'School of Chemistry', photo: '/img/crew/deputy.jpg' },
+		{ name: 'Prof. Rajeev N Kini', role: 'Dean, Student Affairs',
+		  school: 'School of Physics', photo: '/img/crew/dosa.jpg' },
+		{ name: 'Dr. Sanu Shameer', role: 'Faculty in Charge',
+		  school: 'School of Biology', photo: '/img/crew/fic-sanu.jpg' },
+		{ name: 'Dr. Krishnendu Gope', role: 'Faculty in Charge',
+		  school: 'School of Physics', photo: '/img/crew/fic-gope.jpg' },
+	],
+};
+
 const DEPTS = [
-	{
-		name: 'Institute', icon: iBuilding,
-		members: [
-			{ name: 'Prof. R Sankaranarayanan', roll: '—', batch: 'Faculty', school: 'School of Physics',
-			  role: 'Patron',
-			  bio: 'Signs off on the fest as an institute activity and opens it every year.' },
-			{ name: 'Dr. Anita George', roll: '—', batch: 'Faculty', school: 'School of Biology',
-			  role: 'Faculty Advisor',
-			  bio: 'The bridge between the student committee and the administration.' },
-			{ name: 'Dr. P Vasudevan', roll: '—', batch: 'Faculty', school: 'School of Chemistry',
-			  role: 'Dean, Students',
-			  bio: 'Clears venues, budgets and anything that needs an institute signature.' },
-		],
-	},
 	{
 		name: 'Organizing Committee', icon: iUsers,
 		members: [
-			{ name: 'Aarav Menon', roll: 'IMS22014', batch: 'B22', school: 'School of Physics',
-			  role: 'Convenor',
-			  bio: 'Runs the committee and owns whatever nobody else has picked up.' },
-			{ name: 'Ishita Rao', roll: 'IMS22078', batch: 'B22', school: 'School of Biology',
-			  role: 'Co-convenor',
-			  bio: 'Keeps fifteen departments talking to each other in fest week.' },
-			{ name: 'Kabir Nair', roll: 'IMS23031', batch: 'B23', school: 'School of Mathematics',
-			  role: 'General Secretary',
-			  bio: 'Minutes, deadlines and the master timeline everything else hangs off.' },
+			{ name: 'Alan Varghese Jophy', roll: 'IMS22031', batch: 'B22',
+			  role: 'Co-convener', email: 'alan22@iisertvm.ac.in',
+			  photo: '/img/crew/IMS22031.jpg',
+			  bio: 'Serious about flawless execution; passionate about creating a fun, collaborative atmosphere. I’ll curate the perfect weekend itinerary, but I’m just as happy discarding the plan to stay in and sleep. Texting back quickly comes standard😉—total green flag material.' },
+			{ name: 'Ishitha V R', roll: 'IMS23120', batch: 'B23',
+			  role: 'Co-convener', email: 'ishitha23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23120.jpg',
+			  bio: 'It’s the little efforts of each of us that, over time, come together to build a successful event.' },
+			{ name: 'Pragun Nepal', roll: 'IMS23196', batch: 'B23',
+			  role: 'Co-convener', email: 'pragun23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23196.jpg',
+			  bio: 'Cosmic vision. Stellar execution.' },
 		],
 	},
 	{
 		name: 'Tech', icon: iCode,
 		members: [
-			// `more` is optional and only this row has it — it is what puts the ⓘ on the
-			// card. TODO(anvesha): drop it if the creator page ever comes down.
-			{ name: 'Antrin Maji', roll: 'IMS24019', batch: 'B24', school: 'School of Physics',
-			  role: 'Head', more: '/creator',
-			  bio: 'This site, the merch store, registrations and the AV on the day.' },
-			{ name: 'Harish Kumar', roll: 'IMS23041', batch: 'B23', school: 'School of Mathematics',
-			  role: 'Co-head',
-			  bio: 'Backend, deployments and whatever is on fire during the livestream.' },
-			{ name: 'Lakshmi Nandan', roll: 'IMS24058', batch: 'B24', school: 'School of Chemistry',
-			  role: 'On-site AV',
-			  bio: 'Sound, projection and the cables between them in every hall.' },
+			{ name: 'Antrin Maji', roll: 'IMS24038', batch: 'B24',
+			  role: 'Co-head', email: 'antrin24@iisertvm.ac.in', more: '/creator',
+			  photo: '/img/crew/IMS24038.jpg',
+			  bio: 'I have no idea what I’m doing, but I have developed a remarkably elaborate theory about it' },
+			{ name: 'Amarnath K', roll: 'IMS25021', batch: 'B25',
+			  role: 'Co-head', email: 'amarnathk25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25021.jpg',
+			  bio: 'I’d like to believe that form comes with function. I do tech stuff, and uhh, yeah, more tech stuff… Also use LaTeX y’all I’ll shamelessly advertise it.' },
 		],
 	},
 	{
 		name: 'Content', icon: iContent,
 		members: [
-			{ name: 'Meera Pillai', roll: 'IMS23009', batch: 'B23', school: 'School of Biology',
-			  role: 'Head',
-			  bio: 'Every word on the site, the deck and the printed programme.' },
-			{ name: 'Rohan Das', roll: 'IMS23044', batch: 'B23', school: 'School of Physics',
-			  role: 'Co-head',
-			  bio: 'Speaker briefs, event blurbs and the copy nobody notices when it works.' },
-			{ name: 'Sneha Varma', roll: 'IMS24052', batch: 'B24', school: 'School of Chemistry',
-			  role: 'Copy',
-			  bio: 'Writes and edits the short form — captions, cards, calls to action.' },
+			{ name: 'Khirabdhi Tanaya', roll: 'IMS24116', batch: 'B24',
+			  role: 'Co-head', email: 'khirabdhi24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24116.jpg',
+			  bio: 'Khirabdhi, if you can pronounce it. Isha, if you can\'t :)' },
+			{ name: 'Prerana Sarma', roll: 'IMS25151', batch: 'B25',
+			  role: 'Co-head', email: 'prerana25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25151.jpg',
+			  bio: 'I found a way to do something I like doing under the very serious title of Anvesha Content Co-Head. My knack for signing up for things beyond my carrying capacity (iykyk) does land me in good places ;)' },
 		],
 	},
 	{
 		name: 'Contraption', icon: iCog,
 		members: [
-			{ name: 'Aditya Kurup', roll: 'IMS22067', batch: 'B22', school: 'School of Physics',
-			  role: 'Head',
-			  bio: 'Rigs, props and anything that has to actually work on the day.' },
-			{ name: 'Nikhil Raj', roll: 'IMS23020', batch: 'B23', school: 'School of Chemistry',
-			  role: 'Co-head',
-			  bio: 'Builds the demo pieces the outreach team takes to schools.' },
-			{ name: 'Tara Suresh', roll: 'IMS24011', batch: 'B24', school: 'School of Physics',
-			  role: 'Fabrication',
-			  bio: 'Cutting, wiring and the last-minute repair table behind the stage.' },
+			{ name: 'Hridya Sudheer', roll: 'IMS25090', batch: 'B25',
+			  role: 'Co-head', email: 'hridyasudheer25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25090.jpg',
+			  bio: 'Hi guys. Basically contraption is the most intresting and fun part of anvesha that is happening on the last day. Doing a simple task with complex chain reaction(we are buliding a rube goldberg machine). That\'s all see you there☺️' },
+			{ name: 'Priyanshu Dubey', roll: 'IMS25295', batch: 'B25',
+			  role: 'Co-head', email: 'priyanshudubey25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25295.jpg',
+			  bio: 'Hello! I’m Priyanshu Dubey and I’ll be leading contraption this year. Contraption is essentially a large-scale Rube Goldberg machine where we design a series of interconnected mechanisms that trigger one another in a continuous chain reaction.' },
 		],
 	},
 	{
 		name: 'Crowd Management', icon: iShield,
 		members: [
-			{ name: 'Varun Iyer', roll: 'IMS22035', batch: 'B22', school: 'School of Mathematics',
-			  role: 'Head',
-			  bio: 'Queues, capacity and the flow between halls across three days.' },
-			{ name: 'Ananya Bose', roll: 'IMS23056', batch: 'B23', school: 'School of Biology',
-			  role: 'Co-head',
-			  bio: 'Volunteer rosters and who is standing where at any given hour.' },
-			{ name: 'Farhan Ali', roll: 'IMS24029', batch: 'B24', school: 'School of Chemistry',
-			  role: 'Floor Lead',
-			  bio: 'On the floor for the sessions that fill up fastest.' },
+			{ name: 'Alan Thomas', roll: 'IMS25016', batch: 'B25',
+			  role: 'Co-head', email: 'alanthomas25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25016.jpg',
+			  bio: 'Friendly, approachable, and passionate about connecting with new people and working as a team. As Crowd Management Head, I enjoy bringing people together, coordinating teams, and making sure everyone has a smooth and enjoyable experience at Anvesha.' },
+			{ name: 'Atulya Rajesh', roll: 'IMS24054', batch: 'B24',
+			  role: 'Co-head', email: 'atulya24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24054.jpg',
+			  bio: 'We (at CM) are having the most fun, or missing all of it. The good part is, you\'ll never know.' },
 		],
 	},
 	{
 		name: 'Outreach and PR', icon: iMegaphone,
 		members: [
-			{ name: 'Divya Krishnan', roll: 'IMS22091', batch: 'B22', school: 'School of Biology',
-			  role: 'Head',
-			  bio: 'The year-round half of Anvesha — school visits and demo kits.' },
-			{ name: 'Siddharth Menon', roll: 'IMS23073', batch: 'B23', school: 'School of Physics',
-			  role: 'Co-head',
-			  bio: 'Press, partnerships with schools, and the accreditation desk.' },
-			{ name: 'Riya Thomas', roll: 'IMS24004', batch: 'B24', school: 'School of Mathematics',
-			  role: 'Schools',
-			  bio: 'Coordinates the visiting-school programme and its volunteers.' },
+			{ name: 'Pranav M', roll: 'IMS23198', batch: 'B23',
+			  role: 'Co-head', email: 'pranav23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23198.jpg',
+			  bio: 'Hey! I\'m Pranav, the head of Outreach and PR. You should come to Anvesha, because Anvesha is cool, IISER TVM is cooler, but the Outreach Heads are the coolest!' },
+			{ name: 'Sarang K T', roll: 'IMS24212', batch: 'B24',
+			  role: 'Co-head', email: 'sarang24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24212.jpg',
+			  bio: 'Im not witty enough for ts' },
 		],
 	},
 	{
 		name: 'Decor', icon: iSparkles,
 		members: [
-			{ name: 'Nandita Shenoy', roll: 'IMS23018', batch: 'B23', school: 'School of Chemistry',
-			  role: 'Head',
-			  bio: 'How the campus looks for three days, from gate to stage.' },
-			{ name: 'Arjun Pillai', roll: 'IMS23062', batch: 'B23', school: 'School of Biology',
-			  role: 'Co-head',
-			  bio: 'Sourcing, staging and striking every installation on site.' },
-			{ name: 'Leela Mathew', roll: 'IMS24038', batch: 'B24', school: 'School of Physics',
-			  role: 'Install',
-			  bio: 'Runs the build crew through the two nights before opening.' },
+			{ name: 'Anusha P S', roll: 'IMA25031', batch: 'B25',
+			  role: 'Co-head', email: 'anusha25@iisertvm.ac.in',
+			  photo: '/img/crew/IMA25031.jpg',
+			  bio: 'Came with an idea ,left with seventeen problems ←⁠_⁠←' },
+			{ name: 'Sooraj S S', roll: 'IMS25204', batch: 'B25',
+			  role: 'Co-head', email: 'soorajss25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25204.jpg',
+			  bio: 'Just pretend that I wrote something really interesting here.' },
+			{ name: 'Sriram R', roll: 'IMS25209', batch: 'B25',
+			  role: 'Co-head', email: 'sriramr25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25209.jpg',
+			  bio: 'Seeing this strange profile fills you with DETERMINATION.' },
 		],
 	},
 	{
 		name: 'Design', icon: iPalette,
 		members: [
-			{ name: 'Zoya Hameed', roll: 'IMS22023', batch: 'B22', school: 'School of Chemistry',
-			  role: 'Head',
-			  bio: 'Owns the visual language the rest of the fest is dressed in.' },
-			{ name: 'Advait Kulkarni', roll: 'IMS23085', batch: 'B23', school: 'School of Physics',
-			  role: 'Co-head',
-			  bio: 'Merch artwork, badges and the signage system across campus.' },
-			{ name: 'Priya Raghavan', roll: 'IMS24017', batch: 'B24', school: 'School of Biology',
-			  role: 'Print',
-			  bio: 'Takes files to press and argues with the printer so nobody else has to.' },
+			{ name: 'Adrija Misra', roll: 'IMS24011', batch: 'B24',
+			  role: 'Head', email: 'adrija24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24011.jpg',
+			  bio: 'Well, it\'s design.' },
 		],
 	},
 	{
 		name: 'Events', icon: iCalendar,
 		members: [
-			{ name: 'Rahul Sen', roll: 'IMS22050', batch: 'B22', school: 'School of Physics',
-			  role: 'Head',
-			  bio: 'Talks, workshops and competitions across the three days.' },
-			{ name: 'Nithya Balan', roll: 'IMS23012', batch: 'B23', school: 'School of Mathematics',
-			  role: 'Co-head',
-			  bio: 'The schedule, and keeping two full halls from clashing.' },
-			{ name: 'Imran Qureshi', roll: 'IMS23047', batch: 'B23', school: 'School of Biology',
-			  role: 'Speakers',
-			  bio: 'Invites, confirms and looks after everyone who comes to speak.' },
+			{ name: 'Aravind Chandrasekhar', roll: 'IMS24040', batch: 'B24',
+			  role: 'Co-head', email: 'aravind24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24040.jpg',
+			  bio: 'Hakuna Matata' },
+			{ name: 'Binto B', roll: 'IMS24069', batch: 'B24',
+			  role: 'Co-head', email: 'binto24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24069.jpg',
+			  bio: 'Elegently Careless😁' },
+			{ name: 'Deva Krishna S', roll: 'IMS25063', batch: 'B25',
+			  role: 'Co-head', email: 'devakrishna25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25063.jpg',
+			  bio: 'Stressed yet calm and coordinated. Trust.' },
 		],
 	},
 	{
 		name: 'Finance', icon: iWallet,
 		members: [
-			{ name: 'Shreya Gupta', roll: 'IMS22006', batch: 'B22', school: 'School of Mathematics',
-			  role: 'Treasurer',
-			  bio: 'The budget, and every rupee that leaves it.' },
-			{ name: 'Vikram Anand', roll: 'IMS23099', batch: 'B23', school: 'School of Chemistry',
-			  role: 'Co-treasurer',
-			  bio: 'Reimbursements, vendor payments and the paperwork behind both.' },
-			{ name: 'Neha Joseph', roll: 'IMS24063', batch: 'B24', school: 'School of Biology',
-			  role: 'Accounts',
-			  bio: 'Keeps the books that Finance has to hand the institute afterwards.' },
+			{ name: 'Ashin V.', roll: 'IMS22065', batch: 'B22',
+			  role: 'Head', email: 'ashin22@iisertvm.ac.in',
+			  photo: '/img/crew/IMS22065.jpg',
+			  bio: 'I will fight for your reimbursements.' },
 		],
 	},
 	{
 		name: 'Logistics', icon: iTruck,
 		members: [
-			{ name: 'Karthik Mohan', roll: 'IMS22082', batch: 'B22', school: 'School of Physics',
-			  role: 'Head',
-			  bio: 'Venues, transport and hospitality — including merch logistics.' },
-			{ name: 'Aisha Rahman', roll: 'IMS23027', batch: 'B23', school: 'School of Biology',
-			  role: 'Co-head',
-			  bio: 'Accommodation and food for speakers, judges and visiting teams.' },
-			{ name: 'Devan Nair', roll: 'IMS24045', batch: 'B24', school: 'School of Chemistry',
-			  role: 'Merch Logistics',
-			  bio: 'Stock, the counter and getting every order into the right hands.' },
+			{ name: 'Aban Najeeb', roll: 'IMS24005', batch: 'B24',
+			  role: 'Co-head', email: 'aban24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24005.jpg',
+			  bio: 'Nothing to say' },
+			{ name: 'Agnitun Bhattacharya', roll: 'IMS24310', batch: 'B24',
+			  role: 'Co-head', email: 'agnitun24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24310.jpg',
+			  bio: 'Let\'s not burn anything this time g.... Ohh Bulbasaur water gun' },
 		],
 	},
 	{
 		name: 'Media', icon: iClapper,
 		members: [
-			{ name: 'Sanjana Rane', roll: 'IMS23054', batch: 'B23', school: 'School of Biology',
-			  role: 'Head',
-			  bio: 'Photo, video and everything anyone sees who was not in the room.' },
-			{ name: 'Yash Patel', roll: 'IMS23068', batch: 'B23', school: 'School of Physics',
-			  role: 'Co-head',
-			  bio: 'Edits and the turnaround that gets them out the same night.' },
-			{ name: 'TODO(anvesha)', roll: 'IMS00000', batch: 'B24', school: 'TODO(anvesha)',
-			  role: 'Co-head',
-			  bio: 'TODO(anvesha)' },
+			{ name: 'Pranav P Vasudevan', roll: 'IMS25291', batch: 'B25',
+			  role: 'Co-head', email: 'pranavpattath25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25291.jpg',
+			  bio: 'Guy behind the camera (mostly) I love capturing action, in the most candid way. Running on exceeded enthusiasm' },
+			{ name: 'Syed Tawqeer', roll: 'IMS25216', batch: 'B25',
+			  role: 'Co-head', email: 'tawqeer.syed25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25216.jpg',
+			  bio: 'A camera nerd, who just loves to capture stuff. I will always be there to eternalise raw emotion, and the excitement behind it, through my lens.' },
 		],
 	},
 	{
-		// Was a role inside Media. It is its own department now — the feeds run for
-		// months either side of the three days the cameras are out for.
 		name: 'Social Media', icon: iShare,
 		members: [
-			{ name: 'Fatima Sheikh', roll: 'IMS24022', batch: 'B24', school: 'School of Mathematics',
-			  role: 'Head',
-			  bio: 'Runs the feeds through fest week and the months before it.' },
-			{ name: 'TODO(anvesha)', roll: 'IMS00000', batch: 'B24', school: 'TODO(anvesha)',
-			  role: 'Co-head',
-			  bio: 'TODO(anvesha)' },
-			{ name: 'TODO(anvesha)', roll: 'IMS00000', batch: 'B25', school: 'TODO(anvesha)',
-			  role: 'Co-head',
-			  bio: 'TODO(anvesha)' },
+			{ name: 'Jeevan Krishna VP', roll: 'IMS25099', batch: 'B25',
+			  role: 'Co-head', email: 'naveej25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25099.jpg',
+			  bio: 'A poor soul with questionable decisions.' },
+			{ name: 'Adrija Basak', roll: 'IMS23019', batch: 'B23',
+			  role: 'Co-head', email: 'adrija23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23019.jpg',
+			  bio: 'Rule Number 1: Always have fun!' },
 		],
 	},
 	{
 		name: 'Sponsorship', icon: iHandshake,
 		members: [
-			{ name: 'Aryan Chatterjee', roll: 'IMS22040', batch: 'B22', school: 'School of Chemistry',
-			  role: 'Head',
-			  bio: 'Anvesha is free to attend because this desk makes it so.' },
-			{ name: 'Maya Pillai', roll: 'IMS23033', batch: 'B23', school: 'School of Mathematics',
-			  role: 'Co-head',
-			  bio: 'The deck, the tiers and every deliverable promised in them.' },
-			{ name: 'Rohit Verma', roll: 'IMS24071', batch: 'B24', school: 'School of Physics',
-			  role: 'Outreach',
-			  bio: 'First contact with partners, and the follow-ups nobody enjoys.' },
+			{ name: 'Swizzle S. Jain', roll: 'IMS25215', batch: 'B25',
+			  role: 'Head', email: 'swizzleshwetajain25@iisertvm.ac.in',
+			  photo: '/img/crew/IMS25215.jpg',
+			  bio: 'I enjoy finding patterns and solving problems—whether in maths, data, or the wonderfully unpredictable world of sponsorships. I like chasing things that seem slightly out of reach, so if something needs building, organising, or figuring out, I\'ll probably end up involved ...somehow ...' },
 		],
 	},
 	{
 		name: 'Expo', icon: iFlask,
+		// The one department that runs as two halves, so its members carry a `section` and
+		// the rail draws a heading wherever that changes. Everyone else has no section and
+		// the list is drawn straight through, exactly as before.
 		members: [
-			{ name: 'Gautam Rao', roll: 'IMS22059', batch: 'B22', school: 'School of Chemistry',
-			  role: 'Head',
-			  bio: 'The research floor — submissions, halls and judging panels.' },
-			{ name: 'Sara Philip', roll: 'IMS23076', batch: 'B23', school: 'School of Biology',
-			  role: 'General Expo',
-			  bio: 'The open floor, where anyone with a project can take a table.' },
-			{ name: 'Manav Trivedi', roll: 'IMS23088', batch: 'B23', school: 'School of Physics',
-			  role: 'Subject Expo',
-			  bio: 'The discipline-wise halls and the panels that judge them.' },
+			{ name: 'Yash Mhatre', roll: 'IMS24140', batch: 'B24', section: 'General Expo',
+			  role: 'Co-head', email: 'mhatre24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24140.jpg',
+			  bio: 'Brooklyn Nine-Nine, Season 3, episode 2, minute 17:50' },
+			{ name: 'Prathvi Seetaram Bhat', roll: 'IMS24174', batch: 'B24', section: 'General Expo',
+			  role: 'Co-head', email: 'prathvi24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24174.jpg',
+			  bio: 'Making the ideas come true through Aficionados.' },
+
+			{ name: 'Mahalakshmi M', roll: 'IMS24128', batch: 'B24', section: 'Subject Expo', subject: 'Chemistry',
+			  role: 'Chemistry Coordinator', email: 'mahalakshmi24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24128.jpg',
+			  bio: 'Anything chemistry, don\'t ask me.' },
+			{ name: 'Pavithra Praveen', roll: 'IMS24168', batch: 'B24', section: 'Subject Expo', subject: 'Chemistry',
+			  role: 'Chemistry Coordinator', email: 'pavithra24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24168.jpg',
+			  bio: 'I\'m still figuring it out bro 😅' },
+			{ name: 'Aditya Katti', roll: 'IMS24270', batch: 'B24', section: 'Subject Expo', subject: 'Chemistry',
+			  role: 'Chemistry Coordinator', email: 'katti24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24270.jpg',
+			  bio: 'Making things. Breaking things. Learning why.' },
+			{ name: 'Pranav Guptta', roll: 'IMS23197', batch: 'B23', section: 'Subject Expo', subject: 'Physics',
+			  role: 'Physics Coordinator', email: 'guptta23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23197.jpg',
+			  bio: 'Another day without arson' },
+			{ name: 'Ankita Acharya', roll: 'IMS24034', batch: 'B24', section: 'Subject Expo', subject: 'Biology',
+			  role: 'Biology Coordinator', email: 'acharya24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24034.jpg',
+			  bio: 'After actively participating in the Bio Expo for the last 2 years, I want to '
+				+ 'use this opportunity to give back and make it a similarly memorable experience '
+				+ 'for the next set of participants!' }
 		],
 	},
 ];
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const crewTotal = DEPTS.reduce((n, d) => n + d.members.length, 0);
 
-// Derived, not typed out forty-five times: the institute address is name-based and the
-// batch year disambiguates it, exactly as iisertvm.ac.in issues them.
-const emailOf = (name: string, batch: string) => {
-	const stem = name.replace(/^(prof|dr)\.?\s+/i, '').toLowerCase()
-		.replace(/[^a-z\s]/g, '').trim().split(/\s+/).join('.');
-	return `${stem}${batch.startsWith('B') ? batch.slice(1) : ''}@iisertvm.ac.in`;
+// One flat list for the rail, the card and every index — but the FIRST entry is the
+// institute and the rest are departments, which is the whole point of the split. The
+// rail draws a heading before each run rather than treating them as one kind of thing.
+const GROUPS = [INSTITUTE, ...DEPTS];
+const INST_N = 1;
+const crewTotal = GROUPS.reduce((n, g) => n + g.members.length, 0);
+
+// The barcode. Derived from the roll number so it is that person's and nobody else's,
+// stable across builds, and computed here rather than in the script so the row already
+// carries it — the client only has to draw what it is handed.
+//
+// It encodes nothing. A real Code 39 of a roll number would be a scannable identifier
+// printed on a public page, which is a worse idea than it looks; this is the look of a
+// barcode over a hash of the same string.
+const barsOf = (seed: string) => {
+	// xorshift off a string hash: same seed, same bars, every time.
+	let h = 2166136261;
+	for (let i = 0; i < seed.length; i++) {
+		h ^= seed.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	const next = () => {
+		h ^= h << 13; h ^= h >>> 17; h ^= h << 5;
+		return (h >>> 0) / 4294967296;
+	};
+	// Pairs of bar/gap widths, 1-3px each — the mix of widths is what reads as a barcode
+	// rather than as a comb.
+	return Array.from({ length: 46 }, () =>
+		`${1 + Math.floor(next() * 3)}${1 + Math.floor(next() * 2)}`).join(' ');
 };
-// TODO(anvesha): real numbers. Deliberately in the 90000 0xxxx block so no placeholder
-// on this page can ring an actual phone before the real ones go in.
-let phoneSeq = 0;
-const phoneOf = () => `+91 90000 ${String(++phoneSeq).padStart(5, '0')}`;
 
-const ROWS = DEPTS.map((d, di) => d.members.map((m, mi) => ({
-	...m, di, mi, dept: d.name, no: pad(di + 1),
-	email: emailOf(m.name, m.batch), phone: phoneOf(),
-})));
+// Emails come straight from the intake form now — they are the institute addresses the
+// crew gave for exactly this, so there is nothing left to derive.
+//
+// Phone numbers are NOT here. The form collected them, but a personal mobile on a public
+// page is a number that gets scraped, and consenting to a form is not consenting to that.
+// The institute address reaches everyone on this page.
+// Faculty carry a name, a title and a portrait and nothing else, so the fields the form
+// collected are filled in here rather than left undefined — the card hides them anyway,
+// and a stray `undefined` in a data attribute is a bug waiting to be rendered.
+const ROWS = GROUPS.map((g, di) => g.members.map((m, mi) => {
+	const r = m as {
+		roll?: string; batch?: string; email?: string; bio?: string;
+		section?: string; subject?: string;
+	};
+	return {
+		...m, di, mi, dept: g.name, no: pad(di + 1),
+		faculty: (g as { faculty?: boolean }).faculty === true,
+		roll: r.roll ?? '—', batch: r.batch ?? 'Faculty',
+		email: r.email ?? '', bio: r.bio ?? '',
+		// The rail's divider label. The subject folds into the section rather than
+		// becoming a second heading under it — see .tm-sub.
+		section: r.subject ? `${r.section} (${r.subject})` : r.section,
+		// The rail's right-hand label. Under a subject heading the role would read
+		// "CHEMISTRY COORDINATOR" one line below the word CHEMISTRY, so the heading takes
+		// the subject and the row keeps only the job. The card still shows the full title.
+		meta: r.subject ? 'Coordinator' : m.role,
+		bars: barsOf(`${r.roll ?? m.name}-${m.name}`),
+	};
+}));
 
 const first = ROWS[0][0];
+
+// Also computed in the script for the rows the reader picks — same rule both sides: a
+// title is not an initial.
+const initialsOf = (name: string) =>
+	name.replace(/^(Prof|Dr)\.?\s+/i, '').split(/\s+/).slice(0, 2)
+		.map((w) => w[0] ?? '').join('').toUpperCase();
 ---
 
 <SiteLayout title="Teams · Anvesha '26">
@@ -360,16 +429,21 @@ const first = ROWS[0][0];
 					<div class="tm-box">
 					<div class="tm-side-bar">
 						<span class="tm-led" aria-hidden="true"></span>
-						<span class="tm-side-title">DEPARTMENTS</span>
+						<span class="tm-side-title">THE COMMITTEE</span>
 						<span class="tm-side-n">{pad(DEPTS.length)}</span>
 					</div>
 
 					{/* Phone only. The rail's folder rows are hidden there and this drives the
-					    same open/close, so there is one source of truth for what is open. */}
+					    same open/close, so there is one source of truth for what is open.
+					    Grouped the same way the rail is: the institute is not a department a
+					    reader is picking between, so it does not sit in that list. */}
 					<label class="tm-pick">
-						<span class="tm-pick-label">Department</span>
+						<span class="tm-pick-label">Jump to</span>
 						<select id="tmPick">
-							{DEPTS.map((d, i) => <option value={i}>{d.name}</option>)}
+							<option value="0">{INSTITUTE.name}</option>
+							<optgroup label="Departments">
+								{DEPTS.map((d, i) => <option value={i + INST_N}>{d.name}</option>)}
+							</optgroup>
 						</select>
 					</label>
 					</div>
@@ -381,9 +455,17 @@ const first = ROWS[0][0];
 						<span class="tm-side-n" id="tmCount">03</span>
 					</div>
 
-					<div class="tree tm-tree" id="tmTree" role="tree" aria-label="Departments">
-						{DEPTS.map((d, di) => (
+					<div class="tree tm-tree" id="tmTree" role="tree" aria-label="The committee">
+						{GROUPS.map((d, di) => (
 							<>
+								{/* One heading, not two. The institute sits above this rule on its own
+								    and the row is already called Institute, so labelling it as well
+								    just said the word twice; the rule under it is what actually
+								    separates the two kinds of thing. Presentational — the rows stay
+								    siblings in one tree, so keyboard order and the phone select are
+								    unchanged. */}
+								{di === INST_N && <p class="tm-group" aria-hidden="true">Departments</p>}
+
 								<button class:list={['tnode', 'tcat', di === 0 && 'open']} type="button"
 								        role="treeitem" aria-expanded={di === 0 ? 'true' : 'false'}
 								        data-cat={di}>
@@ -394,7 +476,16 @@ const first = ROWS[0][0];
 
 								<div class:list={['tkids', di === 0 && 'open']} data-kids={di}>
 									<div class="tkids-in">
-									{ROWS[di].map((m) => (
+									{ROWS[di].map((m, mi) => (
+										<>
+										{/* A section heading wherever `section` changes — Expo is the
+										    only department that has them, so every other list draws
+										    straight through. Presentational, like the Institute and
+										    Departments rules above it: the rows stay siblings, so
+										    keyboard order and the counts are untouched. */}
+										{m.section && m.section !== ROWS[di][mi - 1]?.section && (
+											<p class="tm-sub" aria-hidden="true">{m.section}</p>
+										)}
 										<button
 											class:list={['tnode', 'titem', m.mi === d.members.length - 1 && 'last',
 											             di === 0 && m.mi === 0 && 'active']}
@@ -403,9 +494,11 @@ const first = ROWS[0][0];
 											data-role={m.role}
 											data-roll={m.roll}
 											data-batch={m.batch}
-											data-school={m.school}
 											data-email={m.email}
-											data-phone={m.phone}
+											data-photo={(m as { photo?: string }).photo}
+											data-bars={m.bars}
+											data-faculty={m.faculty ? '1' : undefined}
+											data-school={(m as { school?: string }).school}
 											data-dept={m.dept}
 											data-bio={m.bio}
 											data-no={m.no}
@@ -415,8 +508,9 @@ const first = ROWS[0][0];
 										>
 											<i class="tnum">{pad(m.mi + 1)}</i>
 											<span class="tname">{m.name}</span>
-											<span class="tmeta">{m.role}</span>
+											<span class="tmeta">{m.meta}</span>
 										</button>
+										</>
 									))}
 									</div>
 								</div>
@@ -429,7 +523,7 @@ const first = ROWS[0][0];
 				{/* ---- the status card ----
 				    Pre-filled from the first member so the panel is never an empty box, and so
 				    the page is complete before a single line of script runs. */}
-				<article class="sc" aria-live="polite">
+				<article class:list={['sc', first.faculty && 'is-faculty']} id="scCard" aria-live="polite">
 					<div class="sc-top">
 						<span class="sc-led" aria-hidden="true"></span>
 						<span class="sc-model">ANVESHA <b>CREW</b></span>
@@ -439,20 +533,28 @@ const first = ROWS[0][0];
 					</div>
 
 					<div class="sc-split">
-						{/* The portrait is a framed box on its panel, not a full-bleed fill. */}
+						{/* The portrait is a framed box on its panel, not a full-bleed fill.
+						    The initials stay underneath as the fallback: the institute rows have
+						    no photograph, and a submission whose file failed to convert would
+						    otherwise leave a hole. */}
 						<div class="sc-photo" aria-hidden="true">
 							<div class="sc-box">
 								<span class="sc-px"></span>
-								<span class="sc-init" id="scInit">RS</span>
+								<span class="sc-init" id="scInit">{initialsOf(first.name)}</span>
+								<img class="sc-img" id="scImg"
+								     src={(first as { photo?: string }).photo}
+								     alt="" hidden={!(first as { photo?: string }).photo} />
 							</div>
-							<span class="sc-photo-tag">NO PHOTO ON FILE</span>
+							<span class="sc-photo-tag" id="scPhotoTag">
+								{(first as { photo?: string }).photo ? first.roll : 'NO PHOTO ON FILE'}
+							</span>
 						</div>
 
 						<div class="sc-screen">
 							<span class="sc-px" aria-hidden="true"></span>
 
 							<div class="sc-info">
-								<p class="sc-dept" id="scDept">{DEPTS[0].name}</p>
+								<p class="sc-dept" id="scDept">{first.dept}</p>
 								<div class="sc-nameline">
 									<h2 class="sc-name" id="scName">{first.name}</h2>
 									{/* Shown only for a member carrying `more`. Server-rendered hidden so
@@ -461,6 +563,9 @@ const first = ROWS[0][0];
 									   aria-label="More about this person" set:html={iInfo} />
 								</div>
 								<p class="sc-role" id="scRole">{first.role}</p>
+								{/* Faculty only — the crew's own school was never collected, and this
+								    is the line that says which part of the institute a name sits in. */}
+								<p class="sc-school" id="scSchool">{(first as { school?: string }).school}</p>
 
 								{/* An ID card's data block: boxed cells, label over value. The grid gap
 								    is the ink showing through — one background and a 1.5px gap draw
@@ -475,10 +580,6 @@ const first = ROWS[0][0];
 										<dd id="scBatch">{first.batch}</dd>
 									</div>
 									<div class="sc-field">
-										<dt>SCHOOL</dt>
-										<dd id="scSchool">{first.school}</dd>
-									</div>
-									<div class="sc-field">
 										<dt>DEPARTMENT</dt>
 										<dd id="scDept2">{first.dept}</dd>
 									</div>
@@ -486,22 +587,28 @@ const first = ROWS[0][0];
 										<dt>POSITION</dt>
 										<dd id="scPos">{first.role}</dd>
 									</div>
-									<div class="sc-field">
-										<dt>PHONE</dt>
-										<dd><a id="scPhone" href={`tel:${first.phone.replace(/\s/g, '')}`}>{first.phone}</a></dd>
-									</div>
 									<div class="sc-field sc-field-wide">
 										<dt>INSTITUTE EMAIL</dt>
 										<dd><a id="scEmail" href={`mailto:${first.email}`}>{first.email}</a></dd>
 									</div>
 								</dl>
 
-								<p class="sc-bio" id="scBio">{first.bio}</p>
+								<blockquote class="sc-quote">
+									<p class="sc-bio" id="scBio">{first.bio}</p>
+									<cite class="sc-quote-by" id="scBy">&mdash; {first.name}</cite>
+								</blockquote>
 							</div>
 
 							{/* The strip along the bottom of every ID card ever issued. */}
 							<div class="sc-strip">
-								<span class="sc-code" aria-hidden="true"></span>
+								{/* Bars are elements, not a repeating gradient: a gradient cannot be
+								    this person's rather than everyone's, and it cannot be printed
+								    one bar at a time. */}
+								<span class="sc-code" id="scCode" aria-hidden="true">
+									{first.bars.split(' ').map((pair) => (
+										<i style={`--w:${pair[0]}px;--g:${pair[1]}px`}></i>
+									))}
+								</span>
 								<span class="sc-issue" id="scBar">ANVESHA '26 · IISER TVM</span>
 							</div>
 						</div>
@@ -668,8 +775,12 @@ const first = ROWS[0][0];
 		flyBot();
 		const scNo = $('scNo'), scDept = $('scDept'), scDept2 = $('scDept2'), scName = $('scName');
 		const scRole = $('scRole'), scPos = $('scPos'), scRoll = $('scRoll'), scBatch = $('scBatch');
-		const scSchool = $('scSchool'), scBio = $('scBio'), scInit = $('scInit');
-		const scEmail = $('scEmail') as HTMLAnchorElement, scPhone = $('scPhone') as HTMLAnchorElement;
+		const scSchool = $('scSchool');
+		const scBio = $('scBio'), scBy = $('scBy'), scInit = $('scInit');
+		const scImg = $('scImg') as HTMLImageElement, scPhotoTag = $('scPhotoTag');
+		const scCode = $('scCode');
+		const scCard = $('scCard');
+		const scEmail = $('scEmail') as HTMLAnchorElement;
 		const scPips = $('scPips');
 		const scMore = $('scMore') as HTMLAnchorElement;
 
@@ -678,11 +789,41 @@ const first = ROWS[0][0];
 				.split(/\s+/).slice(0, 2)
 				.map((w) => w[0] ?? '').join('').toUpperCase();
 
+		// The barcode prints rather than appears. One timer, cancelled on the way in, so
+		// clicking through the rail quickly cannot leave two codes printing over the top
+		// of each other into the same strip.
+		let printTimer = 0;
+		const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		function printCode(bars: string) {
+			clearInterval(printTimer);
+			scCode.replaceChildren(...bars.split(' ').map((pair) => {
+				const b = document.createElement('i');
+				b.style.setProperty('--w', `${pair[0]}px`);
+				b.style.setProperty('--g', `${pair[1]}px`);
+				return b;
+			}));
+
+			const bs = [...scCode.children] as HTMLElement[];
+			if (reducedMotion) { for (const b of bs) b.classList.add('on'); return; }
+
+			// Three at a time: one per tick reads as a progress bar filling, which is a
+			// different thing from a head striking a line.
+			let i = 0;
+			printTimer = window.setInterval(() => {
+				for (let n = 0; n < 3 && i < bs.length; n++, i++) bs[i].classList.add('on');
+				if (i >= bs.length) clearInterval(printTimer);
+			}, 16);
+		}
+
 		function select(row: HTMLElement) {
 			for (const r of tree!.querySelectorAll('.titem.active')) r.classList.remove('active');
 			row.classList.add('active');
 
 			const d = row.dataset;
+			// Institute rows carry no roll, batch, email or one-liner — the card drops
+			// those blocks rather than printing a column of em dashes.
+			scCard.classList.toggle('is-faculty', d.faculty === '1');
 			scInit.textContent = initials(d.name!);
 			scDept.textContent = d.dept!;
 			scDept2.textContent = d.dept!;
@@ -691,10 +832,19 @@ const first = ROWS[0][0];
 			if (d.more) scMore.href = d.more;
 			scRole.textContent = d.role!;
 			scPos.textContent = d.role!;
+			scSchool.textContent = d.school ?? '';
 			scRoll.textContent = d.roll!;
 			scBatch.textContent = d.batch!;
-			scSchool.textContent = d.school!;
 			scBio.textContent = d.bio!;
+			scBy.textContent = `— ${d.name}`;
+
+			// The initials sit under the photo, so they only need swapping — hiding the
+			// <img> is what reveals them, and clearing src first stops the previous
+			// person's face showing for a frame while the next one decodes.
+			scImg.hidden = !d.photo;
+			scImg.src = d.photo ?? '';
+			scPhotoTag.textContent = d.photo ? d.roll! : 'NO PHOTO ON FILE';
+			printCode(d.bars!);
 			scNo.textContent = `NO. ${d.no}`;
 			// One pixel per person in the department, the current one lit.
 			scPips.innerHTML = Array.from({ length: +d.of! },
@@ -702,8 +852,6 @@ const first = ROWS[0][0];
 
 			scEmail.textContent = d.email!;
 			scEmail.href = `mailto:${d.email}`;
-			scPhone.textContent = d.phone!;
-			scPhone.href = `tel:${d.phone!.replace(/\s/g, '')}`;
 
 			// Stacked layout: the card sits below a rail that is most of a screen tall, so
 			// picking a name would otherwise update something the reader cannot see.
@@ -878,12 +1026,27 @@ const first = ROWS[0][0];
 	/* ============ LAYOUT ============
 	   Rail left, card right, both stretched to the same row height — the rail sets it and
 	   the card follows, so the two panels always end on the same line. */
+	/* The row carries the height, not the rail. Put it on the rail instead and the card is
+	   free to be sized by its own content — which is the portrait — so a wide column made
+	   a tall plate, a tall plate made a tall card, and the card ran hundreds of pixels
+	   past the rail beside it. Sized here, both children stretch to the same definite
+	   number and the plate is bounded instead of doing the bounding.
+
+	   The height tracks vw as well as vh, which looks odd until you follow what sets the
+	   plate: its width comes from the column, the column from the card, the card from the
+	   viewport's WIDTH — so on a narrow desktop a tall row is guaranteed dead panel around
+	   a small photograph. Capping against 44vw keeps the leftover roughly even across
+	   sizes instead of piling it all up at 1280. */
 	.tm-shell {
-		display: grid; grid-template-columns: minmax(232px, 300px) 1fr;
+		--row: clamp(470px, min(64vh, 44vw), 700px);
+		display: grid; grid-template-columns: minmax(300px, 384px) 1fr;
+		grid-auto-rows: var(--row);
 		gap: clamp(18px, 2.4vw, 34px); align-items: stretch;
 	}
 	@media (max-width: 860px) {
-		.tm-shell { grid-template-columns: 1fr; }
+		/* Stacked, each box goes back to its own height — one shared row height would
+		   make the second of two stacked boxes as tall as the first for no reason. */
+		.tm-shell { grid-template-columns: 1fr; grid-auto-rows: auto; }
 	}
 
 	/* The picker is a native <select> on purpose: a phone renders it as the OS wheel,
@@ -912,8 +1075,8 @@ const first = ROWS[0][0];
 	/* ============ THE RAIL ============ */
 	.tm-side {
 		display: flex; flex-direction: column;
-		/* A definite height, so it is the rail that decides how tall the row is. */
-		height: clamp(430px, 64vh, 640px);
+		/* Fills the row rather than setting it — see .tm-shell. */
+		height: 100%; min-height: 0;
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 		background: var(--primary);
 		overflow: hidden;
@@ -948,21 +1111,68 @@ const first = ROWS[0][0];
 	   an icon, and connectors in ink rather than a hairline so they read as drawn. */
 	.tm-tree {
 		flex: 1; min-height: 0;
-		padding: 6px; margin: 0;
+		padding: 8px; margin: 0;
 		scrollbar-width: thin; scrollbar-color: var(--secondary) transparent;
 	}
 	.tm-tree::-webkit-scrollbar { display: block; width: 6px; }
 	.tm-tree button.tnode { font-family: 'DM Mono', ui-monospace, monospace; }
 
-	.tm-tree .tcat { grid-template-columns: 14px 1fr auto; padding: 10px 9px 10px 6px; }
+	/* The one thing separating the institute from the departments. A rule with the label
+	   sitting on it, so it reads as a divider in the rail rather than as another row you
+	   could click. The first one needs no top margin — it is already at the top. */
+	.tm-group {
+		display: flex; align-items: center; gap: 8px;
+		margin: 16px 6px 6px; padding: 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase;
+		color: var(--ink-60);
+	}
+	.tm-group:first-child { margin-top: 2px; }
+
+	/* One level in from .tm-group: this divides a department's own list, so it is indented
+	   to the members' column and set a step smaller and quieter than the rules that
+	   separate the institute from the departments.
+
+	   One level, not two. Expo's subjects were a second, deeper heading under a first, and
+	   two labels stacked six pixels apart read as a table header rather than a hierarchy.
+	   The subject is folded into the section's own label instead — "Subject Expo
+	   (Chemistry)" — so there is one kind of divider in this rail and it always looks the
+	   same.
+
+	   The space is PADDING, not margin, and that matters: the tree's spine is drawn by each
+	   row as a full-height ::before, so anything sitting between rows that does not draw
+	   its own segment leaves a gap in the line. Padding keeps the space inside this
+	   element's box, where its own segment can cover it. */
+	.tm-sub {
+		position: relative;
+		display: flex; align-items: center; gap: 8px;
+		margin: 0 10px 0 40px; padding: 18px 0 6px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--accent);
+	}
+	/* The spine, continued. Same x, width and colour as .titem::before in
+	   catalogue-tree.css — this element is indented 40px, so -20px puts it back on the
+	   line the rows draw, and the list reads as one unbroken tree. */
+	.tm-sub::before {
+		content: ''; position: absolute; left: -20px; top: 0; bottom: 0;
+		width: 1.5px; background: var(--hair);
+	}
+	.tm-sub::after {
+		content: ''; flex: 1; height: 1px;
+		background: color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+	.tm-sub:first-child { padding-top: 6px; }
+
+	.tm-tree .tcat { grid-template-columns: 16px 1fr auto; padding: 13px 11px 13px 7px; }
 	.tm-tree .tcaret {
-		width: 14px; font-size: 11px; line-height: 1;
+		width: 16px; font-size: 13px; line-height: 1;
 		color: var(--ink-40);
 		transition: transform .16s ease, color .16s ease;
 	}
 	.tm-tree .tcat.open .tcaret { transform: rotate(90deg); color: var(--accent); }
-	.tm-tree .tcat .tname { font-size: 10.5px; letter-spacing: .1em; font-weight: 700; }
-	.tm-tree .tcat .tmeta { font-size: 9.5px; letter-spacing: .1em; }
+	.tm-tree .tcat .tname { font-size: 12.5px; letter-spacing: .09em; font-weight: 700; }
+	.tm-tree .tcat .tmeta { font-size: 10.5px; letter-spacing: .1em; }
 
 	/* ---- open / close ----
 	   0fr -> 1fr on a one-row grid: the browser animates to the row's own content height
@@ -990,12 +1200,12 @@ const first = ROWS[0][0];
 		.tm-tree .tkids-in > .titem { transition: none; }
 	}
 
-	.tm-tree .titem { padding: 8px 9px 8px 40px; font-size: 12px; }
+	.tm-tree .titem { padding: 11px 11px 11px 42px; font-size: 14px; }
 	.tm-tree .titem::before,
 	.tm-tree .titem::after { background: color-mix(in srgb, var(--secondary) 30%, transparent); }
 	.tm-tree .titem .tname { font-weight: 500; letter-spacing: .01em; }
-	.tm-tree .titem .tmeta { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
-	.tm-tree .tnum { background: var(--secondary); font-size: 8.5px; }
+	.tm-tree .titem .tmeta { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+	.tm-tree .tnum { background: var(--secondary); font-size: 9.5px; }
 	.tm-tree .titem.active .tnum { background: var(--accent); }
 
 	/* ============ THE STATUS CARD ============ */
@@ -1035,41 +1245,106 @@ const first = ROWS[0][0];
 	.sc-pips :global(i.on) { background: var(--accent); }
 
 	/* 40/60 — the portrait panel and the readout. */
+	/* A bounded column, not a percentage. The plate caps at 420px wide, so past a certain
+	   card width a percentage column just grows the empty margin either side of it while
+	   the readout stays cramped. min() of both: an even split while the card is narrow, and
+	   once half the card is wider than the plate can use, the column stops there and every
+	   pixel after it goes to the readout. A flat 468 starved the readout to 192px at
+	   1280. */
 	.sc-split {
 		flex: 1; min-height: 0;
-		display: grid; grid-template-columns: 40% 1fr;
+		display: grid; grid-template-columns: min(50%, 468px) 1fr;
 		border-top: var(--stroke) solid var(--secondary);
 	}
 
 	/* ---- the portrait panel ----
-	   A framed box centred on its panel. Initials rather than a photograph: nobody has
-	   supplied one, and a placeholder face is worse than no face. */
+	   A framed box centred on its panel, holding the submitted portrait. Initials are the
+	   fallback underneath, for the institute rows and any missing file. */
+	/* The plate is bounded — it has to be, or it drags the card past the rail — so the
+	   panel around it will always have room to spare on one axis. Left white that read as
+	   the layout having failed; given the page's own graph paper it reads as the mount the
+	   photograph is stuck to, which is what an ID card actually is. Same 46px grid as the
+	   header band up top, so it is the page's ground and not a new pattern. */
+	/* Paper, with Solaris drawn on it. The plate is capped, so this panel always has room
+	   to spare on one axis; blank it read as unfinished, and in ink it read as a hole cut
+	   in the card. Concentric dashed orbits in the flare colours, centred behind the
+	   plate, give the space something to be — and it is the same figure the home page
+	   opens with, so the year's theme is what the portrait is mounted on.
+	   All gradients: an SVG here would be a second copy of a drawing that already exists.
+	   min-height/overflow are the belt to the plate's braces — whatever the arithmetic
+	   works out to, nothing leaves this panel. */
 	.sc-photo {
-		display: flex; flex-direction: column; align-items: stretch;
-		gap: 12px; min-width: 0; padding: clamp(14px, 1.8vw, 24px);
+		position: relative;
+		display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+		gap: 12px; min-width: 0; min-height: 0; overflow: hidden;
+		padding: clamp(14px, 1.8vw, 24px);
 		border-right: var(--stroke) solid var(--secondary);
+		background: var(--primary);
 	}
+	.sc-photo::before {
+		content: ''; position: absolute; inset: -20%; pointer-events: none;
+		background:
+			/* the ocean's own glow, off-centre so the composition is not a bullseye */
+			radial-gradient(circle at 50% 44%,
+				color-mix(in srgb, var(--flare-rose) 13%, transparent) 0 22%,
+				transparent 62%),
+			/* the orbits */
+			repeating-radial-gradient(circle at 50% 44%,
+				transparent 0 34px,
+				color-mix(in srgb, var(--flare-plum) 26%, transparent) 34px 35.5px);
+		mask-image: radial-gradient(circle at 50% 44%, #000 30%, transparent 78%);
+	}
+	/* One tilted ring, the way .sol-o2 sits across the planet on the home page. */
+	.sc-photo::after {
+		content: ''; position: absolute; left: 50%; top: 44%; pointer-events: none;
+		width: 118%; aspect-ratio: 2.7; transform: translate(-50%, -50%) rotate(-13deg);
+		border: 1.5px dashed color-mix(in srgb, var(--flare-coral) 34%, transparent);
+		border-radius: 50%;
+	}
+	/* The plate and its caption sit over the drawing, not under it. */
+	.sc-box, .sc-photo-tag { position: relative; z-index: 1; }
 	/* Same notched-corner frame as the data block, one pixel heavier — it is the larger
 	   object, and an even border on both would make the box read as the lighter one. */
-	/* Fills the panel rather than sitting in it as a 240px tile — the offset is the panel's
-	   own padding plus --px, so the notched frame has room to draw without being clipped.
-	   No aspect-ratio: the plate takes whatever shape the panel is, which is what makes it
-	   read as the card's photo window instead of a stamp in the middle of one. */
+	/* 3:4, and that is the fix for the crop. The plate used to take whatever shape the
+	   panel had, which came out around 0.56 — far narrower than any of the photographs,
+	   which run 0.56 to 1.50 and sit at 0.75 in the median. A 1.5 landscape shot lost
+	   nearly two thirds of its width to that plate, which is why people were being cut in
+	   half. At 3:4 the plate matches the median submission, so most crop barely at all.
+	   Measured across all 33 before and after. */
 	.sc-box {
 		--px: 4px;
 		position: relative; display: grid; place-items: center;
-		flex: 1; min-height: 0; margin: var(--px);
+		aspect-ratio: 3 / 4; flex: none;
+		/* Width-driven, and it has to be. Driving it off height instead — height:100% with
+		   a max-width ceiling — looked like it would fill the panel, but when that ceiling
+		   clamps against a definite height it is the ASPECT RATIO that gives: measured
+		   0.39 to 0.59 instead of 0.75, which is the over-tall plate that was cropping
+		   people in the first place. Width is the axis that can be honoured exactly.
+		   The leftover height is handled by the panel's ground instead.
+		   The third term is what stops the plate overflowing: --row is the card's own
+		   height, 130px of it goes to the title bar, padding and the caption, and 3/4 of
+		   what is left is the widest plate that still fits. Without it, at 1600x900 the
+		   plate wanted 620px inside a 532px panel — the panel's grid row grew to its
+		   content, took the readout with it, and pushed the barcode strip clean out of the
+		   bottom of the card. */
+		width: min(
+			calc(100% - var(--px) * 2),
+			460px,
+			calc((var(--row, 640px) - 130px) * 0.75)
+		);
+		min-height: 0; margin: var(--px) auto;
 		border: 0; border-radius: 0;
 		box-shadow:
-			0 calc(var(--px) * -1) 0 0 var(--secondary),
-			0 var(--px) 0 0 var(--secondary),
-			calc(var(--px) * -1) 0 0 0 var(--secondary),
-			var(--px) 0 0 0 var(--secondary);
+			0 calc(var(--px) * -1) 0 0 var(--notch, var(--secondary)),
+			0 var(--px) 0 0 var(--notch, var(--secondary)),
+			calc(var(--px) * -1) 0 0 0 var(--notch, var(--secondary)),
+			var(--px) 0 0 0 var(--notch, var(--secondary));
 		/* the shell's own dot matrix, so the empty plate still belongs to the page */
 		background:
 			radial-gradient(circle at center, color-mix(in srgb, var(--secondary) 15%, transparent) 1.1px, transparent 1.3px)
 			0 0 / 8px 8px,
 			var(--primary);
+
 		overflow: hidden;
 	}
 	.sc-init {
@@ -1077,15 +1352,27 @@ const first = ROWS[0][0];
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 900; font-size: clamp(42px, 7.5vw, 108px); line-height: 1;
 	}
+	/* Laid over the initials rather than replacing them: hiding the image is all it takes
+	   to fall back, which is what the institute rows and any failed upload need.
+	   Absolutely positioned so it fills the plate without the grid centring it — the box
+	   has no aspect ratio of its own and cover is what keeps every face the same size. */
+	.sc-img {
+		position: absolute; inset: 0; z-index: 1;
+		width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%;
+		display: block;
+	}
+	.sc-img[hidden] { display: none; }
 	.sc-photo-tag {
 		flex: none; text-align: center;
 		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 8px; letter-spacing: .16em; color: var(--ink-40);
+		font-size: 9px; letter-spacing: .16em; color: var(--ink-60);
 	}
 
 	/* ---- the readout ---- */
 	.sc-screen {
-		position: relative; min-width: 0;
+		position: relative; min-width: 0; min-height: 0;
+		/* The quote sizes off this, not off the viewport — see .sc-bio. */
+		container-type: inline-size;
 		display: flex; flex-direction: column;
 		padding: clamp(16px, 2vw, 26px);
 		background: var(--sink);
@@ -1108,7 +1395,9 @@ const first = ROWS[0][0];
 		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent);
 	}
 	.sc-dept::before { content: ''; flex: none; width: 16px; height: 1.5px; background: var(--accent); }
-	.sc-nameline { display: flex; align-items: center; gap: 9px; }
+	/* min-width:0 on the flex row too — a flex item's default min-width is its content,
+	   which is the other half of how a long name escaped the card. */
+	.sc-nameline { display: flex; align-items: center; gap: 9px; min-width: 0; }
 	/* [hidden] loses to a display rule, so it has to be restated at higher specificity —
 	   otherwise the ⓘ shows on every member. */
 	.sc-more {
@@ -1123,11 +1412,16 @@ const first = ROWS[0][0];
 	.sc-more :global(svg) { width: 15px; height: 15px; stroke-width: 2.4; display: block; }
 	.sc-more:hover { transform: translateY(-2px); color: var(--secondary); }
 
+	/* min-width:0 and the break rules are load-bearing, not defensive: the readout column
+	   is a grid child, so without them the longest name in the roster sets the column's
+	   minimum width and pushes its own tail out past the card's edge. "PROF. R
+	   SANKARANARAYANAN" is the one that finds it. */
 	.sc-name {
-		margin: 0;
+		margin: 0; min-width: 0;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(19px, 2.3vw, 31px);
+		font-weight: 900; font-size: clamp(18px, 2.1vw, 29px);
 		line-height: .98; letter-spacing: -.02em; text-transform: uppercase;
+		overflow-wrap: break-word; hyphens: auto;
 	}
 	.sc-role {
 		margin: 8px 0 0;
@@ -1149,10 +1443,10 @@ const first = ROWS[0][0];
 		background: var(--secondary);
 		border: 0; border-radius: 0;
 		box-shadow:
-			0 calc(var(--px) * -1) 0 0 var(--secondary),
-			0 var(--px) 0 0 var(--secondary),
-			calc(var(--px) * -1) 0 0 0 var(--secondary),
-			var(--px) 0 0 0 var(--secondary);
+			0 calc(var(--px) * -1) 0 0 var(--notch, var(--secondary)),
+			0 var(--px) 0 0 var(--notch, var(--secondary)),
+			calc(var(--px) * -1) 0 0 0 var(--notch, var(--secondary)),
+			var(--px) 0 0 0 var(--notch, var(--secondary));
 	}
 	.sc-field-wide { grid-column: 1 / -1; }
 	.sc-field {
@@ -1178,9 +1472,81 @@ const first = ROWS[0][0];
 		.sc-fields { grid-template-columns: 1fr; }
 	}
 
+	/* The one line each of them wrote themselves, and the only thing on this card that is
+	   not a field off a form — so it is set as a quotation rather than as another
+	   paragraph of grey body copy. Ink at full strength, a rule down the left in accent,
+	   and a hanging quote mark in the margin the padding leaves for it. */
+	/* The mark used to be absolutely positioned at left:10px, which put it on top of the
+	   first line's first word at every width. It sits ABOVE the text now, in flow, with
+	   the negative margin pulling the quote up under it — nothing overlaps and the
+	   indent no longer has to leave a hole for it.
+	   No max-width in ch either: that was capping the line well short of the column and
+	   breaking it early. The measure is now the readout's own width. */
+	.sc-quote {
+		position: relative;
+		margin: 22px 0 0;
+		padding: 2px 0 2px 22px;
+		border-left: 4px solid var(--accent);
+	}
+	.sc-quote::before {
+		content: '\201C';
+		display: block; margin: -6px 0 -14px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 34px; line-height: 1; color: var(--accent);
+		opacity: .25;
+	}
 	.sc-bio {
-		margin: 16px 0 0; max-width: 58ch;
-		font-size: 13px; line-height: 1.62; color: var(--ink-60);
+		position: relative; margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		/* cqw, not vw: the readout is a fraction of the card, which is a fraction of the
+		   viewport, so a vw-sized quote was still 16px in a 330px column at 1280 and the
+		   longest six overflowed into the scroller. Sized off the column it actually sits
+		   in, it steps down where the column is narrow and back up where it is not. */
+		font-weight: 700; font-size: clamp(14.5px, 4.2cqw, 18px); line-height: 1.45;
+		letter-spacing: -.01em; color: var(--secondary);
+		text-wrap: pretty;
+	}
+	/* A dash and the name under the line, the way a pull quote is attributed. Kept short —
+	   the full name is already the headline six lines above it. */
+	.sc-quote-by {
+		display: block; margin: 7px 0 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--ink-60);
+	}
+
+	/* ---- the short form ----
+	   The institute rows have a portrait, a name and a title. Printing the crew card for
+	   them meant five fields reading "—" and an empty quote rule, which says "this record
+	   is incomplete" when in fact it is complete — that is simply all there is. So the
+	   card drops what does not apply and spends the room on the two things that do. */
+	.sc.is-faculty .sc-fields,
+	.sc.is-faculty .sc-quote { display: none; }
+	/* The caption under the plate is the roll number, and faculty have none — it was
+	   printing the em dash that stands in for one. */
+	.sc.is-faculty .sc-photo-tag { visibility: hidden; }
+	.sc.is-faculty .sc-info {
+		display: flex; flex-direction: column; justify-content: center;
+	}
+	.sc.is-faculty .sc-name { font-size: clamp(22px, 2.6vw, 38px); }
+	.sc.is-faculty .sc-role {
+		margin-top: 14px;
+		font-size: clamp(12px, 1.15vw, 15px); letter-spacing: .14em;
+		color: var(--accent);
+	}
+	/* A rule under the title, because with the fields grid gone there is nothing else
+	   holding the block together. */
+	/* Shown only in the short form: the crew card has a DEPARTMENT field for this and the
+	   students' school was never collected, so there is nothing to put here for them. */
+	.sc-school { display: none; }
+	.sc.is-faculty .sc-school {
+		display: block; margin: 10px 0 0;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: clamp(11px, 1vw, 13px); letter-spacing: .1em; color: var(--ink-60);
+	}
+	.sc.is-faculty .sc-school::after {
+		content: ''; display: block; width: 52px; height: var(--stroke);
+		margin-top: 18px; background: var(--secondary);
 	}
 
 	/* ---- the issue strip ---- */
@@ -1190,16 +1556,30 @@ const first = ROWS[0][0];
 		margin: 16px 0 0; padding-top: 12px;
 		border-top: 1.5px solid var(--secondary);
 	}
-	/* Bars of three widths on a repeating cycle. Decoration — it encodes nothing, which
-	   is why it is aria-hidden and not a real barcode font. */
+	/* One element per bar, widths off the roll number — see barsOf(). Decoration: it is
+	   aria-hidden and encodes nothing, which is deliberate, since a scannable roll number
+	   printed on a public page is a worse idea than it looks.
+	   overflow:hidden lets the strip take whatever width it is given and simply stop
+	   drawing bars, instead of the row growing to fit forty-six of them. */
 	.sc-code {
-		flex: 1; min-width: 90px; height: 22px;
-		background: repeating-linear-gradient(
-			90deg,
-			var(--secondary) 0 2px, transparent 2px 5px,
-			var(--secondary) 5px 8px, transparent 8px 10px,
-			var(--secondary) 10px 11px, transparent 11px 15px
-		);
+		flex: 1; min-width: 90px; height: 26px;
+		display: flex; align-items: stretch; overflow: hidden;
+	}
+	/* :global on the bar, and it is required, not tidiness. The bars are rebuilt in script
+	   on every selection, so they never carry the scope attribute Astro stamps on markup
+	   it rendered — a plain `.sc-code i` compiles to an attribute selector that matches
+	   the server-rendered set and nothing the script creates. Measured before the fix:
+	   width 0, background transparent, 46 bars present and none of them visible. */
+	.sc-code :global(i) {
+		flex: none; width: var(--w); margin-right: var(--g);
+		background: var(--secondary);
+		/* Printed, not faded in: each bar is either struck or it is not. The script sets
+		   this per bar on a stagger, so the code prints left to right. */
+		opacity: 0;
+	}
+	.sc-code :global(i.on) { opacity: 1; }
+	@media (prefers-reduced-motion: reduce) {
+		.sc-code :global(i) { opacity: 1; }
 	}
 	.sc-issue {
 		font-family: 'DM Mono', ui-monospace, monospace;
@@ -1266,7 +1646,12 @@ const first = ROWS[0][0];
 		}
 		/* Stacked, the panel is a band with no height to fill, so the plate goes back to
 		   a square tile centred in it. */
-		.sc-box { flex: none; width: min(100%, 190px); aspect-ratio: 1; margin: var(--px) auto; }
+		/* 3:4 here too, and wider than the old 190px square: the crop has to be the same
+		   on a phone as on a desktop or the same photograph is cut two different ways. */
+		.sc-box {
+			flex: none; width: min(100%, 250px); aspect-ratio: 3 / 4;
+			max-height: none; margin: var(--px) auto;
+		}
 		.sc-init { font-size: clamp(38px, 13vw, 62px); }
 	}
 </style>

@@ -8,9 +8,10 @@ import iChevronDown from 'lucide-static/icons/chevron-down.svg?raw';
 import iHandshake from 'lucide-static/icons/handshake.svg?raw';
 import iMail from 'lucide-static/icons/mail.svg?raw';
 import iImage from 'lucide-static/icons/image.svg?raw';
-import iHistory from 'lucide-static/icons/history.svg?raw';
-import iChart from 'lucide-static/icons/bar-chart-3.svg?raw';
-import iTrophy from 'lucide-static/icons/trophy.svg?raw';
+import iCamera from 'lucide-static/icons/camera.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iChevL from 'lucide-static/icons/chevron-left.svg?raw';
+import iChevR from 'lucide-static/icons/chevron-right.svg?raw';
 
 // ============================================================
 // PLACEHOLDER CONTENT — swap the copy, keep the shape.
@@ -19,19 +20,32 @@ import iTrophy from 'lucide-static/icons/trophy.svg?raw';
 // needs no markup change.
 // ============================================================
 
-// TODO(anvesha): real years, real titles, real one-liners.
-const MILESTONES = [
-	{ year: '2016', title: 'First edition',
-	  text: 'Two halls, forty projects and a printer that gave out on the morning of day one.' },
-	{ year: '2019', title: 'The Expo opens up',
-	  text: 'Submissions opened beyond IISER TVM for the first time; the floor tripled in a year.' },
-	{ year: '2021', title: 'Held online',
-	  text: 'A fest run entirely over stream, which is where the outreach programme started.' },
-	{ year: '2023', title: 'Outreach goes year-round',
-	  text: 'School visits stopped being a fest-week activity and became the thing we do between them.' },
-	{ year: '2026', title: 'Anvesha \'26', now: true,
-	  text: 'Three days, six halls, and the largest programme the fest has run.' },
-];
+const THEME = {
+	word: 'Solaris',
+	// Kept as separate paragraphs: the first explains where the name comes from, the
+	// second what it is doing here. Running them together buried the second.
+	body: [
+		'Drawn from the science-fiction world of a mysterious, living ocean that '
+		+ 'continually defies scientific explanation.',
+		'It reflects the essence of scientific inquiry — using every tool, theory and '
+		+ 'method we have to explore questions that remain just beyond our understanding.',
+	],
+	// The line the whole theme turns on, so it is set apart rather than buried in prose.
+	pull: 'Anvesha means quest. Solaris is what we are questing after: the pursuit of the '
+		+ 'unknown, and the drive to understand what still lies beyond our reach.',
+	// Closes the block: what the theme is dressed on. Set as a quote across the full
+	// width rather than a dates/venue strip — the practical details live on the events
+	// page, and repeating them here made the theme end on an admin note.
+	//
+	// Split here rather than left to the browser: the first line is sized to fill the rule
+	// exactly and the second is centred under it, so where it breaks is a typesetting
+	// decision and not whatever the measure happens to allow. The longer half goes first —
+	// that is the one that has to fill the width.
+	quote: [
+		'Anvesha brings together thousands of students, educators and researchers from across the region',
+		'for three days of exhibitions, keynote talks and student-led innovation.',
+	],
+};
 
 // TODO(anvesha): replace with the real 2025 figures before this goes public.
 const STATS = [
@@ -41,15 +55,19 @@ const STATS = [
 	{ value: 8,     suffix: '',  label: 'Student teams running it' },
 ];
 
-// TODO(anvesha): drop in real partners as they sign. `open` slots render as an
-// invitation rather than a logo, so the grid never looks broken while it fills up.
-const SPONSORS = [
-	{ name: 'Partner slot', tier: 'Title' },
-	{ name: 'Partner slot', tier: 'Gold' },
-	{ name: 'Partner slot', tier: 'Gold' },
-	{ name: '', tier: 'Silver', open: true },
-	{ name: '', tier: 'Silver', open: true },
-	{ name: '', tier: 'Community', open: true },
+// The contact sheet. `src` points at a file that need not exist yet: every frame falls
+// back to a drawn placeholder if the image 404s, so dropping real photos into
+// public/img/2025/ is the whole job — no markup change, no code change.
+// TODO(anvesha): real photographs and real captions.
+const GALLERY = [
+	{ src: '/img/2025/01.jpg', caption: 'Opening morning, main hall' },
+	{ src: '/img/2025/02.jpg', caption: 'Expo floor, day one' },
+	{ src: '/img/2025/03.jpg', caption: 'Robowars, the arena pit' },
+	{ src: '/img/2025/04.jpg', caption: 'A workshop bench mid-build' },
+	{ src: '/img/2025/05.jpg', caption: 'The rooftop, after dark' },
+	{ src: '/img/2025/06.jpg', caption: 'Quiz Bowl, final round' },
+	{ src: '/img/2025/07.jpg', caption: 'School group on the floor' },
+	{ src: '/img/2025/08.jpg', caption: 'Prize giving, closing night' },
 ];
 
 // Lucide removed its brand marks, so these are drawn here in the same 24px stroke
@@ -120,16 +138,16 @@ const TICKER = [
 			</div>
 
 			{/* Both carry an icon now, so the pair reads as one set rather than a filled
-			    button beside a bare one. #sponsors is the row further down this page — the
-			    fest has no sponsors PAGE, and the browser scrolls the nested pane for a
-			    fragment on its own, so this needs no script. */}
+			    button beside a bare one. The sponsors ROW is gone from this page, so the
+			    button opens the mail it used to scroll to — a dead #fragment would have
+			    silently done nothing. */}
 			<div class="home-actions" data-reveal>
 				<a class="cta" href="/events">
 					<span set:html={iCalendar} />
 					<span>EVENTS</span>
 					<span set:html={iArrowRight} />
 				</a>
-				<a class="btn home-alt" href="#sponsors">
+				<a class="btn home-alt" href="mailto:sponsors@anvesha26.in">
 					<span set:html={iHandshake} />
 					<span>SPONSORS</span>
 				</a>
@@ -153,123 +171,208 @@ const TICKER = [
 			</div>
 		</div>
 
-		{/* ---- the scrolling middle ----
-		    Alternating rows: text one side, illustration the other, flipping each time.
-		    `data-side` drives the flip in CSS AND the direction each half slides in from,
-		    so adding a row needs no new rule. Only this pane scrolls. */}
+		{/* ---- below the fold ----
+		    Four blocks, and deliberately not four of the same thing. The page used to run
+		    alternating copy/illustration rows, which is the layout every fest site has:
+		    it made every section read as equally important, which they are not. Each now
+		    gets the shape its content wants — a statement, a theme, an instrument, a
+		    running strip of film. */}
 		<div class="home-scroll scroll-y" id="homeScroll">
-			<div class="flow">
 
-				<section class="fl" data-side="left" data-ab>
-					<div class="fl-copy">
-						<span class="fl-kick mono">History</span>
-						<h2 class="fl-h">Ten years of it</h2>
-						<p class="fl-p">
-							Anvesha started as a two-hall science fair and has been run by a new set of
-							students almost every year since. What follows is the short version.
-						</p>
-						<ol class="tl">
-							{MILESTONES.map((m) => (
-								<li class:list={['tl-row', m.now && 'is-now']}>
-									<span class="tl-year mono">{m.year}</span>
-									<span class="tl-dot" aria-hidden="true"></span>
-									<div class="tl-body">
-										<h3 class="tl-title">{m.title}</h3>
-										<p class="tl-text">{m.text}</p>
-									</div>
-								</li>
-							))}
-						</ol>
+			{/* ============ 1. THE THEME ============
+			    Paper, not ink — the ticker above is already a black band, and a second one
+			    directly under it made the top of the page one long dark slab.
+			    The illustration is drawn here rather than sourced: a planet-ocean whose
+			    surface never settles, which is the whole of Solaris in one figure. */}
+			<section class="th" data-ab>
+				<div class="th-in">
+					<div class="th-copy">
+						<p class="th-kick mono">This year&rsquo;s theme</p>
+						<h2 class="th-word">{THEME.word}</h2>
+						{THEME.body.map((para) => <p class="th-text">{para}</p>)}
+						<blockquote class="th-pull"><p>{THEME.pull}</p></blockquote>
 					</div>
 
-					{/* TODO(anvesha): swap the frame's contents for a real photo. */}
-					<figure class="art">
-						<div class="art-frame">
-							<div class="art-fill">
-								<span class="art-ico" set:html={iHistory} />
-								<span class="art-tag mono">Archive photo</span>
-							</div>
-						</div>
-						<figcaption class="art-cap mono">
-							<span set:html={iImage} /><span>The 2019 Expo floor</span>
-						</figcaption>
-					</figure>
-				</section>
+					{/* aria-hidden: it says nothing the paragraphs beside it do not. */}
+					<figure class="th-art" aria-hidden="true">
+						<svg class="sol" viewBox="0 0 400 400" role="presentation">
+							<defs>
+								{/* The ocean is clipped to the sphere, so the waves can run far wider
+								   than the planet and still loop without their ends showing. */}
+								<clipPath id="solClip"><circle cx="200" cy="200" r="132" /></clipPath>
+							</defs>
 
-				<section class="fl" data-side="right" data-ab>
-					<div class="fl-copy">
-						<span class="fl-kick mono">By the numbers</span>
-						<h2 class="fl-h">Last year, in figures</h2>
-						<p class="fl-p">
-							Placeholder figures from the 2025 edition — swap them once this year's are in.
+							{/* Two orbits, counter-rotating, drawn as dashes so the rotation reads
+							   at all — a plain circle spinning is invisible. */}
+							<g class="sol-orbits">
+								<ellipse class="sol-o1" cx="200" cy="200" rx="182" ry="182" />
+								<ellipse class="sol-o2" cx="200" cy="200" rx="160" ry="60" />
+							</g>
+
+							<circle class="sol-rim" cx="200" cy="200" r="132" />
+
+							<g clip-path="url(#solClip)">
+								{/* Six bands at different depths and speeds.
+								   The path runs from -400 to 1000 — far wider than the 264px disc it
+								   is clipped to. It has to: the drift travels 400px, so a path that
+								   only just covered the circle at rest ran off its right edge by the
+								   end of the cycle and left the ocean half empty.
+
+								   Colour runs by depth, not by speed: coral at the top where the
+								   light lands, through rose, to plum at the bottom. All three are
+								   sampled off the hero wallpaper, so the drawing and the artwork
+								   two screens up are lit by the same star. */}
+								{[
+									{ y: 118, d: 26, s: 'a', c: 'coral' }, { y: 152, d: 20, s: 'b', c: 'coral' },
+									{ y: 186, d: 30, s: 'c', c: 'rose'  }, { y: 220, d: 18, s: 'a', c: 'rose'  },
+									{ y: 254, d: 24, s: 'b', c: 'plum'  }, { y: 288, d: 22, s: 'c', c: 'plum'  },
+								].map((w) => (
+									<path class={`sol-w sol-${w.s}`} style={`--wc:var(--flare-${w.c})`}
+									      d={`M -400 ${w.y} q 50 -${w.d} 100 0 ${'t 100 0 '.repeat(13)}`} />
+								))}
+							</g>
+
+							{/* The one thing that is not moving: a fixed sight line across the disc,
+							   so the drift has something to be measured against. */}
+							<line class="sol-cross" x1="200" y1="52" x2="200" y2="348" />
+							<circle class="sol-dot" cx="200" cy="200" r="4" />
+
+							{/* Something out there looking at it. The group spins about the disc's
+							   centre and the rocket is parked on the outer ring at (200, 18), so it
+							   rides that exact orbit — no second path to keep in step with .sol-o1,
+							   and it stays tangent because the whole frame turns with it. */}
+							{/* The two of them, swapped: the rocket now runs the inner ellipse and
+							   the moon the outer ring.
+
+							   The rocket takes the harder path on purpose — the ellipse carries it
+							   in front of the disc and back out behind it, which a circle never
+							   does. It needs .sol-rocket over the top because that ellipse is
+							   itself turning (.sol-o2), and an offset-path alone would leave the
+							   rocket tracing a ring that is no longer there. offset-rotate: auto
+							   points it along its own direction of travel, so it banks through the
+							   turns for free.
+
+							   The moon needs no such carrier. Its ring (.sol-o1) is a circle, and a
+							   circle turning about its own centre is the same circle — so walking
+							   the path is the whole of the orbit. Its two motions are the orbit and
+							   its own axial spin; the craters are what make that second one visible
+							   at all, since a spinning circle looks like nothing.
+
+							   Both are drawn around (0,0): offset-path places the element at the
+							   path point and its geometry is relative to that. */}
+							<g class="sol-rocket">
+								<g class="sol-rk-orbit">
+									<path class="sol-rk-flame" d="M -8 0 h -6" />
+									<path class="sol-rk" d="M -8 -4 L 1 -4 Q 10 0 1 4 L -8 4 Z" />
+									<path class="sol-rk" d="M -5 -4 L -10 -8.5 L -8 -4 Z" />
+									<path class="sol-rk" d="M -5 4 L -10 8.5 L -8 4 Z" />
+									<circle class="sol-rk-eye" cx="-1" cy="0" r="1.7" />
+								</g>
+							</g>
+
+							<g class="sol-mn-orbit">
+								<g class="sol-mn-spin">
+									<circle class="sol-mn" cx="0" cy="0" r="9" />
+									<circle class="sol-mn-c" cx="-3.4" cy="-2.8" r="2.2" />
+									<circle class="sol-mn-c" cx="3" cy="1.6" r="1.5" />
+									<circle class="sol-mn-c" cx="-0.8" cy="4.4" r="1.1" />
+								</g>
+							</g>
+						</svg>
+					</figure>
+
+					{/* What the theme is dressed on, across the full width, closing the
+					    block. Not a heading: it is the one sentence a first-time visitor
+					    needs, and it reads as a statement rather than as a label. */}
+					<blockquote class="th-quote">
+						<p>
+							<span class="th-q1"><b class="th-qm">&ldquo;</b>{THEME.quote[0]}</span>
+							<span class="th-q2">{THEME.quote[1]}<b class="th-qm">&rdquo;</b></span>
 						</p>
-						<div class="stats">
-							{STATS.map((st) => (
-								<div class="stat">
-									{/* The rendered text is the final value, so a reader with no JS or a
-									    dead counter sees the number rather than a zero. */}
-									<div class="stat-v" data-count={st.value} data-suffix={st.suffix}>
-										{st.value.toLocaleString('en-IN')}{st.suffix}
-									</div>
-									<div class="stat-l">{st.label}</div>
-								</div>
-							))}
-						</div>
-					</div>
+					</blockquote>
+				</div>
+			</section>
 
-					<figure class="art">
-						<div class="art-frame">
-							<div class="art-fill">
-								<span class="art-ico" set:html={iChart} />
-								<span class="art-tag mono">Crowd shot</span>
+			{/* ============ 2. LAST YEAR, IN FIGURES ============
+			    A readout band between two rules, not four cards. Cards would have made
+			    these compete with the theme above; a band reads as an instrument panel
+			    and stays subordinate to it. */}
+			<section class="fig" data-ab>
+				<div class="fig-in">
+					<header class="fig-head">
+						<p class="fig-kick mono">Last year, in figures</p>
+						<p class="fig-note">The 2025 edition, counted at the door.</p>
+					</header>
+
+					<div class="fig-band">
+						{STATS.map((st, i) => (
+							<div class="fig-cell">
+								<span class="fig-i mono">{String(i + 1).padStart(2, '0')}</span>
+								{/* The rendered text is the final value, so a reader with no JS or
+								    a dead counter sees the number rather than a zero. */}
+								<span class="fig-v" data-count={st.value} data-suffix={st.suffix}>
+									{st.value.toLocaleString('en-IN')}{st.suffix}
+								</span>
+								<span class="fig-l">{st.label}</span>
 							</div>
-						</div>
-						<figcaption class="art-cap mono">
-							<span set:html={iImage} /><span>Opening day, main hall</span>
-						</figcaption>
-					</figure>
-				</section>
+						))}
+					</div>
+				</div>
+			</section>
 
-				<section class="fl" id="sponsors" data-side="left" data-ab>
-					<div class="fl-copy">
-						<span class="fl-kick mono">Sponsors</span>
-						<h2 class="fl-h">Who keeps the doors open</h2>
-						<p class="fl-p">
-							Anvesha is free to attend because partners cover the halls, the equipment and
-							the outreach that runs between fests. Slots are still open.
+			{/* ============ 3. LAST YEAR, IN PHOTOGRAPHS ============
+			    A bento, not eight equal thumbnails: equal cells said every frame mattered
+			    the same, which is not how a contact sheet is read. The eight areas below
+			    are fixed on purpose — the layout is the design, so it must not reshuffle
+			    when a caption gets longer.
+
+			    It is never still. Each cell carries its own --d, which staggers three
+			    things off one number: the entrance, a slow pan across the photograph, and
+			    a light that crosses the grid cell by cell. The light matters most right
+			    now — every frame is a placeholder, and a placeholder cannot pan. */}
+			<section class="cs" data-ab>
+				<div class="cs-in">
+					<header class="cs-head">
+						<h2 class="cs-h">Glimpses into the archives</h2>
+						<p class="cs-note">{GALLERY.length} frames. Hover one to read it; click to open it.</p>
+					</header>
+
+					{/* The bento sits ON a sheet of film rather than loose on the page: an
+					    ink edge top and bottom with the sprockets punched out of it, and the
+					    roll's own edge marking down the side. A real contact sheet is a
+					    positive print, so the sheet itself is paper and only the film edge
+					    is ink — which is how this stays a white block. */}
+					<div class="cs-sheet">
+						<span class="cs-perf" aria-hidden="true"></span>
+
+						{/* aria-hidden on the numbers only: the caption is already on each
+						    button's accessible name, so the grid reads as eight named buttons. */}
+						<div class="cs-bento">
+						{GALLERY.map((g, i) => (
+							<div class="cs-cell" style={`--d:${(i * 0.11).toFixed(2)}s`}>
+								<button class="cs-frame" type="button" data-shot={i}
+								        aria-label={`Open frame ${i + 1}: ${g.caption}`}>
+									<span class="cs-n mono" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+									{/* onerror rather than a build-time check: the file may not exist
+									    yet, and a broken-image glyph is worse than a frame. */}
+									<img class="cs-img" src={g.src} alt="" loading="lazy"
+									     onerror="this.closest('.cs-frame').classList.add('is-empty')" />
+									<span class="cs-empty" aria-hidden="true">
+										<span set:html={iCamera} />
+									</span>
+									<span class="cs-cap mono" aria-hidden="true">{g.caption}</span>
+								</button>
+							</div>
+						))}
+						</div>
+
+						<span class="cs-perf" aria-hidden="true"></span>
+						<p class="cs-edge mono" aria-hidden="true">
+							ARCHIVE &nbsp;&middot;&nbsp; ROLL 01 &nbsp;&middot;&nbsp; {GALLERY.length} FRAMES
 						</p>
-						<ul class="sp-list">
-							{SPONSORS.map((sp) => (
-								<li class:list={['sp', sp.open && 'is-open']}>
-									<span class="sp-tier mono">{sp.tier}</span>
-									{sp.open
-										? <span class="sp-slot">Slot open</span>
-										: <span class="sp-name">{sp.name}</span>}
-								</li>
-							))}
-						</ul>
-						<a class="cta fl-cta" href="mailto:sponsors@anvesha26.in">
-							<span set:html={iHandshake} />
-							<span>REQUEST THE DECK</span>
-							<span set:html={iArrowRight} />
-						</a>
 					</div>
-
-					<figure class="art">
-						<div class="art-frame">
-							<div class="art-fill">
-								<span class="art-ico" set:html={iTrophy} />
-								<span class="art-tag mono">Partner wall</span>
-							</div>
-						</div>
-						<figcaption class="art-cap mono">
-							<span set:html={iImage} /><span>Sponsor banners, 2025</span>
-						</figcaption>
-					</figure>
-				</section>
-
-
-			</div>
+				</div>
+			</section>
 		</div>
 
 		<footer class="home-foot">
@@ -290,6 +393,33 @@ const TICKER = [
 			</a>
 		</footer>
 	</div>
+
+	<Fragment slot="overlays">
+		{/* The viewer. In the overlays slot because .home-scroll is a scroll container:
+		    a fixed child of it would still be clipped by the scroller on some engines. */}
+		<div class="lb" id="lb" hidden>
+			<button class="lb-close btn x" id="lbClose" type="button" aria-label="Close" set:html={iX}></button>
+
+			<button class="lb-nav lb-prev btn" id="lbPrev" type="button" aria-label="Previous frame"
+			        set:html={iChevL}></button>
+
+			<figure class="lb-fig" role="dialog" aria-modal="true" aria-label="Photograph">
+				<div class="lb-stage">
+					<img class="lb-img" id="lbImg" alt="" />
+					<span class="lb-empty" id="lbEmpty" hidden set:html={iCamera} />
+				</div>
+				<figcaption class="lb-cap">
+					<span class="lb-n mono" id="lbN">01 / 08</span>
+					<span class="lb-t" id="lbT"></span>
+				</figcaption>
+			</figure>
+
+			<button class="lb-nav lb-next btn" id="lbNext" type="button" aria-label="Next frame"
+			        set:html={iChevR}></button>
+		</div>
+
+		<script type="application/json" id="lbData" set:html={JSON.stringify(GALLERY)} is:inline></script>
+	</Fragment>
 </SiteLayout>
 
 <script>
@@ -627,50 +757,90 @@ const TICKER = [
 		);
 		rows.forEach((r) => io.observe(r));
 
-		if (scroller && !reduced) parallax(scroller);
 	}
 
 	/**
-	 * Drifts each illustration inside its frame as the pane scrolls.
+	 * The contact-sheet viewer.
 	 *
-	 * The fill is taller than the frame and the frame clips, so moving the fill reads as
-	 * depth rather than as a box sliding around. One handler for all of them, rAF-gated
-	 * so a fast scroll cannot queue more work than it can paint.
+	 * Rebound on every client-router navigation rather than once at module scope, and
+	 * torn down through an AbortController — otherwise the key handler survives the
+	 * page it belongs to and swallows Escape everywhere else on the site.
 	 */
-	function parallax(scroller: HTMLElement) {
-		const fills = Array.from(document.querySelectorAll<HTMLElement>('.art-fill'));
-		if (!fills.length) return;
-		const RANGE = 16; // px of travel at the extremes; more than this reads as a glitch
-		let queued = false;
+	let lbAc: AbortController | null = null;
 
-		const update = () => {
-			queued = false;
-			const pane = scroller.getBoundingClientRect();
-			const mid = pane.top + pane.height / 2;
-			for (const fill of fills) {
-				const r = fill.getBoundingClientRect();
-				// Skip anything off-pane: its transform cannot be seen, and reading a rect
-				// per frame for every frame on the page is the only real cost here.
-				if (r.bottom < pane.top - 100 || r.top > pane.bottom + 100) continue;
-				// -1 above the middle, +1 below it.
-				const t = ((r.top + r.height / 2) - mid) / (pane.height / 2 + r.height / 2);
-				fill.style.setProperty('--par', `${(Math.max(-1, Math.min(1, t)) * -RANGE).toFixed(1)}px`);
-			}
-		};
+	function viewer() {
+		const lb = document.getElementById('lb');
+		const data = document.getElementById('lbData');
+		if (!lb || !data) return;
 
-		scroller.addEventListener(
-			'scroll',
-			() => {
-				if (queued) return;
-				queued = true;
-				requestAnimationFrame(update);
-			},
-			{ passive: true },
-		);
-		update();
+		lbAc?.abort();
+		lbAc = new AbortController();
+		const { signal } = lbAc;
+
+		const shots: { src: string; caption: string }[] = JSON.parse(data.textContent || '[]');
+		if (!shots.length) return;
+
+		const img = document.getElementById('lbImg') as HTMLImageElement;
+		const empty = document.getElementById('lbEmpty') as HTMLElement;
+		const nEl = document.getElementById('lbN') as HTMLElement;
+		const tEl = document.getElementById('lbT') as HTMLElement;
+		const pad = (n: number) => String(n).padStart(2, '0');
+
+		let at = 0;
+		let opener: HTMLElement | null = null;
+
+		function show(i: number) {
+			// Wrap rather than clamp: at eight frames, hitting a dead arrow is more
+			// annoying than looping.
+			at = ((i % shots.length) + shots.length) % shots.length;
+			const s = shots[at];
+			empty.hidden = true;
+			img.hidden = false;
+			img.alt = s.caption;
+			// The same fallback the sheet uses — a missing file shows the drawn frame
+			// rather than a broken-image glyph.
+			img.onerror = () => { img.hidden = true; empty.hidden = false; };
+			img.src = s.src;
+			nEl.textContent = `${pad(at + 1)} / ${pad(shots.length)}`;
+			tEl.textContent = s.caption;
+		}
+
+		function open(i: number, from: HTMLElement) {
+			opener = from;
+			show(i);
+			lb!.hidden = false;
+			document.body.classList.add('lb-open');
+			(document.getElementById('lbClose') as HTMLElement).focus();
+		}
+
+		function close() {
+			lb!.hidden = true;
+			document.body.classList.remove('lb-open');
+			// Focus goes back to the frame that opened it, or the tab order restarts at
+			// the top of the document.
+			opener?.focus();
+			opener = null;
+		}
+
+		for (const b of document.querySelectorAll<HTMLElement>('[data-shot]'))
+			b.addEventListener('click', () => open(Number(b.dataset.shot), b), { signal });
+
+		document.getElementById('lbClose')!.addEventListener('click', close, { signal });
+		document.getElementById('lbPrev')!.addEventListener('click', () => show(at - 1), { signal });
+		document.getElementById('lbNext')!.addEventListener('click', () => show(at + 1), { signal });
+		// Backdrop only: a click that started on the photograph must not close it.
+		lb.addEventListener('click', (e) => { if (e.target === lb) close(); }, { signal });
+
+		addEventListener('keydown', (e) => {
+			if (lb!.hidden) return;
+			if (e.key === 'Escape') close();
+			if (e.key === 'ArrowLeft') show(at - 1);
+			if (e.key === 'ArrowRight') show(at + 1);
+		}, { signal });
 	}
 
 	document.addEventListener('astro:page-load', story);
+	document.addEventListener('astro:page-load', viewer);
 </script>
 
 <style is:global>
@@ -680,7 +850,14 @@ const TICKER = [
 	/* --paper-warm is the ground under the art: shown before the image loads and anywhere
 	   `cover` leaves a gap, so it has to hold black type on its own. Warmed toward the
 	   flare so the swap is not a flash of pure white. */
-	.home-page { --paper-warm: #f7ede2; --iris: #9333ea; }
+	.home-page {
+		--paper-warm: #f7ede2; --iris: #9333ea;
+		/* Raw --accent is #9333ea, which clears 4.5:1 on paper and lands near 4:1 on the
+		   ink grounds this page uses — too low for a 10px kicker. Mixed toward paper once
+		   here rather than guessed at each call site. */
+		--accent-lit: color-mix(in srgb, var(--accent) 55%, var(--primary));
+
+	}
 
 	/* ============ PAGE FRAME ============
 	   One scroller — .page itself, which SiteLayout already makes one, so there is no
@@ -959,195 +1136,464 @@ const TICKER = [
 		.eyebrow { margin-bottom: 10px; }
 	}
 
-	/* ============ THE FLOW ============
-	   Alternating rows down one column: copy on one side, illustration on the other,
-	   flipping each row. `data-side` is the single switch — it drives the column order
-	   AND which way each half travels on the way in, so the two can never disagree. */
-	.flow {
-		max-width: 1120px; margin: 0 auto;
-		padding: clamp(30px, 4vw, 56px) clamp(20px, 3.5vw, 44px) clamp(52px, 6vw, 88px);
-		display: flex; flex-direction: column;
-		gap: clamp(52px, 7vw, 104px);
+	/* ============ BELOW THE FOLD ============
+	   Three blocks, three shapes. One shared inner width so their content lines up down
+	   the page even though their grounds do not. */
+	.th-in, .fig-in, .cs-in { max-width: 1120px; margin: 0 auto; }
+
+	/* ---- 1. the theme ----
+	   Paper, not ink. The ticker directly above is already a black band and a second one
+	   under it turned the whole top of the page into one dark slab. */
+	.th {
+		position: relative; overflow: hidden;
+		padding: clamp(44px, 6vw, 88px) clamp(20px, 3.5vw, 44px);
+		background: var(--sink);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	/* The page's own dot matrix, raked off the corner so it never sits under type. */
+	.th::before {
+		content: ''; position: absolute; inset: 0; pointer-events: none;
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+		mask-image: linear-gradient(115deg, #000 0%, transparent 58%);
+	}
+	.th-in {
+		position: relative;
+		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+		gap: clamp(18px, 2.2vw, 30px) clamp(24px, 4vw, 56px); align-items: start;
+	}
+	.th-copy { min-width: 0; grid-column: 1; grid-row: 1; }
+	.th-kick {
+		margin: 0 0 14px; display: flex; align-items: center; gap: 11px;
+		font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--accent);
+	}
+	.th-kick::before { content: ''; flex: none; width: 18px; height: 1.5px; background: var(--accent); }
+
+	.th-word {
+		margin: 0 0 clamp(18px, 2.4vw, 26px);
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(46px, 9vw, 116px); line-height: .86;
+		letter-spacing: -0.04em; text-transform: uppercase;
+	}
+	.th-text {
+		margin: 0 0 16px; max-width: 48ch;
+		font-size: clamp(14.5px, 1.78vw, 18.5px); line-height: 1.76; color: var(--ink-60);
+		text-wrap: pretty;
+	}
+	/* The line the theme turns on, lifted out of the prose so it is not read past. */
+	.th-pull {
+		margin: clamp(18px, 2.4vw, 24px) 0 0; padding-left: 18px;
+		border-left: var(--stroke) solid var(--accent);
+	}
+	.th-pull p {
+		margin: 0; max-width: 42ch;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(15.5px, 2vw, 21.5px); line-height: 1.5;
+		letter-spacing: -0.01em; text-wrap: pretty;
 	}
 
-	.fl {
-		display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		gap: clamp(24px, 4vw, 60px);
-		align-items: center;
+	/* ---- the Solaris figure ----
+	   Drawn, not sourced: a planet whose ocean never settles. Stroke-only, in the same
+	   weight as every icon on the site, so it reads as part of the drawing system rather
+	   than as an illustration dropped in. */
+	.th-art { margin: 0; min-width: 0; grid-column: 2; grid-row: 1; align-self: start; }
+	.sol { display: block; width: 100%; height: auto; overflow: visible; }
+	/* :where(), and no `stroke`. A bare `.sol circle` is a class PLUS a type, which
+	   outranks every single-class .sol-* rule below it — that is how `fill: none` here
+	   silently beat .sol-dot and .sol-rk-eye and painted both of them invisible, and how
+	   an earlier `stroke` here beat all six wave colours. :where() contributes nothing,
+	   so these are defaults the rules below can simply override. */
+	.sol :where(ellipse, circle, path, line) {
+		fill: none; vector-effect: non-scaling-stroke;
 	}
-	/* The flip. Explicit columns rather than `direction` or `order` on one child, so the
-	   DOM order stays copy-then-illustration for a screen reader in every row. */
-	.fl[data-side='left']  .fl-copy { grid-column: 1; }
-	.fl[data-side='left']  .art     { grid-column: 2; grid-row: 1; }
-	.fl[data-side='right'] .fl-copy { grid-column: 2; grid-row: 1; }
-	.fl[data-side='right'] .art     { grid-column: 1; grid-row: 1; }
+	.sol-o1, .sol-o2 {
+		stroke-width: 1.5; stroke-dasharray: 3 9;
+		transform-origin: 200px 200px;
+	}
+	/* Mixed toward paper, not used raw: at full strength two dashed rings this wide pull
+	   the eye off the disc they are meant to orbit. */
+	.sol-o1 {
+		stroke: color-mix(in srgb, var(--flare-rose) 40%, transparent);
+		animation: sol-spin 44s linear infinite;
+	}
+	.sol-o2 {
+		stroke: color-mix(in srgb, var(--flare-coral) 46%, transparent);
+		animation: sol-spin 30s linear infinite reverse;
+	}
+	/* The rim stays the darkest line in the drawing — it is the edge everything else is
+	   read against, so it holds the shape when the colour inside it moves. */
+	.sol-rim { stroke: var(--flare-plum); stroke-width: 2; }
+	/* The ocean. Thin, many, each at its own speed and its own colour — read together
+	   they are a lit surface in motion rather than six lines sliding. --wc is set per
+	   path in the markup, so depth and colour stay one decision. */
+	.sol-w { stroke: color-mix(in srgb, var(--wc) 62%, transparent); stroke-width: 1.5; }
+	.sol-a { animation: sol-drift 19s linear infinite; }
+	.sol-b { animation: sol-drift 27s linear infinite reverse; }
+	.sol-c { animation: sol-drift 34s linear infinite; }
+	.sol-cross { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 2 7; }
+	.sol-dot { fill: var(--accent); stroke: none; }
 
-	.fl-copy { min-width: 0; }
-	.fl-kick {
-		display: flex; align-items: center; gap: 10px; margin-bottom: 11px;
+	/* r 182 about (200, 200) — .sol-o1's circle as two arcs. offset-rotate: 0 because the
+	   moon should not tumble to face its direction of travel; the only turn it makes is
+	   its own. No carrier rotation: the ring it is on is a circle, so the ring's own spin
+	   cannot move it off the path. */
+	.sol-mn-orbit {
+		offset-path: path('M 382 200 A 182 182 0 1 0 18 200 A 182 182 0 1 0 382 200');
+		offset-rotate: 0deg;
+		animation: sol-orbit 34s linear infinite;
+	}
+	@keyframes sol-orbit { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+	/* Its own day, much shorter than its year. fill-box, not view-box: offset-path has
+	   already placed the element, so the only origin that means anything here is its own
+	   centre — and the outline circle sits inside this group precisely so that box is
+	   symmetric and the craters turn true instead of wobbling. */
+	.sol-mn-spin {
+		transform-box: fill-box; transform-origin: center;
+		animation: sol-spin 11s linear infinite;
+	}
+	.sol-mn { stroke: var(--flare-plum); stroke-width: 1.6; }
+	.sol-mn-c { fill: color-mix(in srgb, var(--flare-plum) 32%, transparent); stroke: none; }
+
+	/* 30s reversed, matching .sol-o2 exactly: this turns the whole ellipse the rocket is
+	   flying, so the path under it stays the path that is drawn. */
+	.sol-rocket { transform-origin: 200px 200px; animation: sol-spin 30s linear infinite reverse; }
+	/* rx 160, ry 60 about (200, 200) — .sol-o2's ellipse as two arcs. auto, not 0deg: a
+	   rocket that does not point where it is going is a rocket being dragged. */
+	.sol-rk-orbit {
+		offset-path: path('M 360 200 A 160 60 0 1 0 40 200 A 160 60 0 1 0 360 200');
+		offset-rotate: auto;
+		animation: sol-orbit 26s linear infinite;
+	}
+	.sol-rk { stroke: var(--flare-plum); stroke-width: 1.6; stroke-linejoin: round; }
+	.sol-rk-eye { fill: var(--flare-coral); stroke: none; }
+	.sol-rk-flame {
+		stroke: var(--flare-coral); stroke-width: 2; stroke-linecap: round;
+		animation: sol-burn 1.1s steps(2, jump-none) infinite alternate;
+	}
+	/* The flame is the only thing on the drawing that is not smooth — a thruster that
+	   eases is not a thruster. */
+	@keyframes sol-burn {
+		from { opacity: .35; stroke-dasharray: 3 4; }
+		to   { opacity: 1;   stroke-dasharray: 7 0; }
+	}
+
+	/* Exactly half the path's own width: the second half of the wave lands where the
+	   first began, so the loop cannot show a seam. */
+	@keyframes sol-drift { to { transform: translateX(-400px); } }
+	@keyframes sol-spin  { to { transform: rotate(360deg); } }
+
+	/* Full width under both columns, so the block ends on a statement rather than on the
+	   ragged bottom of a two-column grid. Ink at full strength — it is the plainest thing
+	   said on the page and the only line here that is not about the theme. */
+	/* Full width: the rule runs from the left margin to the far edge of the sphere, and
+	   the sentence under it fills that same measure on ONE line. */
+	.th-quote {
+		grid-column: 1 / -1; grid-row: 2; margin: 0;
+		padding-top: clamp(18px, 2.4vw, 28px);
+		border-top: var(--stroke) solid var(--secondary);
+		container-type: inline-size;
+	}
+	.th-quote p {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; line-height: 1.32; letter-spacing: -0.02em;
+		/* cqw, not px: the size is derived from the width the FIRST line has to fill, so
+		   it lands on the rule's right end at every viewport instead of at one of them.
+		   Tuned by measuring the rendered run. */
+		font-size: 2.114cqw;
+	}
+	/* Two lines, neither of them breakable: the only break is the one in the markup. */
+	.th-q1, .th-q2 { display: block; white-space: nowrap; }
+	.th-q2 { text-align: center; }
+	/* Marks inline at the two ends, not a block glyph above — that would have made this
+	   three lines. Real elements rather than ::before/::after so the line can be measured
+	   with everything that is actually on it. */
+	.th-qm { font-weight: inherit; color: var(--flare-rose); }
+
+	/* ---- 2. the figures ----
+	   A band between two rules. Cards here would have competed with the theme above; a
+	   band stays subordinate and still lets the numbers be large. */
+	.fig { padding: clamp(40px, 5.5vw, 76px) clamp(20px, 3.5vw, 44px); }
+	.fig-head { margin-bottom: clamp(20px, 3vw, 32px); }
+	.fig-kick {
+		margin: 0; display: flex; align-items: center; gap: 11px;
 		font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
 	}
-	.fl-kick::before { content: ''; flex: none; width: 15px; height: 1.5px; background: var(--accent); }
-	.fl-h {
-		margin: 0 0 10px;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(20px, 2.3vw, 30px); line-height: 1.08;
-		letter-spacing: -0.01em; text-transform: uppercase;
-	}
-	.fl-p { margin: 0 0 24px; font-size: 13.5px; line-height: 1.68; color: var(--ink-60); }
-	.fl-cta { margin-top: 24px; align-self: start; }
+	.fig-kick::before { content: ''; flex: none; width: 15px; height: 1.5px; background: var(--accent); }
+	.fig-note { margin: 9px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
 
-	/* ---- the illustration frame ---- */
-	.art { margin: 0; min-width: 0; }
-	.art-frame {
-		position: relative; overflow: hidden;
-		aspect-ratio: 4 / 3;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	.fig-band {
+		display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 1.5px;
+		/* The gap IS the rule: one ink ground showing through the seams draws all three
+		   dividers at once, with none to double up and none stranded at the ends. */
+		background: var(--hair);
+		border-top: var(--stroke) solid var(--secondary);
+		border-bottom: var(--stroke) solid var(--secondary);
+	}
+	.fig-cell {
+		display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+		padding: clamp(20px, 2.6vw, 30px) clamp(14px, 1.8vw, 24px);
+		background: var(--primary);
+	}
+	.fig-i { font-size: 9px; letter-spacing: .16em; color: var(--accent); }
+	.fig-v {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(26px, 3.6vw, 50px); line-height: 1;
+		letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+	}
+	.fig-l { font-size: 12px; line-height: 1.5; color: var(--ink-60); max-width: 22ch; }
+
+	/* ---- 3. the contact sheet ----
+	   Paper, not ink. The theme above is already a light block and the figures between
+	   them are lighter still, so this closes the page on the same ground rather than
+	   dropping a black slab under it. --sink over pure paper for the same reason the
+	   theme uses it: it separates the sheet from the figures without a second colour. */
+	.cs {
+		padding: clamp(40px, 5.5vw, 76px) clamp(20px, 3.5vw, 44px) clamp(52px, 6.5vw, 88px);
 		background: var(--sink);
-		/* Same dot matrix as the page ground, so an empty frame reads as a reserved space
-		   rather than a broken image. */
-		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
-		background-size: 16px 16px;
+		border-top: 1.5px solid var(--hair);
 	}
-	/* Taller than the frame and shifted by --par, which the scroll handler writes. The
-	   overflow above is what turns that drift into parallax instead of a moving box. */
-	.art-fill {
-		position: absolute; inset: -8% 0;
-		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-		transform: translateY(var(--par, 0px));
-		will-change: transform;
-	}
-	.art-ico { display: block; line-height: 0; color: var(--ink-40); }
-	.art-ico svg { width: clamp(30px, 4vw, 46px); height: clamp(30px, 4vw, 46px); stroke-width: 1.4; }
-	.art-tag {
-		padding: 4px 10px; background: var(--secondary); color: var(--primary);
-		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
-	}
-	.art-cap {
-		display: flex; align-items: center; gap: 7px; margin-top: 10px;
-		font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.art-cap svg { width: 12px; height: 12px; stroke-width: 2; flex: none; }
-
-	/* ---- timeline ---- */
-	.tl { list-style: none; margin: 0; padding: 0; }
-	.tl-row {
-		position: relative;
-		display: grid; grid-template-columns: 62px 16px 1fr; gap: 14px; align-items: start;
-		padding: 0 0 22px;
-	}
-	/* The spine is drawn per row rather than as one rule behind them, so it grows with
-	   the list and the last row can stop it cleanly. */
-	.tl-row::before {
-		content: ''; position: absolute; left: 83px; top: 14px; bottom: 0;
-		width: 1.5px; background: var(--hair);
-	}
-	.tl-row:last-child { padding-bottom: 0; }
-	.tl-row:last-child::before { display: none; }
-	.tl-year { font-size: 12px; color: var(--ink-40); padding-top: 3px; }
-	.tl-dot {
-		width: 9px; height: 9px; margin-top: 7px; justify-self: center;
-		background: var(--primary); border: 2px solid var(--secondary);
-	}
-	.tl-row.is-now .tl-dot { background: var(--accent); border-color: var(--accent); }
-	.tl-row.is-now .tl-year { color: var(--accent); }
-	.tl-title { margin: 0 0 4px; font-size: 14px; font-weight: 800; }
-	.tl-text { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-60); }
-
-	/* ---- stats ---- */
-	/* Hairlines top and bottom instead of four bordered cards: the figures read as part
-	   of the paragraph above them rather than as a widget dropped into it. */
-	.stats {
-		display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		border-top: 1.5px solid var(--hair); border-bottom: 1.5px solid var(--hair);
-	}
-	.stat { padding: 18px 22px 18px 0; }
-	.stat-v {
+	.cs-head { margin-bottom: clamp(22px, 3vw, 34px); }
+	.cs-h {
+		margin: 0;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(26px, 3.2vw, 40px); line-height: 1;
-		letter-spacing: -0.02em;
-		/* The number is re-written every frame while counting; without this the box
-		   resizes as digits are added and the row of cards jitters. */
-		font-variant-numeric: tabular-nums;
+		font-weight: 900; font-size: clamp(22px, 3vw, 38px); line-height: 1;
+		letter-spacing: -0.02em; text-transform: uppercase;
 	}
-	.stat-l {
-		margin-top: 9px;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-40);
+	.cs-note { margin: 10px 0 0; font-size: 13px; color: var(--ink-60); }
+
+	/* ---- the sheet ----
+	   The film the bento is printed on. A contact sheet is a positive print, so the sheet
+	   is paper and only the edge is ink — the block stays white and still reads as film.
+	   The perforations are one repeating gradient rather than N elements: decoration that
+	   has to survive any width. */
+	.cs-sheet {
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		padding: 0 0 clamp(8px, 1vw, 12px);
+	}
+	/* Ink band, holes punched out of it. Sized and centred rather than full-height, so
+	   they read as sprockets in a film edge and not as a dashed rule. */
+	.cs-perf {
+		display: block; height: 15px;
+		background-color: var(--secondary);
+		background-image: repeating-linear-gradient(to right,
+			transparent 0 7px, var(--primary) 7px 16px);
+		background-size: 100% 7px;
+		background-position: center;
+		background-repeat: no-repeat;
+	}
+	/* The roll's own marking, in the margin under the frames where a lab prints it. */
+	.cs-edge {
+		margin: clamp(8px, 1vw, 12px) 0 0; padding: 0 clamp(10px, 1.4vw, 16px);
+		font-size: 8.5px; letter-spacing: .22em; text-transform: uppercase;
+		color: var(--ink-60);
 	}
 
-	/* ---- sponsors ---- */
-	.sp-list { list-style: none; margin: 0; padding: 0; }
-	.sp {
-		display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: baseline;
-		padding: 13px 0;
-		border-bottom: 1.5px solid var(--hair);
+	/* Named areas, not auto-flow: the eight shapes ARE the design, so they must not
+	   reshuffle. Rows are a fixed fraction of the viewport width, which keeps every cell
+	   the ratio it was drawn at instead of letting content set the height. */
+	.cs-bento {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-auto-rows: clamp(96px, 12vw, 168px);
+		grid-template-areas:
+			'a a b c'
+			'a a d d'
+			'e f d d'
+			'g g h h';
+		gap: clamp(8px, 1vw, 14px);
+		padding: clamp(10px, 1.4vw, 16px);
 	}
-	.sp:first-child { border-top: 1.5px solid var(--hair); }
-	.sp-tier { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40); }
-	.sp-name { font-family: 'Archivo Expanded', 'Archivo', sans-serif; font-weight: 900; font-size: 15px; }
-	/* An unfilled slot reads as an invitation rather than as a row that failed to load. */
-	.sp-slot { font-size: 12.5px; font-style: italic; color: var(--ink-40); }
-	.sp.is-open .sp-tier { color: color-mix(in srgb, var(--ink-40) 70%, transparent); }
+	.cs-cell:nth-child(1) { grid-area: a; }
+	.cs-cell:nth-child(2) { grid-area: b; }
+	.cs-cell:nth-child(3) { grid-area: c; }
+	.cs-cell:nth-child(4) { grid-area: d; }
+	.cs-cell:nth-child(5) { grid-area: e; }
+	.cs-cell:nth-child(6) { grid-area: f; }
+	.cs-cell:nth-child(7) { grid-area: g; }
+	.cs-cell:nth-child(8) { grid-area: h; }
+
+	.cs-frame {
+		position: relative; display: block; width: 100%; height: 100%; padding: 0;
+		overflow: hidden; cursor: pointer; appearance: none;
+		background: color-mix(in srgb, var(--secondary) 7%, var(--primary));
+		border: 1.5px solid color-mix(in srgb, var(--secondary) 55%, transparent);
+		border-radius: 1px;
+		transition: transform .22s cubic-bezier(.2, .8, .3, 1),
+		            border-color .22s ease, box-shadow .22s ease;
+	}
+	.cs-frame:hover, .cs-frame:focus-visible {
+		transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--pop);
+	}
+	.cs-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+	.cs-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+	/* Frame number, burnt into the corner the way a real sheet has it. On an ink chip
+	   rather than in ink: it has to sit on both a photograph and an empty pale frame,
+	   and only one of those will hold plain type. */
+	.cs-n {
+		position: absolute; left: 6px; top: 6px; z-index: 4;
+		padding: 2px 5px; border-radius: 1px;
+		font-size: 8.5px; letter-spacing: .1em;
+		color: var(--primary);
+		background: color-mix(in srgb, var(--secondary) 74%, transparent);
+	}
+	.cs-empty {
+		position: absolute; inset: 0; display: none; place-items: center;
+		color: color-mix(in srgb, var(--secondary) 26%, transparent);
+	}
+	.cs-empty svg { width: 26px; height: 26px; stroke-width: 1.4; }
+	/* Set by the img's own onerror, so a frame with no file yet still reads as a frame. */
+	.cs-frame.is-empty .cs-img { display: none; }
+	.cs-frame.is-empty .cs-empty { display: grid; }
+	/* An empty frame is the state this grid is actually in today. Tinted so the ground the
+	   glyph drifts over is not flat white. */
+	.cs-frame.is-empty { background: color-mix(in srgb, var(--flare-plum) 6%, var(--sink)); }
+	/* Captions ride inside the cell and only on hover — eight standing captions under
+	   eight unequal boxes broke the grid back into a list. The text is not lost: it is
+	   on each button's accessible name and in the viewer. */
+	.cs-cap {
+		position: absolute; right: 0; bottom: 0; left: 0; z-index: 4;
+		padding: 16px 8px 6px;
+		font-size: 9.5px; line-height: 1.4; letter-spacing: .04em; text-align: left;
+		color: var(--primary);
+		background: linear-gradient(to top,
+			color-mix(in srgb, var(--secondary) 88%, transparent), transparent);
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+		opacity: 0; transform: translateY(6px);
+		transition: opacity .2s ease, transform .2s ease;
+	}
+	.cs-frame:hover .cs-cap, .cs-frame:focus-visible .cs-cap { opacity: 1; transform: none; }
+
+	@media (max-width: 760px) {
+		/* Two across. The four-column areas collapse to a 2x… ladder that keeps the
+		   alternation of wide and square instead of becoming eight identical squares. */
+		.cs-bento {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			grid-auto-rows: clamp(104px, 26vw, 150px);
+			grid-template-areas:
+				'a a'
+				'b c'
+				'd d'
+				'e f'
+				'g g'
+				'h h';
+		}
+	}
+
+	/* ---- the viewer ---- */
+	.lb {
+		position: fixed; inset: 0; z-index: 60;
+		display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center; gap: clamp(8px, 2vw, 24px);
+		padding: clamp(46px, 6vw, 70px) clamp(12px, 3vw, 34px);
+		background: color-mix(in srgb, var(--secondary) 88%, transparent);
+	}
+	.lb[hidden] { display: none; }
+	body.lb-open { overflow: hidden; }
+	.lb-close { position: absolute; top: 16px; right: 16px; width: 38px; height: 38px; padding: 0; }
+	.lb-close svg, .lb-nav svg { width: 16px; height: 16px; stroke-width: 2.4; }
+	.lb-nav { width: 42px; height: 42px; padding: 0; display: grid; place-items: center; }
+
+	.lb-fig { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+	/* fit-content, not a stretched grid: the stage took the full column and left ink bars
+	   either side of every photograph that was not exactly the column's ratio, which read
+	   as letterboxing rather than as a frame. */
+	.lb-stage {
+		width: fit-content; max-width: 100%;
+		display: grid; place-items: center; min-height: 0;
+		background: var(--secondary);
+		border: var(--stroke) solid var(--primary); border-radius: var(--r);
+		line-height: 0;
+	}
+	.lb-img { display: block; max-width: 100%; max-height: 74vh; width: auto; height: auto; }
+	.lb-empty { display: grid; place-items: center; padding: 18vh 0; color: color-mix(in srgb, var(--primary) 30%, transparent); }
+	.lb-empty svg { width: 40px; height: 40px; stroke-width: 1.2; }
+	.lb-cap {
+		display: flex; align-items: baseline; gap: 14px; justify-content: center;
+		color: var(--primary);
+	}
+	.lb-n { font-size: 10px; letter-spacing: .16em; color: var(--accent); }
+	.lb-t { font-size: 12.5px; color: color-mix(in srgb, var(--primary) 78%, transparent); }
 
 	/* ---- the reveal ----
-	   Not gated on [data-anim]: these start hidden and are switched on by the observer,
-	   which also has a no-JS/no-IO path that adds .is-in to everything at once.
-	   The two halves come in from opposite edges and meet, which is what makes the flip
-	   legible — a row reads as assembling rather than as a block fading up. */
-	.fl .fl-copy, .fl .art {
-		opacity: 0;
-		transition: opacity .62s ease, transform .62s cubic-bezier(.22, .8, .3, 1);
+	   Each block lifts as one. The old page slid two halves in from opposite edges,
+	   which only made sense when every row was two halves. */
+	.th-in, .fig-in, .cs-in {
+		opacity: 0; transform: translateY(20px);
+		transition: opacity .6s ease, transform .6s cubic-bezier(.22, .8, .3, 1);
 	}
-	.fl[data-side='left']  .fl-copy { transform: translateX(-34px); }
-	.fl[data-side='left']  .art     { transform: translateX(34px); }
-	.fl[data-side='right'] .fl-copy { transform: translateX(34px); }
-	.fl[data-side='right'] .art     { transform: translateX(-34px); }
-	/* The illustration lands a beat after the copy, so the eye reads the words first. */
-	.fl .art { transition-delay: .1s; }
-	.fl.is-in .fl-copy, .fl.is-in .art { opacity: 1; transform: none; }
+	.th.is-in .th-in, .fig.is-in .fig-in, .cs.is-in .cs-in { opacity: 1; transform: none; }
 
-	/* Rows inside a row cascade rather than arriving together. Driven off the parent's
-	   .is-in, so they follow the half they live in instead of needing their own observer. */
-	.tl-row, .stat, .sp {
-		opacity: 0; transform: translateY(12px);
-		transition: opacity .45s ease, transform .45s cubic-bezier(.2, .8, .3, 1);
+	/* Cells inside a block cascade rather than arriving together. The bento reuses each
+	   cell's own --d for the delay, so the entrance, the pan and the sweep are all
+	   staggered off one number set once in the markup. */
+	.fig-cell, .cs-cell {
+		opacity: 0; transform: translateY(14px) scale(.97);
+		transition: opacity .5s ease, transform .5s cubic-bezier(.2, .8, .3, 1);
 	}
-	.fl.is-in .tl-row, .fl.is-in .stat, .fl.is-in .sp {
-		opacity: 1; transform: none;
-	}
-	.fl.is-in .tl-row:nth-child(1), .fl.is-in .stat:nth-child(1),
-	.fl.is-in .sp:nth-child(1) { transition-delay: .18s; }
-	.fl.is-in .tl-row:nth-child(2), .fl.is-in .stat:nth-child(2),
-	.fl.is-in .sp:nth-child(2) { transition-delay: .25s; }
-	.fl.is-in .tl-row:nth-child(3), .fl.is-in .stat:nth-child(3),
-	.fl.is-in .sp:nth-child(3) { transition-delay: .32s; }
-	.fl.is-in .tl-row:nth-child(4), .fl.is-in .stat:nth-child(4),
-	.fl.is-in .sp:nth-child(4) { transition-delay: .39s; }
-	.fl.is-in .tl-row:nth-child(5), .fl.is-in .sp:nth-child(5) { transition-delay: .46s; }
-	.fl.is-in .sp:nth-child(6) { transition-delay: .53s; }
+	.fig.is-in .fig-cell, .cs.is-in .cs-cell { opacity: 1; transform: none; }
+	.fig.is-in .fig-cell:nth-child(1) { transition-delay: .16s; }
+	.fig.is-in .fig-cell:nth-child(2) { transition-delay: .22s; }
+	.fig.is-in .fig-cell:nth-child(3) { transition-delay: .28s; }
+	.fig.is-in .fig-cell:nth-child(4) { transition-delay: .34s; }
+	.cs.is-in .cs-cell { transition-delay: calc(.12s + var(--d)); }
 
 	@media (prefers-reduced-motion: reduce) {
-		.fl .fl-copy, .fl .art, .tl-row, .stat, .sp {
+		.th-in, .fig-in, .cs-in, .fig-cell, .cs-cell {
 			opacity: 1; transform: none; transition: none;
 		}
-		.art-fill { transform: none; }
+		.cs-frame { transition: none; }
+		.cs-frame:hover, .cs-frame:focus-visible { transform: none; }
+		/* The sheet stands still. The script checks the same query and never starts the
+		   flow field, so --fx/--fy/--fr/--fs keep their defaults and this is a plain
+		   contact sheet — which is what it should be. */
+		/* Same for the ocean: the drawing is legible standing still. */
+		.sol-w, .sol-o1, .sol-o2, .sol-rocket, .sol-rk-flame,
+		.sol-rk-orbit, .sol-mn-orbit, .sol-mn-spin { animation: none; }
 		.foot-ico { transition: none; }
 		.foot-ico:hover { transform: none; }
 	}
 
 	@media (max-width: 860px) {
-		/* One column. Both halves are reset to the same track, so `data-side` stops
-		   flipping anything and every row reads copy-then-illustration. */
-		.fl { grid-template-columns: 1fr; gap: 22px; }
-		.fl[data-side='left'] .fl-copy, .fl[data-side='right'] .fl-copy { grid-column: 1; grid-row: 1; }
-		.fl[data-side='left'] .art, .fl[data-side='right'] .art { grid-column: 1; grid-row: 2; }
-		/* Sideways travel needs width to read; stacked, both halves just lift. */
-		.fl[data-side='left'] .fl-copy, .fl[data-side='right'] .fl-copy,
-		.fl[data-side='left'] .art, .fl[data-side='right'] .art { transform: translateY(18px); }
-		.fl.is-in .fl-copy, .fl.is-in .art { transform: none; }
-		.art-frame { aspect-ratio: 16 / 10; }
-		.tl-row { grid-template-columns: 52px 16px 1fr; gap: 10px; }
-		.tl-row::before { left: 69px; }
+		/* Two across, not four — below this the figures were 90px wide. */
+		.fig-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		/* The theme stacks, and the figure goes first: a 116px word above a drawing that
+		   has been squeezed into a third of the width reads worse than the reverse. */
+		.th-in { grid-template-columns: minmax(0, 1fr); }
+		.th-copy, .th-quote { grid-column: 1; grid-row: auto; }
+		.th-art { grid-column: 1; grid-row: auto; order: -1; max-width: 320px; margin: 0 auto; }
+
 	}
+
+	/* One line only works while there is a line's worth of width. A 1120px container sets
+	   it at 13.9px and it shrinks with the column from there; measured, 1250px of viewport
+	   is where it reaches 13px, and below that it would keep shrinking to keep the promise.
+	   It wraps and balances instead. */
+	@media (max-width: 1250px) {
+		.th-quote p { font-size: clamp(15px, 2.2vw, 20px); text-align: center; }
+		/* Narrow, the two lines stop being two lines and go back to being one sentence. */
+		.th-q1, .th-q2 { display: inline; white-space: normal; text-wrap: balance; }
+	}
+
+	@media (max-width: 560px) {
+		.fig-band { grid-template-columns: minmax(0, 1fr); }
+		.fig-l { max-width: none; }
+		/* Stacked, the arrows sit under the photograph as a pair rather than flanking it.
+		   Two explicit columns, not one: with a single track the two buttons could not
+		   share row 2, so the grid invented an implicit column and threw them into the
+		   corner with the photograph beside them. */
+		.lb {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			align-content: center; justify-items: center;
+			padding: 56px 12px 20px;
+		}
+		.lb-fig { grid-row: 1; grid-column: 1 / -1; }
+		.lb-prev { grid-row: 2; grid-column: 1; justify-self: end; }
+		.lb-next { grid-row: 2; grid-column: 2; justify-self: start; }
+	}
+
 </style>

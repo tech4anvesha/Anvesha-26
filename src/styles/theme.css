@@ -21,6 +21,16 @@
 	--sink: color-mix(in srgb, var(--secondary) 4%, var(--primary));
 	--dot: color-mix(in srgb, var(--secondary) 20%, transparent);
 
+	/* Sampled off /img/hero-flare.jpg — the three colours the hero artwork is actually
+	   made of, each darkened until it holds its own as a 1.5px stroke on paper. The raw
+	   samples (#ff774b, #a82e58, #543a72) are right for the nebula's own glow on near
+	   black and far too pale as line work on white.
+	   Here rather than on one page: the Solaris drawing they colour is on the home page
+	   and in the teams header, and a second copy would drift. */
+	--flare-coral: #d9481f;
+	--flare-rose:  #a82e58;
+	--flare-plum:  #4a2f6b;
+
 	/* retro hardware: square corners, thick stroke.
 	   ponytail: shadows are electric blue and earn their place — hover and selected
 	   states only, never at rest, or every control on the page shouts at once. */

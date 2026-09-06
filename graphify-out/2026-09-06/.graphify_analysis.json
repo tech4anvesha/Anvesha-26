@@ -1,0 +1,127 @@
+{
+  "communities": {
+    "0": [
+      "ref",
+      "ref_astro_tsconfigs_strict",
+      "ref_astro_types_d_ts",
+      "ref_dist",
+      "tsconfig",
+      "tsconfig_exclude",
+      "tsconfig_extends",
+      "tsconfig_include"
+    ],
+    "1": [
+      "astro",
+      "package_dependencies",
+      "package_dependencies_astro",
+      "package_dependencies_tailwindcss",
+      "package_dependencies_tailwindcss_vite",
+      "tailwindcss",
+      "tailwindcss_vite"
+    ],
+    "2": [
+      "package",
+      "package_engines",
+      "package_engines_node",
+      "package_name",
+      "package_type",
+      "package_version"
+    ],
+    "3": [
+      "src_components_welcome",
+      "src_components_welcome_screen",
+      "src_layouts_layout",
+      "src_pages_index",
+      "users_antrinmaji_desktop_college_anvesha_26_src_assets_astro_svg",
+      "users_antrinmaji_desktop_college_anvesha_26_src_assets_background_svg"
+    ],
+    "4": [
+      "package_scripts",
+      "package_scripts_astro",
+      "package_scripts_build",
+      "package_scripts_dev",
+      "package_scripts_preview"
+    ],
+    "5": [
+      "astro_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.25,
+    "1": 0.2857142857142857,
+    "2": 0.3333333333333333,
+    "3": 0.3333333333333333,
+    "4": 0.4,
+    "5": 1.0
+  },
+  "gods": [
+    {
+      "id": "package_scripts",
+      "label": "scripts",
+      "degree": 5
+    },
+    {
+      "id": "tsconfig_include",
+      "label": "include",
+      "degree": 3
+    },
+    {
+      "id": "package_engines",
+      "label": "engines",
+      "degree": 2
+    },
+    {
+      "id": "package_dependencies_tailwindcss_vite",
+      "label": "@tailwindcss/vite",
+      "degree": 2
+    },
+    {
+      "id": "package_dependencies_astro",
+      "label": "astro",
+      "degree": 2
+    },
+    {
+      "id": "package_dependencies_tailwindcss",
+      "label": "tailwindcss",
+      "degree": 2
+    },
+    {
+      "id": "tsconfig_exclude",
+      "label": "exclude",
+      "degree": 2
+    },
+    {
+      "id": "package_engines_node",
+      "label": "node",
+      "degree": 1
+    },
+    {
+      "id": "package_scripts_dev",
+      "label": "dev",
+      "degree": 1
+    },
+    {
+      "id": "package_scripts_build",
+      "label": "build",
+      "degree": 1
+    }
+  ],
+  "surprises": [],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `dependencies` connect `dependencies` to `package.json`?",
+      "why": "High betweenness centrality (0.157) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `scripts` connect `scripts` to `package.json`?",
+      "why": "High betweenness centrality (0.117) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `name`, `type`, `version` to the rest of the system?",
+      "why": "18 weakly-connected nodes found - possible documentation gaps or missing edges."
+    }
+  ]
+}
