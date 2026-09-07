@@ -154,15 +154,14 @@ const GALLERY = [
 
 // Lucide removed its brand marks, so these are drawn here in the same 24px stroke
 // style as every other icon on the site rather than pulled from a second icon set.
-// TODO(anvesha): point these at the real profiles.
+// LinkedIn is absent because the fest has no LinkedIn page — an icon pointing at
+// linkedin.com is worse than no icon.
 const SOCIALS = [
-	{ name: 'Instagram', href: 'https://instagram.com/',
+	{ name: 'Instagram', href: 'https://www.instagram.com/anveshaiiser/',
 	  svg: `<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>` },
-	{ name: 'LinkedIn', href: 'https://linkedin.com/',
-	  svg: `<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>` },
-	{ name: 'YouTube', href: 'https://youtube.com/',
+	{ name: 'YouTube', href: 'https://www.youtube.com/@stciisertvm',
 	  svg: `<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>` },
-	{ name: 'X', href: 'https://x.com/',
+	{ name: 'X', href: 'https://x.com/Anvesha_IISER',
 	  svg: `<path d="M4 4l16 16M20 4L4 20"/>` },
 ];
 
@@ -474,9 +473,9 @@ const TICKER = [
 				))}
 			</nav>
 
-			<a class="foot-mail mono" href="mailto:hello@anvesha26.in">
+			<a class="foot-mail mono" href="mailto:stc@iisertvm.ac.in">
 				<span set:html={iMail} />
-				<span>hello@anvesha26.in</span>
+				<span>stc@iisertvm.ac.in</span>
 			</a>
 		</footer>
 	</div>
