@@ -2554,10 +2554,14 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		display: flex; flex-direction: column;
 		padding: 4px 6px 4px 4px; margin: -4px -6px -4px -4px;
 	}
-	/* The bento fills the scroll area and both columns stretch to its full height. The
-	   form itself stays content-sized; the views strip below it takes up the slack, so
-	   the space goes to something useful instead of padding the form out. */
-	.m-edit-scroll > .m-bento { flex: 1; min-height: 0; align-items: stretch; }
+	/* The bento fills the scroll area and both columns stretch to its full height.
+	   `1 0 auto`, not `1` — grow into spare height, but never shrink below the content.
+	   With `flex: 1` plus `min-height: 0` the scroll box's only child was forced down to
+	   the scroll box's own height, so it could never overflow and the scrollbar could
+	   never appear: on a short window the form was crushed instead, the description's
+	   90px textarea outgrew the label holding it, and it spilled over the designer row
+	   and through the bottom of the card. */
+	.m-edit-scroll > .m-bento { flex: 1 0 auto; align-items: stretch; }
 	.m-edit-left {
 		display: flex; flex-direction: column; gap: var(--wire);
 		min-width: 0; min-height: 0;
