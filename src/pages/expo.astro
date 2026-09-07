@@ -1,12 +1,13 @@
 ---
 /**
- * EXPO — Aficionados.
+ * AFICIONADOS — the science fair. Routed at /expo; the nav keeps that word, the page
+ * does not.
  *
- * One page, five blocks: the pitch and a countdown, last year's floor as a photograph,
- * the six subject halls with their coordinators, the practical details, and the forms.
+ * One page, five blocks: the pitch and a countdown, last year's floor as a running reel,
+ * the six subjects with their coordinators, the practical details, and the forms.
  *
- * Everything below is data. The six halls, their domains and their coordinators all come
- * off one array, so adding a subject or a phone number is one entry and no markup.
+ * Everything below is data. The six subjects, their domains and their coordinators all
+ * come off one array, so adding a subject is one entry and no markup.
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
 
@@ -19,10 +20,10 @@ import iGlobe from 'lucide-static/icons/globe-2.svg?raw';
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
-import iPhone from 'lucide-static/icons/phone.svg?raw';
 import iUsers from 'lucide-static/icons/users.svg?raw';
 import iSend from 'lucide-static/icons/send.svg?raw';
 import iMessage from 'lucide-static/icons/message-circle.svg?raw';
+import iCamera from 'lucide-static/icons/camera.svg?raw';
 
 // The floor opens on the 30th. The countdown targets 00:00 IST that morning, written as
 // a UTC instant so it is the same moment for a reader in any timezone — IST is UTC+5:30,
@@ -37,65 +38,33 @@ const VENUE = 'Indoor Stadium';
 const HALLS = [
 	{
 		name: 'Biology', icon: iDna, n: 12,
-		domains: ['Botany', 'Zoology', 'Microbiology', 'Immunology', 'Neurobiology',
-		          'Pharmacology', 'Anatomy', 'Histology'],
-		leads: [
-			{ name: 'Sarbajit Pathak', batch: 'B24', phone: '+91 90028 59199' },
-			{ name: 'Ankita Acharya',  batch: 'B24', phone: '+91 99862 18382' },
-			{ name: 'Gargi Datta',     batch: 'B23', phone: '+91 94590 06255' },
-		],
+		blurb: 'Botany through to neurobiology — living systems taken apart on the table, from tissue under a microscope to whole-organism behaviour.',
+		leads: ['Sarbajit Pathak', 'Ankita Acharya', 'Gargi Datta'],
 	},
 	{
 		name: 'Physics', icon: iAtom, n: 18,
-		domains: ['Electrophysiology', 'Fluid Dynamics', 'Quantum Mechanics',
-		          'Energy Harvesting', 'Transportation Engineering',
-		          'Classical Mechanics / Geometry', 'Plasma Physics'],
-		leads: [
-			{ name: 'Akshara Somala Raju', batch: 'B24', phone: '+91 91138 33746' },
-			{ name: 'Sambit Dutta',        batch: 'B24', phone: '+91 70442 67149' },
-			{ name: 'Pranav Guptta V',     batch: 'B23', phone: '+91 63745 82319' },
-		],
+		blurb: 'Fluids, plasmas and quantum mechanics, mostly as apparatus you are meant to set going yourself rather than read about.',
+		leads: ['Akshara Somala Raju', 'Sambit Dutta', 'Pranav Guptta'],
 	},
 	{
 		name: 'Chemistry', icon: iFlask, n: 8,
-		domains: ['Inorganic Chemistry', 'Analytical Chemistry', 'Biochemistry',
-		          'Crystallography', 'Polymer Chemistry', 'Quantum Chemistry',
-		          'Condensed Matter', 'Nanotechnology'],
-		leads: [
-			{ name: 'Mahalakshmi M',    batch: 'B24', phone: '+91 89218 90645' },
-			{ name: 'Pavithra Praveen', batch: 'B24', phone: '+91 90360 53166' },
-			{ name: 'Aditya Katti',     batch: 'B24', phone: '+91 90750 56705' },
-		],
+		blurb: 'Synthesis, crystals and polymers — the bench chemistry that has to be watched happening to make any sense.',
+		leads: ['Mahalakshmi M', 'Pavithra Praveen', 'Aditya Katti'],
 	},
 	{
 		name: 'Mathematics', icon: iSigma, n: 12,
-		domains: ['Knot Theory', 'Topology', 'Financial Mathematics',
-		          'Dynamical Systems (DMD)', 'Number Theory', 'Combinatorial Game Theory',
-		          'Signal Processing', 'Fourier Analysis', 'Information Theory'],
-		leads: [
-			{ name: 'Akash N',          batch: 'B24', phone: '+91 63812 68497' },
-			{ name: 'Arpan Koul',       batch: 'B24', phone: '+91 99993 76793' },
-			{ name: 'Joel Jobby Jacob', batch: 'B24', phone: '+91 96338 23123' },
-		],
+		blurb: 'Knots, number theory and dynamical systems, built into objects you can turn over in your hands.',
+		leads: ['Akash N', 'Arpan Koul', 'Joel Jobby Jacob'],
 	},
 	{
 		name: 'Data Science', icon: iCpu, n: 13,
-		domains: ['Game Theory', 'Robotics & Autonomous Systems', 'Computer Vision',
-		          'Signal Processing', 'Quantum Machine Learning', 'Bioinformatics',
-		          'Embedded Systems'],
-		leads: [
-			{ name: 'Saurabh Kumar Singh', batch: 'B24', phone: '+91 83830 42485' },
-		],
+		blurb: 'Vision models, robots and signal processing, running live on hardware small enough to carry to a table.',
+		leads: ['Saurabh Kumar Singh'],
 	},
 	{
 		name: 'Earth, Environmental & Sustainability Sciences', icon: iGlobe, n: 9,
-		domains: ['Bioremediation', 'Atmospheric & Climate Science',
-		          'Sustainable Materials Engineering', 'Physical Oceanography',
-		          'Marine Ecology', 'Carbon Sequestration'],
-		leads: [
-			{ name: 'Sonavane Samiksha Nilesh',   batch: 'B24', phone: '+91 98927 05272' },
-			{ name: 'Maheen Rituraj Buddhisagar', batch: 'B24', phone: '+91 76206 34810' },
-		],
+		blurb: 'Oceans, atmosphere and the carbon cycle — the planet at whatever scale a table can hold.',
+		leads: ['Sonavane Samiksha Nilesh', 'Maheen Rituraj Buddhisagar'],
 	},
 ];
 
@@ -111,18 +80,164 @@ const LINKS = [
 // Derived, so the copy cannot drift from the table under it.
 const lastYearTotal = HALLS.reduce((n, h) => n + h.n, 0);
 const leadCount = HALLS.reduce((n, h) => n + h.leads.length, 0);
-const THIS_YEAR = 60;
+
+/**
+ * The gallery — ten photographs from the '25 floor, split five and five.
+ *
+ * Two rows travelling opposite ways. One alone reads as a slideshow that got stuck; two
+ * counter-running strips read as a floor going past. Each frame still falls back to a
+ * drawn placeholder if its file 404s, so a typo degrades rather than leaving a
+ * broken-image glyph on the page.
+ */
+// Named after their source, so the folder says what the banner draws from — nothing but
+// the ten expo photographs is in here or reachable from here.
+const SHOTS = Array.from({ length: 10 }, (_, i) => `/img/expo/expo${String(i + 1).padStart(2, '0')}.jpg`);
+const ROWS = [
+	{ dir: 'fwd', shots: SHOTS.slice(0, 5) },
+	{ dir: 'rev', shots: SHOTS.slice(5) },
+];
 const pad = (n: number) => String(n).padStart(2, '0');
 ---
 
-<SiteLayout title="Expo · Anvesha '26">
-	<div class="page">
+<SiteLayout title="Aficionados · Anvesha '26">
+	<div class="page xp-page">
+		{/* ---- the ground ----
+		    Solaris, the same figure the home page opens with, turned right down.
+
+		    A STICKY wrapper of zero height, not a fixed element: fixed positions against
+		    the viewport, so the drawing spilled past the page's own frame and out over the
+		    shell around it. Sticky stays put while the page scrolls under it exactly the
+		    same way, but it is a child of .page — which is the scroller, and therefore
+		    clips it to the frame.
+
+		    aria-hidden and pointer-events:none throughout — it is weather, not content. */}
+		<div class="xp-sky-wrap" aria-hidden="true">
+		{/* ---- the left ----
+		    The six subjects, as their own marks: a helix, an atom, a flask, a sigma, a chip
+		    and a globe, strung together like a constellation. The right of the frame has a
+		    planet turning in it and the left had nothing — but the answer to that is not a
+		    second animation. This is one paint and never touched again.
+
+		    Same six, in the same order, as the cards further down the page: what is drawn
+		    out here is what the fair is made of. */}
+		<svg class="xp-marks" viewBox="0 0 300 640" preserveAspectRatio="xMidYMid meet">
+			{/* the strings first, so every mark draws over its own connector */}
+			<g class="xp-link">
+				<path d="M 78 96 L 214 156" />
+				<path d="M 214 156 L 96 258" />
+				<path d="M 96 258 L 228 352" />
+				<path d="M 228 352 L 82 448" />
+				<path d="M 82 448 L 206 548" />
+			</g>
+
+			{/* biology — a helix */}
+			<g class="xp-mk xp-mk-1" transform="translate(78 70) scale(1.55)">
+				<path d="M -9 -14 q 18 9 0 28" />
+				<path d="M 9 -14 q -18 9 0 28" />
+				<path d="M -6.8 -6.5 h 13.6" />
+				<path d="M -6.8 6.5 h 13.6" />
+			</g>
+
+			{/* physics — an atom */}
+			<g class="xp-mk xp-mk-2" transform="translate(214 156) scale(1.4)">
+				<circle class="xp-mk-fill" cx="0" cy="0" r="3" />
+				<ellipse cx="0" cy="0" rx="14" ry="5.5" />
+				<ellipse cx="0" cy="0" rx="14" ry="5.5" transform="rotate(60)" />
+				<ellipse cx="0" cy="0" rx="14" ry="5.5" transform="rotate(-60)" />
+			</g>
+
+			{/* chemistry — a flask */}
+			<g class="xp-mk xp-mk-3" transform="translate(96 258) scale(1.5)">
+				<path d="M -4 -13 v 8 L -11 7 a 3 3 0 0 0 2.6 4.6 h 16.8 A 3 3 0 0 0 11 7 L 4 -5 v -8 z" />
+				<path d="M -6.6 -13 h 13.2" />
+				<path d="M -8.4 4 h 16.8" />
+			</g>
+
+			{/* mathematics — a sigma */}
+			<g class="xp-mk xp-mk-1" transform="translate(228 352) scale(1.55)">
+				<path d="M 9 -12 H -8 L 2.5 0 -8 12 H 9" />
+			</g>
+
+			{/* data science — a chip */}
+			<g class="xp-mk xp-mk-2" transform="translate(82 448) scale(1.5)">
+				<rect x="-9" y="-9" width="18" height="18" rx="2" />
+				<rect x="-3.6" y="-3.6" width="7.2" height="7.2" rx="1" />
+				{[-4.5, 0, 4.5].map((o) => (
+					<>
+						<path d={`M -9 ${o} h -4`} />
+						<path d={`M 9 ${o} h 4`} />
+						<path d={`M ${o} -9 v -4`} />
+						<path d={`M ${o} 9 v 4`} />
+					</>
+				))}
+			</g>
+
+			{/* earth — a globe */}
+			<g class="xp-mk xp-mk-3" transform="translate(206 548) scale(1.35)">
+				<circle cx="0" cy="0" r="13" />
+				<ellipse cx="0" cy="0" rx="5.4" ry="13" />
+				<path d="M -12.4 -4.6 h 24.8" />
+				<path d="M -12.4 4.6 h 24.8" />
+			</g>
+		</svg>
+
+		{/* The home page's Solaris, unchanged and simply larger — same geometry, same
+		    colours, same three motions, and the rocket riding the tilted ring exactly as
+		    it does there. The only difference is scale and that it sits behind a page
+		    instead of beside a paragraph. */}
+		<svg class="sol xp-sky" viewBox="0 0 400 400" role="presentation">
+			<defs>
+				<clipPath id="xpSolClip"><circle cx="200" cy="200" r="132" /></clipPath>
+			</defs>
+
+			<g class="sol-orbits">
+				<ellipse class="sol-o1" cx="200" cy="200" rx="182" ry="182" />
+				<ellipse class="sol-o2" cx="200" cy="200" rx="160" ry="60" />
+			</g>
+
+			<circle class="sol-rim" cx="200" cy="200" r="132" />
+
+			<g clip-path="url(#xpSolClip)">
+				{[
+					{ y: 118, d: 26, s: 'a', c: 'coral' }, { y: 152, d: 20, s: 'b', c: 'coral' },
+					{ y: 186, d: 30, s: 'c', c: 'rose'  }, { y: 220, d: 18, s: 'a', c: 'rose'  },
+					{ y: 254, d: 24, s: 'b', c: 'plum'  }, { y: 288, d: 22, s: 'c', c: 'plum'  },
+				].map((w) => (
+					<path class={`sol-w sol-${w.s}`} style={`--wc:var(--flare-${w.c})`}
+					      d={`M -400 ${w.y} q 50 -${w.d} 100 0 ${'t 100 0 '.repeat(13)}`} />
+				))}
+			</g>
+
+			<line class="sol-cross" x1="200" y1="52" x2="200" y2="348" />
+			<circle class="sol-dot" cx="200" cy="200" r="4" />
+
+			<g class="sol-rocket">
+				<g class="sol-rk-orbit">
+					<path class="sol-rk-flame" d="M -8 0 h -6" />
+					<path class="sol-rk" d="M -8 -4 L 1 -4 Q 10 0 1 4 L -8 4 Z" />
+					<path class="sol-rk" d="M -5 -4 L -10 -8.5 L -8 -4 Z" />
+					<path class="sol-rk" d="M -5 4 L -10 8.5 L -8 4 Z" />
+					<circle class="sol-rk-eye" cx="-1" cy="0" r="1.7" />
+				</g>
+			</g>
+
+			<g class="sol-mn-orbit">
+				<g class="sol-mn-spin">
+					<circle class="sol-mn" cx="0" cy="0" r="9" />
+					<circle class="sol-mn-c" cx="-3.4" cy="-2.8" r="2.2" />
+					<circle class="sol-mn-c" cx="3" cy="1.6" r="1.5" />
+					<circle class="sol-mn-c" cx="-0.8" cy="4.4" r="1.1" />
+				</g>
+			</g>
+		</svg>
+		</div>
+
 		{/* ---- the pitch ---- */}
 		<header class="page-head xp-head" data-reveal>
-			<p class="eyebrow">Aficionados · {DATES} · {VENUE}</p>
-			<h1 class="page-title">Expo</h1>
+			<p class="eyebrow">Expo &middot; Anvesha &rsquo;26</p>
+			<h1 class="page-title">Aficionados</h1>
 			<p class="lede">
-				{THIS_YEAR} student projects on the floor over two days. Aficionados is your chance
+				Multiple student projects on the floor over two days. Aficionados is your chance
 				to bring an idea into life — have one? Build it, and present it here. Walk in and
 				ask anything: every exhibit is meant to be explained out loud, not read off a
 				poster.
@@ -143,10 +258,29 @@ const pad = (n: number) => String(n).padStart(2, '0');
 					</div>
 				))}
 			</div>
-			<p class="xp-clock-note mono" id="xpNote">Doors open {DATES} · {VENUE}</p>
+			<p class="xp-clock-note mono" id="xpNote">Doors open {DATES}</p>
+
+			{/* When and where sit WITH the clock, not in a section further down: they are the
+			    three facts the countdown is counting toward, and a reader who has just seen
+			    "52 days" is asking "until what, and where" in the same breath. */}
+			<dl class="xp-facts">
+				{[
+					{ k: 'When', v: `${DATES} 2026`, icon: iCalendar },
+					{ k: 'Where', v: VENUE, icon: iMapPin },
+					{ k: 'Who can exhibit', v: 'Open to all', icon: iUsers },
+				].map((f) => (
+					<div class="xp-fact">
+						<dt><span set:html={f.icon} />{f.k}</dt>
+						<dd>{f.v}</dd>
+					</div>
+				))}
+			</dl>
 		</header>
 
-		{/* ---- last year's floor ---- */}
+		{/* ---- last year's floor ----
+		    A reel, not a grid: a wall of thumbnails is a contact sheet, and this is meant
+		    to read as the floor going past. Rendered TWICE and the track travels exactly
+		    -50%, so the second copy lands where the first began and the loop has no seam. */}
 		<section class="section" data-reveal>
 			<div class="sechead">
 				<span class="sechead-label">Anvesha &rsquo;25</span>
@@ -154,13 +288,28 @@ const pad = (n: number) => String(n).padStart(2, '0');
 				<span class="sechead-meta"><b>{lastYearTotal}</b> projects last year</span>
 			</div>
 
-			<figure class="xp-shot">
-				<img src="/img/expo-2025.jpg" width="932" height="1400" loading="lazy"
-				     alt="Photographs from the 2025 Expo floor: students demonstrating projects at
-				          their tables, school groups walking the halls, and benches with
-				          microscopes and tanks." />
-				<figcaption class="mono">The floor, Anvesha &rsquo;25</figcaption>
-			</figure>
+			<div class="xp-reels">
+				{ROWS.map((row) => (
+					<div class="xp-reel" data-dir={row.dir}>
+						<div class="xp-track">
+							{[0, 1].map(() => (
+								<div class="xp-run" aria-hidden="true">
+									{row.shots.map((src) => (
+										<figure class="xp-frame">
+											{/* onerror rather than a build-time check: a broken-image
+											    glyph is worse than a drawn frame. */}
+											<img src={src} alt="" loading="lazy"
+											     onerror="this.closest('.xp-frame').classList.add('is-empty')" />
+											<span class="xp-frame-empty" set:html={iCamera} />
+										</figure>
+									))}
+								</div>
+							))}
+						</div>
+					</div>
+				))}
+			</div>
+			<p class="xp-reel-note mono">Hover to hold it still.</p>
 		</section>
 
 		{/* ---- the halls ----
@@ -172,7 +321,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 				<span class="sechead-meta"><b>{HALLS.length}</b> subjects · <b>{leadCount}</b> coordinators</span>
 			</div>
 
-			<div class="xp-halls">
+			<div class="xp-halls" id="xpHalls">
 				{HALLS.map((h, i) => (
 					<article class="xp-hall">
 						<header class="xp-hall-top">
@@ -182,53 +331,24 @@ const pad = (n: number) => String(n).padStart(2, '0');
 							<span class="xp-hall-count mono"><b>{h.n}</b> projects</span>
 						</header>
 
-						<ul class="xp-domains">
-							{h.domains.map((d) => <li>{d}</li>)}
-						</ul>
+						<p class="xp-blurb">{h.blurb}</p>
 
+						{/* Names only. The full record — batch, roll, portrait — lives on the
+						    teams page, where these fourteen are listed under Expo, and a phone
+						    number on a public page is a number that gets scraped. */}
 						<div class="xp-leads">
 							<p class="xp-leads-label mono">Coordinators</p>
-							{h.leads.map((l) => (
-								<a class="xp-lead" href={`tel:${l.phone.replace(/\s/g, '')}`}>
-									<span class="xp-lead-name">{l.name}</span>
-									<span class="xp-lead-batch mono">{l.batch}</span>
-									<span class="xp-lead-phone mono">
-										<span set:html={iPhone} />{l.phone}
-									</span>
-								</a>
-							))}
+							<ul class="xp-lead-list">
+								{h.leads.map((l) => <li class="xp-lead">{l}</li>)}
+							</ul>
 						</div>
 					</article>
 				))}
 			</div>
 			<p class="xp-foot mono">
-				Counts and domains are from Anvesha &rsquo;25 &mdash; {lastYearTotal} projects across
-				{' '}{HALLS.length} subjects. This year&rsquo;s floor is built to {THIS_YEAR}.
+				Project counts are from Anvesha &rsquo;25 &mdash; {lastYearTotal} across
+				{' '}{HALLS.length} subjects.
 			</p>
-		</section>
-
-		{/* ---- the practicals ---- */}
-		<section class="section" data-reveal>
-			<div class="sechead">
-				<span class="sechead-label">Visiting</span>
-				<span class="sechead-rule"></span>
-				<span class="sechead-meta">Free · open to all</span>
-			</div>
-
-			<div class="rows">
-				{[
-					{ label: 'When', value: `${DATES} 2026`, icon: iCalendar },
-					{ label: 'Where', value: `${VENUE} · IISER Thiruvananthapuram`, icon: iMapPin },
-					{ label: 'Who can exhibit', value: 'Any student, any subject, any year', icon: iUsers },
-				].map((v, i) => (
-					<div class="row-item">
-						<i class="row-index">{pad(i + 1)}</i>
-						<span class="row-icon" set:html={v.icon} />
-						<div class="row-name">{v.label}</div>
-						<div class="row-meta"><b>{v.value}</b></div>
-					</div>
-				))}
-			</div>
 		</section>
 
 		{/* ---- the forms ---- */}
@@ -308,13 +428,207 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		tick = window.setInterval(draw, 1000);
 	}
 
+	/**
+	 * The subject bento's hover.
+	 *
+	 * Written in script rather than as :has(.xp-hall:hover) for one reason: the CSS
+	 * version oscillates. Expanding a column sweeps the boundary between two cards under
+	 * a cursor that has not moved; the cursor is then over the neighbour, the selector
+	 * flips, the columns swap back, and the boundary sweeps the other way. The row shakes
+	 * for as long as you rest the pointer near a seam.
+	 *
+	 * The fix is hysteresis, and the honest source of it is the pointer itself: only
+	 * re-read which card is underneath when the pointer has actually MOVED. Layout
+	 * shifting under a still cursor then changes nothing, because no movement happened.
+	 */
+	let hallsAc: AbortController | null = null;
+
+	function bento() {
+		hallsAc?.abort();
+		const grid = document.getElementById('xpHalls');
+		if (!grid) return;
+		hallsAc = new AbortController();
+		const { signal } = hallsAc;
+
+		const cards = [...grid.querySelectorAll<HTMLElement>('.xp-hall')];
+		let lastX = NaN, lastY = NaN;
+
+		const light = (card: HTMLElement | null) => {
+			for (const c of cards) c.classList.toggle('is-lit', c === card);
+			if (card) grid.dataset.col = String(cards.indexOf(card) % 3);
+			else delete grid.dataset.col;
+		};
+
+		grid.addEventListener('pointermove', (e) => {
+			// The guard. A pointermove at the same coordinates is the browser telling us
+			// the layout moved, not the user — and acting on it is the oscillation.
+			if (e.clientX === lastX && e.clientY === lastY) return;
+			lastX = e.clientX; lastY = e.clientY;
+			light((e.target as HTMLElement).closest<HTMLElement>('.xp-hall'));
+		}, { signal });
+
+		grid.addEventListener('pointerleave', () => {
+			lastX = NaN; lastY = NaN;
+			light(null);
+		}, { signal });
+	}
+
 	document.addEventListener('astro:page-load', countdown);
+	document.addEventListener('astro:page-load', bento);
 	document.addEventListener('astro:before-swap', () => clearInterval(tick));
 </script>
 
 <style>
-	/* ============ THE PITCH ============ */
-	.xp-head { padding-bottom: clamp(26px, 3.4vw, 40px); }
+	/* ============ THE GROUND ============
+	   The home page's drawing, scaled up and put behind the page.
+
+	   Three things here are about COST, not looks. At this size the naive version dropped
+	   48 frames in 150 — measured, at 4x CPU throttle — and removing it dropped none:
+
+	     1. No mask-image. A gradient mask over a large animated subtree forces the whole
+	        masked area to repaint every frame. Plain opacity composites instead.
+	     2. No vector-effect: non-scaling-stroke. It has to re-tessellate every stroke on
+	        every transform, and the strokes here are six long wave paths.
+	     3. contain + will-change on the animated groups, so each is its own layer and the
+	        page around it is not repainted when they move.
+
+	   Sized in vh rather than vw: it is a circle, and tying it to the taller axis keeps it
+	   from swelling to absurdity on a wide monitor. */
+	.xp-page { position: relative; z-index: 0; }
+	.xp-sky-wrap {
+		position: sticky; top: 0; z-index: -1;
+		/* flex:none is load-bearing. .page is a flex column, so this is a flex ITEM and
+		   its height is negotiable — it shrank to 4px while the -100vh margin still
+		   subtracted a full screen, which hauled the header up out of view. */
+		flex: none; height: 100vh; margin-bottom: -100vh;
+		overflow: hidden; pointer-events: none;
+		contain: strict;
+	}
+	/* Sized off the WIDTH of the right half it is meant to fill, with a vh ceiling so it
+	   cannot outgrow a short window. Centred on 74% so the disc covers the right side
+	   rather than sitting in the middle of it. */
+	.xp-sky {
+		position: absolute; top: 50%; left: 74%;
+		width: min(66vw, 118vh); aspect-ratio: 1;
+		transform: translate(-50%, -50%);
+		opacity: .34;
+		overflow: visible;
+	}
+
+	/* ---- the subject marks ----
+	   No animation anywhere in here on purpose: the left of the frame needed something to
+	   look at, and the page had just been taken from 48 dropped frames to none. A second
+	   moving object would have spent that straight back.
+
+	   Stroke-only and at the same weight as the planet's line work, so the two halves of
+	   the frame read as one drawing rather than as a background and a decal. */
+	.xp-marks {
+		position: absolute; top: 50%; left: 15%;
+		height: min(80vh, 660px); width: auto;
+		transform: translate(-50%, -50%);
+		opacity: .5;
+	}
+	.xp-marks :where(path, circle, ellipse, rect) { fill: none; }
+	.xp-mk {
+		stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+		vector-effect: non-scaling-stroke;
+	}
+	/* The three flare colours, cycled — the marks are the subjects, and the palette is the
+	   theme's, so they belong to the same drawing as the planet. */
+	.xp-mk-1 { stroke: color-mix(in srgb, var(--flare-plum) 46%, transparent); }
+	.xp-mk-2 { stroke: color-mix(in srgb, var(--flare-rose) 44%, transparent); }
+	.xp-mk-3 { stroke: color-mix(in srgb, var(--flare-coral) 40%, transparent); }
+	.xp-mk-fill { fill: currentColor; stroke: none; }
+	/* Strung together, the way a constellation is drawn between its stars. */
+	.xp-link path {
+		stroke: color-mix(in srgb, var(--flare-plum) 16%, transparent);
+		stroke-width: 1.2; stroke-dasharray: 2 8;
+	}
+
+	@media (max-width: 900px) {
+		/* Two drawings in a phone-width frame is clutter; the planet is the one that stays. */
+		.xp-marks { display: none; }
+	}
+	.xp-sky :where(ellipse, circle, path, line) { fill: none; }
+
+	.xp-sky .sol-o1, .xp-sky .sol-o2 {
+		stroke-width: 1.5; stroke-dasharray: 3 9; transform-origin: 200px 200px;
+		will-change: transform;
+	}
+	.xp-sky .sol-o1 {
+		stroke: color-mix(in srgb, var(--flare-rose) 40%, transparent);
+		animation: sol-spin 44s linear infinite;
+	}
+	.xp-sky .sol-o2 {
+		stroke: color-mix(in srgb, var(--flare-coral) 46%, transparent);
+		animation: sol-spin 30s linear infinite reverse;
+	}
+	.xp-sky .sol-rim { stroke: var(--flare-plum); stroke-width: 2; }
+	.xp-sky .sol-w {
+		stroke: color-mix(in srgb, var(--wc) 62%, transparent); stroke-width: 1.5;
+		will-change: transform;
+	}
+	.xp-sky .sol-a { animation: sol-drift 19s linear infinite; }
+	.xp-sky .sol-b { animation: sol-drift 27s linear infinite reverse; }
+	.xp-sky .sol-c { animation: sol-drift 34s linear infinite; }
+	.xp-sky .sol-cross { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 2 7; }
+	.xp-sky .sol-dot { fill: var(--accent); stroke: none; }
+
+	/* The rocket rides the tilted ring, which is itself turning — hence the carrier over
+	   the top of the offset-path. offset-rotate: auto banks it through the turns. */
+	.xp-sky .sol-rocket {
+		transform-origin: 200px 200px;
+		animation: sol-spin 30s linear infinite reverse;
+		will-change: transform;
+	}
+	.xp-sky .sol-rk-orbit {
+		offset-path: path('M 360 200 A 160 60 0 1 0 40 200 A 160 60 0 1 0 360 200');
+		offset-rotate: auto;
+		animation: sol-orbit 26s linear infinite;
+		will-change: offset-distance;
+	}
+	.xp-sky .sol-rk { stroke: var(--flare-plum); stroke-width: 1.6; stroke-linejoin: round; }
+	.xp-sky .sol-rk-eye { fill: var(--flare-coral); stroke: none; }
+	.xp-sky .sol-rk-flame {
+		stroke: var(--flare-coral); stroke-width: 2; stroke-linecap: round;
+		animation: sol-burn 1.1s steps(2, jump-none) infinite alternate;
+	}
+	/* The moon's ring is a circle, and a circle turning about its own centre is the same
+	   circle — so walking the path is the whole of its orbit, with no carrier. */
+	.xp-sky .sol-mn-orbit {
+		offset-path: path('M 382 200 A 182 182 0 1 0 18 200 A 182 182 0 1 0 382 200');
+		offset-rotate: 0deg;
+		animation: sol-orbit 34s linear infinite;
+		will-change: offset-distance;
+	}
+	.xp-sky .sol-mn-spin {
+		transform-box: fill-box; transform-origin: center;
+		animation: sol-spin 11s linear infinite;
+	}
+	.xp-sky .sol-mn { stroke: var(--flare-plum); stroke-width: 1.6; }
+	.xp-sky .sol-mn-c { fill: color-mix(in srgb, var(--flare-plum) 32%, transparent); stroke: none; }
+
+	/* Exactly half the path's own width, so the loop cannot show a seam. */
+	@keyframes sol-drift { to { transform: translateX(-400px); } }
+	@keyframes sol-spin  { to { transform: rotate(360deg); } }
+	@keyframes sol-orbit { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+	@keyframes sol-burn {
+		from { opacity: .35; stroke-dasharray: 3 4; }
+		to   { opacity: 1;   stroke-dasharray: 7 0; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.xp-sky * { animation: none !important; }
+	}
+
+	/* ============ THE PITCH ============
+	   Centred, because the countdown is the thing this block is built around and a clock
+	   ranged left with a column of text beside it reads as a widget rather than a header. */
+	.xp-head {
+		padding-bottom: clamp(26px, 3.4vw, 40px);
+		display: flex; flex-direction: column; align-items: center; text-align: center;
+	}
+	.xp-head .lede { max-width: 62ch; }
 
 	/* ---- the countdown ----
 	   Four equal cells over one ink ground: the gap IS the divider, so no cell needs a
@@ -322,7 +636,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	.xp-clock {
 		display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: var(--stroke);
-		max-width: 560px; margin: clamp(24px, 3vw, 34px) 0 0;
+		width: 100%; max-width: 520px; margin: clamp(24px, 3vw, 34px) auto 0;
 		background: var(--secondary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 		overflow: hidden;
@@ -352,30 +666,141 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		color: var(--ink-60);
 	}
 
-	/* ============ LAST YEAR ============
-	   The collage is tall and portrait, so it is capped by height rather than width — at
-	   full width on a desktop it would be most of a screen of scrolling. */
-	.xp-shot { margin: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; }
-	.xp-shot img {
-		display: block; width: auto; max-width: 100%;
-		max-height: min(78vh, 720px);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		box-shadow: var(--pop-lg);
+	/* The three facts the clock is counting toward. One ink ground, the gap drawing every
+	   divider — same construction as the clock above, so they read as one instrument. */
+	.xp-facts {
+		display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--stroke);
+		width: 100%; max-width: 760px; margin: clamp(18px, 2.4vw, 26px) auto 0;
+		background: var(--hair);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		overflow: hidden;
 	}
-	.xp-shot figcaption {
+	.xp-fact {
+		display: flex; flex-direction: column; align-items: center; gap: 6px;
+		padding: 14px 12px;
+		background: var(--primary);
+	}
+	.xp-fact dt {
+		display: flex; align-items: center; gap: 7px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.xp-fact dt :global(svg) { width: 13px; height: 13px; stroke-width: 1.8; color: var(--accent); }
+	.xp-fact dd {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(12px, 1.15vw, 14.5px); letter-spacing: -.01em;
+		text-wrap: balance;
+	}
+	@media (max-width: 620px) {
+		.xp-facts { grid-template-columns: minmax(0, 1fr); }
+	}
+
+	/* ============ LAST YEAR ============
+	   Two rows of five, travelling opposite ways. The frames in each row are rendered
+	   TWICE and the track travels exactly -50%, so the second copy lands where the first
+	   began and neither loop can show a seam.
+
+	   No mask on these: a gradient mask over a moving strip repaints the whole masked band
+	   every frame, which is what cost this page 48 frames in 150 when the sky had one. The
+	   rows are full-bleed to the frame's edge instead, which reads as continuing past the
+	   page anyway. */
+	.xp-reels { display: flex; flex-direction: column; gap: 12px; }
+	.xp-reel { overflow: hidden; margin: 0 calc(-1 * clamp(0px, 2vw, 28px)); }
+	.xp-track {
+		display: flex; width: max-content;
+		animation: xp-roll 52s linear infinite;
+		will-change: transform;
+	}
+	[data-dir='rev'] .xp-track { animation-direction: reverse; animation-duration: 61s; }
+	@keyframes xp-roll { to { transform: translateX(-50%); } }
+	/* A frame you are trying to look at must stop moving — and both rows stop, or the one
+	   you are not pointing at keeps sliding under your eye. */
+	.xp-reels:hover .xp-track, .xp-reels:focus-within .xp-track { animation-play-state: paused; }
+	.xp-run { display: flex; gap: 12px; padding: 3px 6px; }
+
+	.xp-frame {
+		flex: none; width: clamp(190px, 21vw, 270px); margin: 0;
+		display: block;
+	}
+	.xp-frame img,
+	.xp-frame .xp-frame-empty {
+		display: block; width: 100%; aspect-ratio: 4 / 3;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--sink);
+	}
+	.xp-frame img { object-fit: cover; box-shadow: var(--pop); }
+	/* Shown by the img's own onerror, so a frame with no file yet still reads as a frame
+	   rather than as a broken image. */
+	.xp-frame .xp-frame-empty { display: none; place-items: center; color: var(--ink-40); }
+	.xp-frame .xp-frame-empty :global(svg) { width: 26px; height: 26px; stroke-width: 1.4; }
+	.xp-frame.is-empty img { display: none; }
+	.xp-frame.is-empty .xp-frame-empty { display: grid; }
+	.xp-reel-note {
+		margin: 10px 0 0;
 		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		/* The rows stop and become strips you scroll yourself — every frame is still
+		   reachable, they just no longer come to you. */
+		.xp-track { animation: none; }
+		.xp-reel { overflow-x: auto; overscroll-behavior-x: contain; }
 	}
 
 	/* ============ THE SUBJECTS ============ */
+	/* ---- the bento ----
+	   Three uneven columns at rest, so it reads as a bento rather than a table; on hover
+	   the column under the pointer takes most of the row and the other two give it up.
+
+	   The animation is on the CONTAINER's track sizes, not on the card — a card that
+	   scales grows over its neighbours and the row jumps; tracks that resize push the
+	   neighbours aside and everything stays on the grid. grid-template-columns has been
+	   animatable since Chrome 107, and the track count never changes, which is what makes
+	   it interpolate rather than snap.
+
+	   :has() reads the hover from the container, and :focus-within is there so tabbing
+	   through does the same thing as pointing at it. */
 	.xp-halls {
 		display: grid; gap: 14px;
-		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr) minmax(0, .94fr);
+		transition: grid-template-columns .42s cubic-bezier(.2, .8, .3, 1);
 	}
+	/* Driven by [data-col], set in script, NOT by :has(.xp-hall:hover).
+	   :has() oscillated: expanding a column sweeps the boundary between two cards under a
+	   stationary cursor, the cursor lands on the neighbour, :has() flips, the columns
+	   swap back, the boundary sweeps the other way — a feedback loop that shook the whole
+	   row. The gap between cards made it worse, being a strip that belongs to neither.
+	   The script only re-reads which card is under the pointer when the pointer has
+	   actually MOVED, so a boundary crossing a still cursor changes nothing. */
+	.xp-halls[data-col='0'] { grid-template-columns: minmax(0, 1.7fr) minmax(0, .78fr) minmax(0, .74fr); }
+	.xp-halls[data-col='1'] { grid-template-columns: minmax(0, .8fr) minmax(0, 1.7fr) minmax(0, .74fr); }
+	.xp-halls[data-col='2'] { grid-template-columns: minmax(0, .8fr) minmax(0, .76fr) minmax(0, 1.68fr); }
+
+	@media (max-width: 900px) {
+		/* Two across, and the redistribution goes with it — at this width the shrunken
+		   column is narrower than the words in it. */
+		.xp-halls, .xp-halls[data-col] {
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.xp-halls { transition: none; }
+	}
+	/* Opaque, not transparent: these sit over the Solaris drawing, and a card you can read
+	   the orbits through is a card nobody can read. */
 	.xp-hall {
-		display: flex; flex-direction: column; gap: 14px;
+		display: flex; flex-direction: column; gap: 14px; min-width: 0;
 		padding: clamp(16px, 1.9vw, 22px);
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: box-shadow .3s ease, border-color .3s ease;
+	}
+	.xp-hall.is-lit, .xp-hall:focus-within {
+		box-shadow: var(--pop-lg); border-color: var(--accent);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.xp-hall { transition: none; }
 	}
 	.xp-hall-top {
 		display: grid; grid-template-columns: auto auto 1fr auto;
@@ -397,47 +822,28 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	.xp-hall-count { font-size: 10px; letter-spacing: .1em; color: var(--ink-60); white-space: nowrap; }
 	.xp-hall-count b { color: var(--accent); font-weight: 500; }
 
-	/* Domains as tags rather than a comma list: at nine of them a sentence is unreadable
-	   and a bulleted column is four times the height. */
-	.xp-domains {
+	.xp-blurb {
+		margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--ink-60);
+		text-wrap: pretty;
+	}
+
+	.xp-leads { margin-top: auto; padding-top: 12px; border-top: 1.5px solid var(--hair); }
+	.xp-leads-label {
+		margin: 0 0 8px;
+		font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
+	}
+	/* Names on one line, separated by the gap rather than by punctuation — a comma list
+	   wraps badly at three names and a stacked list is three rows for three words. */
+	.xp-lead-list {
 		display: flex; flex-wrap: wrap; gap: 6px;
 		margin: 0; padding: 0; list-style: none;
 	}
-	.xp-domains li {
-		padding: 4px 9px;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10.5px; letter-spacing: .02em; color: var(--ink-60);
-		background: var(--sink);
-		border: 1.5px solid var(--hair); border-radius: var(--r);
-	}
-
-	.xp-leads { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
-	.xp-leads-label {
-		margin: 0 0 2px;
-		font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
-	}
-	/* The whole row is the tel: link — a phone number you have to hit exactly is a phone
-	   number nobody calls from a handset. */
 	.xp-lead {
-		display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 10px;
-		padding: 8px 10px;
-		text-decoration: none; color: inherit;
-		background: var(--sink);
-		border: 1.5px solid var(--hair); border-radius: var(--r);
-		transition: border-color .16s ease, background .16s ease;
+		padding: 5px 10px;
+		font-size: 12px; font-weight: 700; letter-spacing: -.01em;
+		background: var(--secondary); color: var(--primary);
+		border-radius: var(--r);
 	}
-	.xp-lead:hover, .xp-lead:focus-visible {
-		border-color: var(--accent); background: var(--primary);
-	}
-	.xp-lead-name { font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
-	.xp-lead-batch { font-size: 9.5px; letter-spacing: .12em; color: var(--ink-60); }
-	.xp-lead-phone {
-		grid-column: 1 / -1;
-		display: flex; align-items: center; gap: 6px;
-		font-size: 11px; letter-spacing: .04em; color: var(--ink-60);
-	}
-	.xp-lead-phone svg { width: 11px; height: 11px; stroke-width: 2; flex: none; }
-	.xp-lead:hover .xp-lead-phone { color: var(--accent); }
 
 	.xp-foot {
 		margin: 16px 0 0;
