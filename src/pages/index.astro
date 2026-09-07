@@ -139,19 +139,17 @@ const STATS = [
 	{ value: 11,   suffix: '',  label: 'Schools that came',       was: 'in 2024' },
 ];
 
-// The contact sheet. `src` points at a file that need not exist yet: every frame falls
-// back to a drawn placeholder if the image 404s, so dropping real photos into
-// public/img/2025/ is the whole job — no markup change, no code change.
-// TODO(anvesha): real photographs and real captions.
+// The contact sheet — six frames from the '25 floor.
+//
+// Each `src` still falls back to a drawn placeholder if the file 404s, so swapping a
+// photograph is the file and nothing else.
 const GALLERY = [
-	{ src: '/img/2025/01.jpg', caption: 'Opening morning, main hall' },
-	{ src: '/img/2025/02.jpg', caption: 'Expo floor, day one' },
-	{ src: '/img/2025/03.jpg', caption: 'Robowars, the arena pit' },
-	{ src: '/img/2025/04.jpg', caption: 'A workshop bench mid-build' },
-	{ src: '/img/2025/05.jpg', caption: 'The rooftop, after dark' },
-	{ src: '/img/2025/06.jpg', caption: 'Quiz Bowl, final round' },
-	{ src: '/img/2025/07.jpg', caption: 'School group on the floor' },
-	{ src: '/img/2025/08.jpg', caption: 'Prize giving, closing night' },
+	{ src: '/img/home/home1.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 01' },
+	{ src: '/img/home/home2.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 02' },
+	{ src: '/img/home/home3.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 03' },
+	{ src: '/img/home/home4.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 04' },
+	{ src: '/img/home/home5.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 05' },
+	{ src: '/img/home/home6.jpeg', caption: 'Anvesha \u201925 \u00b7 frame 06' },
 ];
 
 // Lucide removed its brand marks, so these are drawn here in the same 24px stroke
@@ -1598,29 +1596,33 @@ const TICKER = [
 		color: var(--ink-60);
 	}
 
-	/* Named areas, not auto-flow: the eight shapes ARE the design, so they must not
-	   reshuffle. Rows are a fixed fraction of the viewport width, which keeps every cell
-	   the ratio it was drawn at instead of letting content set the height. */
+	/* Named areas, not auto-flow: the six shapes ARE the design, so they must not
+	   reshuffle when a caption changes length. Rows are a fixed fraction of the viewport
+	   width, which keeps every cell the ratio it was drawn at rather than letting content
+	   set the height.
+
+	   The two the sheet is built around take the two big areas — `b` is a 2x2 square and
+	   `f` a 3x2 landscape. */
 	.cs-bento {
 		display: grid;
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 		grid-auto-rows: clamp(96px, 12vw, 168px);
 		grid-template-areas:
-			'a a b c'
-			'a a d d'
-			'e f d d'
-			'g g h h';
+			'a b b c'
+			'a b b c'
+			'd f f f'
+			'e f f f';
 		gap: clamp(8px, 1vw, 14px);
 		padding: clamp(10px, 1.4vw, 16px);
 	}
+	/* home2 lands on `b` and home6 on `f` — the two largest areas — because the cells are
+	   assigned in array order. */
 	.cs-cell:nth-child(1) { grid-area: a; }
 	.cs-cell:nth-child(2) { grid-area: b; }
 	.cs-cell:nth-child(3) { grid-area: c; }
 	.cs-cell:nth-child(4) { grid-area: d; }
 	.cs-cell:nth-child(5) { grid-area: e; }
 	.cs-cell:nth-child(6) { grid-area: f; }
-	.cs-cell:nth-child(7) { grid-area: g; }
-	.cs-cell:nth-child(8) { grid-area: h; }
 
 	.cs-frame {
 		position: relative; display: block; width: 100%; height: 100%; padding: 0;
@@ -1682,12 +1684,12 @@ const TICKER = [
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 			grid-auto-rows: clamp(104px, 26vw, 150px);
 			grid-template-areas:
-				'a a'
-				'b c'
-				'd d'
-				'e f'
-				'g g'
-				'h h';
+				'a b'
+				'a b'
+				'c d'
+				'e e'
+				'f f'
+				'f f';
 		}
 	}
 
