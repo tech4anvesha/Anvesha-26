@@ -1483,6 +1483,12 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		font-weight: 900; font-size: clamp(30px, 3.1vw, 46px);
 		line-height: 0.92; letter-spacing: -0.02em;
 		text-transform: uppercase; margin: 0;
+		/* The column is a fixed track and this face is wide: a single long word —
+		   SECERETARY'S at 46px — is wider than the 360px column and ran straight across
+		   the divider into the stage. `anywhere`, not `break-word`, because only
+		   `anywhere` also shrinks the min-content width, which is what the grid track
+		   measures; `break-word` would have left the track overflowing anyway. */
+		overflow-wrap: anywhere;
 	}
 
 	.opt { display: flex; align-items: center; gap: 20px; margin-top: 10px; }

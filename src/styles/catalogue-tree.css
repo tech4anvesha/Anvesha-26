@@ -73,7 +73,10 @@ button.tnode {
 	width: 13px; height: 1.5px; background: var(--hair);
 }
 
-.tname { font-weight: 700; letter-spacing: .01em; }
+/* min-width:0 because .tname sits in a 1fr grid track whose automatic minimum is its
+   min-content width — one long product name pushed the track past its share and the
+   whole row out of the rail. */
+.tname { font-weight: 700; letter-spacing: .01em; min-width: 0; overflow-wrap: anywhere; }
 .tmeta {
 	font-family: 'DM Mono', ui-monospace, monospace;
 	font-size: 11px; font-weight: 500; color: var(--ink-40);
