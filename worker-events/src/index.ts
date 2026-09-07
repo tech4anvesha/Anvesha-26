@@ -6,6 +6,7 @@
  *   POST   /api/events              add to the schedule              [admin]
  *   PUT    /api/events/:id          edit a scheduled event           [admin]
  *   DELETE /api/events/:id          drop a scheduled event           [admin]
+ *   DELETE /api/events/past/:id     drop an archived event           [admin]
  *   PUT    /api/events/past/:id     add gallery link + summary       [admin]
  *   POST   /api/events/sweep        run the archive sweep now        [admin]
  *   GET    /api/events/:id/poster   poster image, streamed from R2   [public]
@@ -509,6 +510,41 @@ async function updateDone(env: Env, req: Request, id: string, cors: Cors): Promi
 	return json({ event_id: id, gallery_link, summary }, {}, cors);
 }
 
+/**
+ * Drops an archived event and its poster.
+ *
+ * A separate route from deleteEvent rather than one that guesses the table: the two
+ * delete different things — this one destroys history — and a mistyped id should 404
+ * rather than quietly remove whichever row happens to match in the other table.
+ *
+ * The sweep is the same guard updateDone needs. The archive lists events that have ended
+ * but not yet been moved by the cron, so an admin can be looking at a row that is still
+ * physically in events_scheduled; without sweeping first this would 404 on a row the
+ * caller can plainly see.
+ */
+async function deleteDone(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeEventId(id)) throw notFound('No such event');
+
+	const where = await findEvent(env, id);
+	if (where?.tbl === 'scheduled') await sweep(env);
+
+	// Read the poster key before the row goes — afterwards nothing says which object
+	// belonged to it, and an orphan in R2 costs storage forever.
+	const row = await findEvent(env, id);
+	const res = await env.DB.prepare(`DELETE FROM events_done WHERE event_id = ?`).bind(id).run();
+	if (!res.meta.changes) throw notFound('No such event');
+
+	if (row?.poster_path) {
+		await env.MEDIA.delete(row.poster_path).catch((e) =>
+			console.error('events: poster delete failed', e));
+		await purgePoster(req, id);
+	}
+
+	await broadcast(env, 'deleted');
+	return json({ ok: true }, {}, cors);
+}
+
 // ============================================================
 // entry points
 // ============================================================
@@ -552,7 +588,11 @@ export default {
 
 			// /past/:id before /:id — otherwise 'past' is read as an event id.
 			const past = pathname.match(/^\/api\/events\/past\/([^/]+)$/);
-			if (method === 'PUT' && past) return await updateDone(env, req, decodeURIComponent(past[1]), cors);
+			if (past) {
+				const id = decodeURIComponent(past[1]);
+				if (method === 'PUT') return await updateDone(env, req, id, cors);
+				if (method === 'DELETE') return await deleteDone(env, req, id, cors);
+			}
 
 			const one = pathname.match(/^\/api\/events\/([^/]+)$/);
 			if (one) {
