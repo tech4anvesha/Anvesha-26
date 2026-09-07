@@ -125,8 +125,10 @@ const DEPTS = [
 			  bio: 'After actively participating in the Bio Expo for the last 2 years, I want to '
 				+ 'use this opportunity to give back and make it a similarly memorable experience '
 				+ 'for the next set of participants!' },
-			{ name: 'Gargi Datta', batch: 'B23', section: 'Subject Expo', subject: 'Biology',
-			  role: 'Biology Coordinator' },
+			{ name: 'Gargi Datta', roll: 'IMS23100', batch: 'B23', section: 'Subject Expo',
+			  subject: 'Biology', role: 'Biology Coordinator', email: 'gargi23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23100.jpg',
+			  bio: 'Fake it until you make it.' },
 
 			{ name: 'Akshara Somala Raju', roll: 'IMS24017', batch: 'B24', section: 'Subject Expo',
 			  subject: 'Physics', role: 'Physics Coordinator', email: 'akshara24@iisertvm.ac.in',
@@ -163,10 +165,10 @@ const DEPTS = [
 			  email: 'arpan24@iisertvm.ac.in',
 			  photo: '/img/crew/IMS24276.jpg',
 			  bio: 'Odding the evens.' },
-			// TODO(anvesha): photograph — to follow.
 			{ name: 'Joel Jobby Jacob', roll: 'IMS24113', batch: 'B24', section: 'Subject Expo',
 			  subject: 'Mathematics', role: 'Mathematics Coordinator',
 			  email: 'joel24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24113.jpg',
 			  bio: 'Two roads diverged in a yellow wood. The proof is left as an exercise for '
 				+ 'the reader.' },
 
@@ -176,10 +178,17 @@ const DEPTS = [
 			  photo: '/img/crew/IMS24217.jpg',
 			  bio: 'Not all who wander through spreadsheets are lost.' },
 
-			{ name: 'Sonavane Samiksha Nilesh', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' },
-			{ name: 'Maheen Rituraj Buddhisagar', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' }
+			{ name: 'Samiksha Sonavane', roll: 'IMS24236', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator',
+			  email: 'sonavane24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24236.jpg',
+			  bio: 'My rocks have sedimental value. — an earth science major' },
+			{ name: 'Maheen Rituraj Buddhisagar', roll: 'IMS24129', batch: 'B24',
+			  section: 'Subject Expo',
+			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator',
+			  email: 'maheen24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24129.jpg',
+			  bio: 'ilbbaicl' }
 		],
 	},
 	{
@@ -237,7 +246,7 @@ const DEPTS = [
 	{
 		name: 'Decor', icon: iSparkles,
 		members: [
-			{ name: 'Anusha P S', roll: 'IMA25031', batch: 'B25',
+			{ name: 'Anusha P S', roll: 'IMS25031', batch: 'B25',
 			  role: 'Co-head', email: 'anusha25@iisertvm.ac.in',
 			  photo: '/img/crew/IMA25031.jpg',
 			  bio: 'Came with an idea ,left with seventeen problems ←⁠_⁠←' },
@@ -349,8 +358,11 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // One flat list for the rail, the card and every index — but the FIRST entry is the
 // institute and the rest are departments, which is the whole point of the split. The
 // rail draws a heading before each run rather than treating them as one kind of thing.
-const GROUPS = [INSTITUTE, ...DEPTS];
-const INST_N = 1;
+// Departments first, the institute last. It is the faculty who preside over the fest
+// rather than a team anyone joins, and putting it at the top made a reader scroll past
+// five names they were not looking for to reach the crew.
+const GROUPS = [...DEPTS, INSTITUTE];
+const INST_N = DEPTS.length;
 const crewTotal = GROUPS.reduce((n, g) => n + g.members.length, 0);
 
 // The barcode. Derived from the roll number so it is that person's and nobody else's,
@@ -500,10 +512,10 @@ const initialsOf = (name: string) =>
 					<label class="tm-pick">
 						<span class="tm-pick-label">Jump to</span>
 						<select id="tmPick">
-							<option value="0">{INSTITUTE.name}</option>
 							<optgroup label="Departments">
-								{DEPTS.map((d, i) => <option value={i + INST_N}>{d.name}</option>)}
+								{DEPTS.map((d, i) => <option value={i}>{d.name}</option>)}
 							</optgroup>
+							<option value={INST_N}>{INSTITUTE.name}</option>
 						</select>
 					</label>
 					</div>
@@ -518,13 +530,16 @@ const initialsOf = (name: string) =>
 					<div class="tree tm-tree" id="tmTree" role="tree" aria-label="The committee">
 						{GROUPS.map((d, di) => (
 							<>
-								{/* One heading, not two. The institute sits above this rule on its own
-								    and the row is already called Institute, so labelling it as well
-								    just said the word twice; the rule under it is what actually
-								    separates the two kinds of thing. Presentational — the rows stay
-								    siblings in one tree, so keyboard order and the phone select are
-								    unchanged. */}
-								{di === INST_N && <p class="tm-group" aria-hidden="true">Departments</p>}
+								{/* One heading per run. The departments come first, so the rule that
+								    matters is the one before the institute at the end — the row is
+								    already called Institute, so the heading names the run above it
+								    instead. Presentational: the rows stay siblings in one tree, so
+								    keyboard order and the phone select are unchanged. */}
+								{di === 0 && <p class="tm-group" aria-hidden="true">Departments</p>}
+								{/* A bare rule, not a second label: the row directly under it is
+								    already called Institute, and naming it here said the word twice.
+								    The break is all this needs to do. */}
+								{di === INST_N && <p class="tm-group is-rule" aria-hidden="true"></p>}
 
 								<button class:list={['tnode', 'tcat', di === 0 && 'open']} type="button"
 								        role="treeitem" aria-expanded={di === 0 ? 'true' : 'false'}
@@ -1198,6 +1213,17 @@ const initialsOf = (name: string) =>
 		color: var(--ink-60);
 	}
 	.tm-group:first-child { margin-top: 2px; }
+	/* A different kind of break from the one above it. The Departments heading is a
+	   labelled accent hairline dividing a run from its title; this divides two kinds of
+	   thing entirely, so it is a double rule in ink at full strength and carries no label
+	   — the row under it is already called Institute. */
+	.tm-group.is-rule {
+		display: block; height: 5px; padding: 0;
+		margin: 26px 6px 14px;
+		border-top: 1.5px solid var(--secondary);
+		border-bottom: 1.5px solid var(--secondary);
+	}
+	.tm-group.is-rule::after { display: none; }
 
 	/* One level in from .tm-group: this divides a department's own list, so it is indented
 	   to the members' column and set a step smaller and quieter than the rules that

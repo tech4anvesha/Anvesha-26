@@ -1,55 +1,143 @@
 ---
+/**
+ * OUTREACH — the invitation, and the rules that come with it.
+ *
+ * A straight stack of sections, centred at the top. "What we do" is drawn as a book of
+ * tickets — four stubs printed flush and divided by a perforation instead of a gap. That
+ * is the one motif on the page: it says "admission" without a word, and it is the same
+ * family as the film sprockets on the home page and the ID plate on /teams, so this page
+ * belongs to the same site.
+ */
 import SiteLayout from '../layouts/SiteLayout.astro';
 
 import iSchool from 'lucide-static/icons/school.svg?raw';
-import iBus from 'lucide-static/icons/bus.svg?raw';
-import iGradCap from 'lucide-static/icons/graduation-cap.svg?raw';
-import iBookOpen from 'lucide-static/icons/book-open.svg?raw';
-import iRadio from 'lucide-static/icons/radio.svg?raw';
-import iRecycle from 'lucide-static/icons/recycle.svg?raw';
-import iHandHeart from 'lucide-static/icons/hand-heart.svg?raw';
+import iDoorOpen from 'lucide-static/icons/door-open.svg?raw';
+import iPresentation from 'lucide-static/icons/presentation.svg?raw';
+import iMegaphone from 'lucide-static/icons/megaphone.svg?raw';
+import iUser from 'lucide-static/icons/user.svg?raw';
+import iUsers from 'lucide-static/icons/users.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
+import iPhone from 'lucide-static/icons/phone.svg?raw';
+import iClock from 'lucide-static/icons/clock.svg?raw';
 
+const OPEN_DAYS = '30 & 31 October 2026';
+const DEADLINE = '23 October 2026';
+const REPORT_BY = '9:30 AM';
+
+// A school registers as a group, a walk-in as one person, and which of the two you are
+// is the only question this page asks before it asks anything else.
+const FORMS = [
+	{ label: 'Group registration', note: 'Schools & colleges', icon: iUsers, ink: false,
+	  href: 'https://forms.gle/gSVsvz85Rv3dCgCy6' },
+	{ label: 'Individual registration', note: 'Coming on your own', icon: iUser, ink: true,
+	  href: 'https://forms.gle/RrmQVpdme5hyY9Z97' },
+];
+
+const WORK = [
+	{ name: 'Invitations', icon: iSchool,
+	  text: 'Reaching out to schools and colleges across the country and inviting them to Anvesha.' },
+	{ name: 'Open Day', icon: iDoorOpen,
+	  text: 'Running the Institute Open Day itself — registrations, coordinators, and where every visiting group goes on the day.' },
+	{ name: 'Orientations', icon: iPresentation,
+	  text: 'Offline sessions at schools, with scientific demonstrations, ahead of the fest.' },
+	{ name: 'Public relations', icon: iMegaphone,
+	  text: 'Everything else that puts Anvesha in front of people who have not heard of it yet.' },
+];
+
+// Last year's open day, counted at the door.
+// TODO(anvesha): the brief also listed a bare 33 with no label, and the 52 below
+// disagrees with the home page's "33 individuals" for the same day. Check both.
 const STATS = [
-	{ value: '148', label: 'Schools reached' },
-	{ value: '11,200', label: 'Students, last cycle' },
-	{ value: '340', label: 'Student volunteers' },
-	{ value: '9', label: 'Districts covered' },
+	{ value: '458', label: 'Registered in all' },
+	{ value: '428', label: 'Students' },
+	{ value: '30', label: 'Faculty' },
+	{ value: '52', label: 'Individual registrations' },
 ];
 
-const PROGRAMMES = [
-	{ name: 'School Lab Days', when: 'Year-round', icon: iSchool,
-	  text: 'We take a full day of experiments into a school that has no lab of its own. Everything is done with equipment the school can afford to keep.' },
-	{ name: 'The Mobile Lab', when: 'Monthly', icon: iBus,
-	  text: 'A converted bus carrying microscopes, a small optics bench and a portable planetarium. It parks wherever the roads allow.' },
-	{ name: 'Mentorship Circles', when: 'Aug — Mar', icon: iGradCap,
-	  text: 'Undergraduates mentor Class 9—12 students through one research question across a full academic year, start to write-up.' },
-	{ name: 'Open Lecture Series', when: 'Fortnightly', icon: iBookOpen,
-	  text: 'Free public lectures in plain language, held in town halls rather than on campus. No prior background assumed, ever.' },
-	{ name: 'Science on Air', when: 'Weekly', icon: iRadio,
-	  text: 'A fifteen-minute segment with the community radio station, answering questions that listeners send in during the week.' },
-	{ name: 'Repair & Reuse', when: 'Quarterly', icon: iRecycle,
-	  text: 'Retired campus equipment is refurbished by student teams and donated to schools, with training so it actually gets used.' },
+// Conditions of entry, not advice — numbered, in the order they were given, so a
+// coordinator can point at one by its number.
+const RULES = [
+	`Registration is mandatory for all students and faculty members visiting IISER
+	 Thiruvananthapuram on ${OPEN_DAYS} (Open Days).`,
+	'Schools and colleges interested in visiting the Institute on Open Day must provide all the required details in the registration form.',
+	`Registration must be completed by a designated coordinator from the visiting school
+	 or college, who will coordinate with the IISER TVM student coordinators throughout
+	 the visit. The registration deadline is ${DEADLINE}.`,
+	'Students must be accompanied by teachers or faculty members from their own institution. Three to four are recommended, to keep coordination smooth.',
+	'All visiting students and teachers are required to follow the instructions given by the IISER TVM coordinators at all times.',
+	`All registered students and teachers must report to the IISER TVM campus by ${REPORT_BY}.`,
+	'Lunch will be available on a payment basis, or you may bring your own. Details of the payment process will follow.',
 ];
+
+const CONTACTS = [
+	{ name: 'Sarang K T', phone: '+91 79029 00952' },
+	{ name: 'Pranav M', phone: '+91 76038 69224' },
+];
+
+const pad = (n: number) => String(n).padStart(2, '0');
 ---
 
 <SiteLayout title="Outreach · Anvesha '26">
-	<div class="page">
-		<header class="page-head" data-reveal>
-			<p class="eyebrow">Beyond the campus gates</p>
+	<div class="page or-page">
+		<header class="page-head or-head" data-reveal>
+			<p class="eyebrow">Open Day &middot; {OPEN_DAYS}</p>
 			<h1 class="page-title">Outreach</h1>
 			<p class="lede">
-				A fest that runs for three days is a poor excuse for a year of nothing. Outreach is
-				the part of Anvesha that keeps going after the halls are packed up — mostly in
-				schools that have never had a working lab.
+				IISER Thiruvananthapuram welcomes students from schools and colleges across the
+				country to Anvesha, our annual science expo. Research labs are opened to visitors,
+				where major students, PhD scholars and postdoctoral researchers introduce their
+				ongoing work and what it is actually like to do research here.
+			</p>
+
+			{/* The forms come before everything else: a visiting teacher arrives on this page
+			    to sign up, not to read. */}
+			<div class="or-forms">
+				{FORMS.map((f) => (
+					<a class:list={['or-form', f.ink && 'is-ink']} href={f.href}
+					   target="_blank" rel="noopener noreferrer">
+						<span class="or-form-icon" set:html={f.icon} />
+						<span class="or-form-body">
+							<span class="or-form-label">{f.label}</span>
+							<span class="or-form-note mono">{f.note}</span>
+						</span>
+						<span class="or-form-go" set:html={iArrowRight} />
+					</a>
+				))}
+			</div>
+
+			<p class="or-deadline mono">
+				<span set:html={iClock} />Registrations close {DEADLINE}
 			</p>
 		</header>
 
+		{/* ---- what the team does ---- */}
 		<section class="section" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">Last cycle</span>
+				<span class="sechead-label">What we do</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta">2025—26</span>
+				<span class="sechead-meta">Year round</span>
+			</div>
+
+			{/* One strip of four, torn apart by perforations rather than held apart by gaps —
+			    a book of tickets, which is what an Open Day hands out. */}
+			<div class="or-book">
+				{WORK.map((w, i) => (
+					<article class="or-stub">
+						<i class="or-stub-no mono">No. {pad(i + 1)}</i>
+						<span class="or-stub-icon" set:html={w.icon} />
+						<h3 class="or-stub-title">{w.name}</h3>
+						<p class="or-stub-text">{w.text}</p>
+					</article>
+				))}
+			</div>
+		</section>
+
+		{/* ---- last year ---- */}
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Last year&rsquo;s Open Day</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta">Counted at the door</span>
 			</div>
 
 			<div class="tiles stats">
@@ -62,52 +150,249 @@ const PROGRAMMES = [
 			</div>
 		</section>
 
+		{/* ---- the rules ---- */}
 		<section class="section" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">Programmes</span>
+				<span class="sechead-label">Before you come</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{PROGRAMMES.length}</b> running</span>
+				<span class="sechead-meta"><b>{RULES.length}</b> things to know</span>
 			</div>
 
-			<div class="tiles">
-				{PROGRAMMES.map((p, i) => (
-					<article class="tile">
-						<i class="tile-num">{String(i + 1).padStart(2, '0')}</i>
-						<span class="tile-icon" set:html={p.icon} />
-						<div class="tile-title">{p.name}</div>
-						<div class="tile-meta"><b>{p.when}</b></div>
-						<p class="tile-text">{p.text}</p>
-					</article>
+			<ol class="or-rules">
+				{RULES.map((r, i) => (
+					<li class="or-rule">
+						<i class="or-rule-n mono">{pad(i + 1)}</i>
+						<span>{r}</span>
+					</li>
 				))}
-			</div>
+			</ol>
 		</section>
 
+		{/* ---- who to ask ---- */}
 		<section class="section" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">Volunteering</span>
+				<span class="sechead-label">Queries</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta">Rolling intake</span>
+				<span class="sechead-meta">Outreach &amp; PR</span>
 			</div>
-			<p class="lede" style="margin-top:0">
-				You do not need to be a science student, and you do not need to be good at
-				explaining things yet — that is most of what the training is for. One weekend a
-				month is enough to be useful.
-			</p>
-			<a class="cta" href="mailto:outreach@anvesha26.in" style="margin-top:22px">
-				<span set:html={iHandHeart} />
-				<span>JOIN THE PROGRAMME</span>
-				<span set:html={iArrowRight} />
-			</a>
+
+			<div class="or-contacts">
+				{CONTACTS.map((c) => (
+					<a class="or-contact" href={`tel:${c.phone.replace(/\s/g, '')}`}>
+						<span class="or-contact-name">{c.name}</span>
+						<span class="or-contact-phone mono">
+							<span set:html={iPhone} />{c.phone}
+						</span>
+					</a>
+				))}
+			</div>
 		</section>
 	</div>
 </SiteLayout>
 
 <style is:global>
+	/* ============ THE GROUND ============
+	   The page's own dot matrix, the same one the home page's theme block uses. Fixed to
+	   the page rather than scrolling with it, and faded out down the page so it is texture
+	   behind the header and nothing at all behind the reading. */
+	.or-page { position: relative; }
+	.or-page::before {
+		content: ''; position: absolute; inset: 0; pointer-events: none;
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+		mask-image: linear-gradient(#000 0%, #000 24%, transparent 64%);
+	}
+	/* Painted, not stacked: the sections are positioned so they land on top of the pseudo,
+	   which keeps the dots out from behind the reading without a z-index arms race. */
+	.or-page > * { position: relative; }
+
+	/* ============ THE HEADER ============ */
+	.or-head {
+		display: flex; flex-direction: column; align-items: center; text-align: center;
+	}
+	.or-head .lede { max-width: 68ch; }
+
+	/* ---- the two forms ----
+	   Side by side and equal: neither route is the default, and sizing one larger would
+	   answer a question only the reader can answer. */
+	.or-forms {
+		display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 14px; width: 100%; max-width: 720px;
+		margin: clamp(26px, 3.4vw, 36px) auto 0;
+	}
+	.or-form {
+		display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center;
+		padding: 15px 17px;
+		text-align: left; text-decoration: none; color: inherit;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop);
+		transition: transform .16s ease, box-shadow .16s ease;
+	}
+	.or-form:hover, .or-form:focus-visible {
+		transform: translate(-3px, -3px); box-shadow: var(--pop-lg);
+	}
+	.or-form-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+	.or-form-label {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; line-height: 1.2; letter-spacing: -.01em;
+	}
+	.or-form-note {
+		font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.or-form-icon, .or-form-go { display: block; line-height: 0; }
+	.or-form-icon svg { width: 22px; height: 22px; stroke-width: 1.7; }
+	.or-form-go svg { width: 16px; height: 16px; stroke-width: 2.2; color: var(--ink-40); }
+	.or-form:hover .or-form-go svg { color: var(--accent); }
+
+	/* Printed in ink — the walk-in route, so the pair reads as two different tickets and
+	   not as one option duplicated. */
+	.or-form.is-ink { background: var(--secondary); color: var(--primary); }
+	.or-form.is-ink .or-form-note { color: color-mix(in srgb, var(--primary) 62%, transparent); }
+	.or-form.is-ink .or-form-go svg { color: color-mix(in srgb, var(--primary) 55%, transparent); }
+
+	.or-deadline {
+		display: flex; align-items: center; gap: 8px; margin: 13px 0 0;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.or-deadline svg { width: 13px; height: 13px; stroke-width: 2; color: var(--accent); }
+
+	/* ============ WHAT WE DO ============
+	   A book of tickets: four stubs printed flush and separated by a tear, not held apart
+	   by a gap. One border and one radius belong to the book, so the four read as a single
+	   sheet that has not been torn up yet — which is the point of the section. Contents are
+	   centred because a stub is centred; nothing here is long enough to need a left edge. */
+	.or-book {
+		display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		overflow: hidden;
+	}
+	.or-stub {
+		position: relative;
+		display: flex; flex-direction: column; align-items: center; gap: 10px;
+		padding: 22px 18px 24px;
+		text-align: center;
+	}
+	.or-stub-no {
+		padding: 3px 9px; border-radius: 100px;
+		font-size: 8.5px; font-style: normal; letter-spacing: .2em; text-transform: uppercase;
+		color: var(--primary); background: var(--secondary);
+	}
+	.or-stub-icon { display: block; margin-top: 2px; line-height: 0; color: var(--secondary); }
+	.or-stub-icon svg { width: 27px; height: 27px; stroke-width: 1.5; }
+	.or-stub-title {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14.5px; line-height: 1.15; letter-spacing: -.01em;
+	}
+	.or-stub-text {
+		margin: 0; max-width: 30ch;
+		font-size: 12.5px; line-height: 1.6; color: var(--ink-60); text-wrap: pretty;
+	}
+
+	/* ---- the tear ----
+	   A dashed rule pinched at both ends by a punched notch, so the boundary reads as
+	   perforated paper rather than as a table rule. ::before tears the left edge and
+	   ::after the top; which one applies is settled per breakpoint, because an item's
+	   neighbours change when the column count does. */
+	.or-stub::before, .or-stub::after { content: ''; position: absolute; display: none; }
+	.or-stub::before {
+		left: -5px; top: 0; bottom: 0; width: 11px;
+		background:
+			radial-gradient(circle at center, var(--primary) 3px, transparent 3.4px)
+				center top -3.5px / 11px 7px no-repeat,
+			radial-gradient(circle at center, var(--primary) 3px, transparent 3.4px)
+				center bottom -3.5px / 11px 7px no-repeat,
+			repeating-linear-gradient(to bottom, var(--secondary) 0 5px, transparent 5px 10px)
+				center / 1.5px 100% no-repeat;
+	}
+	.or-stub::after {
+		top: -5px; left: 0; right: 0; height: 11px;
+		background:
+			radial-gradient(circle at center, var(--primary) 3px, transparent 3.4px)
+				left -3.5px center / 7px 11px no-repeat,
+			radial-gradient(circle at center, var(--primary) 3px, transparent 3.4px)
+				right -3.5px center / 7px 11px no-repeat,
+			repeating-linear-gradient(to right, var(--secondary) 0 5px, transparent 5px 10px)
+				center / 100% 1.5px no-repeat;
+	}
+	.or-stub:not(:first-child)::before { display: block; }
+
+	/* ============ FIGURES ============ */
 	.stats { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 	.stat { gap: 6px; }
 	.stat-value {
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 900; font-size: clamp(30px, 3.6vw, 46px);
 		line-height: 1; letter-spacing: -0.02em;
+	}
+
+	/* ============ THE RULES ============ */
+	.or-rules {
+		display: flex; flex-direction: column;
+		margin: 0; padding: 0; list-style: none;
+		border-top: 1.5px solid var(--hair);
+	}
+	.or-rule {
+		display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+		padding: 14px 4px;
+		border-bottom: 1.5px solid var(--hair);
+		font-size: 13.5px; line-height: 1.65; color: var(--ink-60);
+		text-wrap: pretty;
+	}
+	.or-rule-n {
+		display: grid; place-items: center; min-width: 22px; height: 17px; margin-top: 3px;
+		font-size: 9px; font-style: normal;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+
+	/* ============ CONTACTS ============ */
+	.or-contacts {
+		display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
+	}
+	.or-contact {
+		display: flex; flex-direction: column; gap: 6px;
+		padding: 14px 16px;
+		text-decoration: none; color: inherit;
+		background: var(--sink);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		transition: border-color .16s ease, background .16s ease;
+	}
+	.or-contact:hover, .or-contact:focus-visible {
+		border-color: var(--accent); background: var(--primary);
+	}
+	.or-contact-name {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 14px; letter-spacing: -.01em;
+	}
+	.or-contact-phone {
+		display: flex; align-items: center; gap: 7px;
+		font-size: 12px; letter-spacing: .04em; color: var(--ink-60);
+	}
+	.or-contact-phone svg { width: 12px; height: 12px; stroke-width: 2; flex: none; }
+	.or-contact:hover .or-contact-phone { color: var(--accent); }
+
+	@media (prefers-reduced-motion: reduce) {
+		.or-form, .or-contact { transition: none; }
+		.or-form:hover, .or-form:focus-visible { transform: none; }
+	}
+
+	/* Four stubs need four columns' worth of room; below that the book folds, and the
+	   tears fold with it — the third stub loses its left edge and gains a top one. */
+	@media (max-width: 980px) {
+		.or-book { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.or-stub:nth-child(3)::before { display: none; }
+		.or-stub:nth-child(n+3)::after { display: block; }
+	}
+	@media (max-width: 620px) {
+		/* Stacked — two buttons side by side on a phone is two lines of wrapped label. */
+		.or-forms { grid-template-columns: minmax(0, 1fr); }
+		.or-book { grid-template-columns: minmax(0, 1fr); }
+		/* Matched to the rule it has to beat: a bare `.or-stub::before` is a class short
+		   of `:not(:first-child)` and would lose, leaving side tears in a single column. */
+		.or-stub:not(:first-child)::before { display: none; }
+		.or-stub:not(:first-child)::after { display: block; }
+		.or-stub-text { max-width: 46ch; }
 	}
 </style>

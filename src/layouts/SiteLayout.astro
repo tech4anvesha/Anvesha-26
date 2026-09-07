@@ -38,6 +38,8 @@ interface Props {
 	brandHref?: string;
 	/** Small badge beside the wordmark, e.g. "ADMIN". Omitted on the public site. */
 	brandTag?: string;
+	/** Show the Srijana link. Admin only — see the note by SRIJANA below. */
+	srijana?: boolean;
 }
 
 // ponytail: one array, not six copies of the same anchor. Every route here exists.
@@ -54,9 +56,14 @@ const SITE_NAV: NavItem[] = [
 // not a section of this site. Keeping it out of the array is what stops it inheriting
 // the tab styling and the aria-current logic, both of which would be wrong for a link
 // that leaves the site.
+//
+// Off by default, and opted into by the admin shell alone: it is a tool the committee
+// uses, not something a visitor to the site has any use for.
 const SRIJANA = 'https://pragunnepal.github.io/Srijana/';
 
-const { title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag } = Astro.props;
+const {
+	title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag, srijana = false,
+} = Astro.props;
 
 // The home hero already carries ANVESHA '26 at full size, so repeating the wordmark in
 // the nav two rows above it is redundant — there, the mark stands alone. Derived from
@@ -125,13 +132,19 @@ const hasTools = Astro.slots.has('tools');
 						</a>
 					))}
 
-					<span class="menu-sep" aria-hidden="true"></span>
-
-					<a class="btn menu-link menu-out" href={SRIJANA} target="_blank" rel="noopener noreferrer">
-						<span class="menu-icon" set:html={iSrijana} />
-						<span class="menu-label">Srijana</span>
-						<span class="menu-out-mark" set:html={iOut} />
-					</a>
+					{/* The rule and the link go together: a divider with nothing after it is a
+					    line ending the bar for no reason. */}
+					{srijana && (
+						<>
+							<span class="menu-sep" aria-hidden="true"></span>
+							<a class="btn menu-link menu-out" href={SRIJANA}
+							   target="_blank" rel="noopener noreferrer">
+								<span class="menu-icon" set:html={iSrijana} />
+								<span class="menu-label">Srijana</span>
+								<span class="menu-out-mark" set:html={iOut} />
+							</a>
+						</>
+					)}
 				</nav>
 
 				{hasTools && <div class="tools" transition:name="tools"><slot name="tools" /></div>}
@@ -167,13 +180,15 @@ const hasTools = Astro.slots.has('tools');
 						</a>
 					))}
 
-					<a class="btn navmenu-link navmenu-out" href={SRIJANA}
-					   target="_blank" rel="noopener noreferrer">
-						<span class="navmenu-icon" set:html={iSrijana} />
-						<span class="navmenu-label">Srijana</span>
-						<span class="navmenu-out-tag">TOOL</span>
-						<span class="navmenu-out-mark" set:html={iOut} />
-					</a>
+					{srijana && (
+						<a class="btn navmenu-link navmenu-out" href={SRIJANA}
+						   target="_blank" rel="noopener noreferrer">
+							<span class="navmenu-icon" set:html={iSrijana} />
+							<span class="navmenu-label">Srijana</span>
+							<span class="navmenu-out-tag">TOOL</span>
+							<span class="navmenu-out-mark" set:html={iOut} />
+						</a>
+					)}
 				</nav>
 			</div>
 		</div>
