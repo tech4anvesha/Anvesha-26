@@ -115,8 +115,10 @@ const DEPTS = [
 			  photo: '/img/crew/IMS24174.jpg',
 			  bio: 'Making the ideas come true through Aficionados.' },
 
-			{ name: 'Sarbajit Pathak', batch: 'B24', section: 'Subject Expo', subject: 'Biology',
-			  role: 'Biology Coordinator' },
+			{ name: 'Sarbajit Pathak', roll: 'IMS24213', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Biology', role: 'Biology Coordinator',
+			  photo: '/img/crew/IMS24213.jpg',
+			  bio: 'I have friends who understand me. Their names are spider 🕷️, beetle 🪲, bee 🐝' },
 			{ name: 'Ankita Acharya', roll: 'IMS24034', batch: 'B24', section: 'Subject Expo',
 			  subject: 'Biology', role: 'Biology Coordinator', email: 'acharya24@iisertvm.ac.in',
 			  photo: '/img/crew/IMS24034.jpg',
@@ -126,10 +128,16 @@ const DEPTS = [
 			{ name: 'Gargi Datta', batch: 'B23', section: 'Subject Expo', subject: 'Biology',
 			  role: 'Biology Coordinator' },
 
-			{ name: 'Akshara Somala Raju', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
-			  role: 'Physics Coordinator' },
-			{ name: 'Sambit Dutta', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
-			  role: 'Physics Coordinator' },
+			{ name: 'Akshara Somala Raju', roll: 'IMS24017', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Physics', role: 'Physics Coordinator', email: 'akshara24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24017.jpg',
+			  bio: 'We look at the exact same universe, but my brain has already closed three '
+				+ 'tabs and is buffering' },
+			{ name: 'Sambit Dutta', roll: 'IMS24300', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Physics', role: 'Physics Coordinator', email: 'sambit24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24300.jpg',
+			  bio: 'Aficionados is a place where you showcase your creativity. My role is to '
+				+ 'guide those ideas and turn them into reality' },
 			{ name: 'Pranav Guptta', roll: 'IMS23197', batch: 'B23', section: 'Subject Expo',
 			  subject: 'Physics', role: 'Physics Coordinator', email: 'guptta23@iisertvm.ac.in',
 			  photo: '/img/crew/IMS23197.jpg',
@@ -150,13 +158,23 @@ const DEPTS = [
 
 			{ name: 'Akash N', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
 			  role: 'Mathematics Coordinator' },
-			{ name: 'Arpan Koul', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
-			  role: 'Mathematics Coordinator' },
-			{ name: 'Joel Jobby Jacob', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
-			  role: 'Mathematics Coordinator' },
+			// TODO(anvesha): photograph.
+			{ name: 'Arpan Koul', roll: 'IMS24276', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Mathematics', role: 'Mathematics Coordinator',
+			  email: 'arpan24@iisertvm.ac.in',
+			  bio: 'Odding the evens.' },
+			// TODO(anvesha): photograph — to follow.
+			{ name: 'Joel Jobby Jacob', roll: 'IMS24113', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Mathematics', role: 'Mathematics Coordinator',
+			  email: 'joel24@iisertvm.ac.in',
+			  bio: 'Two roads diverged in a yellow wood. The proof is left as an exercise for '
+				+ 'the reader.' },
 
-			{ name: 'Saurabh Kumar Singh', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Data Science', role: 'Data Science Coordinator' },
+			{ name: 'Saurabh Kumar Singh', roll: 'IMS24217', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Data Science', role: 'Data Science Coordinator',
+			  email: 'saurabh24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24217.jpg',
+			  bio: 'Not all who wander through spreadsheets are lost.' },
 
 			{ name: 'Sonavane Samiksha Nilesh', batch: 'B24', section: 'Subject Expo',
 			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' },
@@ -169,7 +187,7 @@ const DEPTS = [
 		members: [
 			{ name: 'Khirabdhi Tanaya', roll: 'IMS24116', batch: 'B24',
 			  role: 'Co-head', email: 'khirabdhi24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24116.jpg',
+			  photo: '/img/crew/IMS24116.jpeg',
 			  bio: 'Khirabdhi, if you can pronounce it. Isha, if you can\'t :)' },
 			{ name: 'Prerana Sarma', roll: 'IMS25151', batch: 'B25',
 			  role: 'Co-head', email: 'prerana25@iisertvm.ac.in',
@@ -264,21 +282,29 @@ const DEPTS = [
 		members: [
 			{ name: 'Ashin V.', roll: 'IMS22065', batch: 'B22',
 			  role: 'Head', email: 'ashin22@iisertvm.ac.in',
-			  photo: '/img/crew/IMS22065.jpg',
+			  photo: '/img/crew/IMS22065.jpeg',
 			  bio: 'I will fight for your reimbursements.' },
 		],
 	},
 	{
 		name: 'Logistics', icon: iTruck,
+		// Runs as two halves, like Expo: `section` drives the headings in the rail.
 		members: [
-			{ name: 'Aban Najeeb', roll: 'IMS24005', batch: 'B24',
+			{ name: 'Aban Najeeb', roll: 'IMS24005', batch: 'B24', section: 'General Logistics',
 			  role: 'Co-head', email: 'aban24@iisertvm.ac.in',
 			  photo: '/img/crew/IMS24005.jpg',
 			  bio: 'Nothing to say' },
-			{ name: 'Agnitun Bhattacharya', roll: 'IMS24310', batch: 'B24',
+			{ name: 'Agnitun Bhattacharya', roll: 'IMS24310', batch: 'B24', section: 'General Logistics',
 			  role: 'Co-head', email: 'agnitun24@iisertvm.ac.in',
 			  photo: '/img/crew/IMS24310.jpg',
-			  bio: 'Let\'s not burn anything this time g.... Ohh Bulbasaur water gun' },
+			  bio: 'One must imagine Sisyphus happy.' },
+
+			// TODO(anvesha): surname. Only the mail stem was given, so the name here is
+			// what that yields and nothing more — a guessed surname is worse than none.
+			{ name: 'Riya', roll: 'IMS24298', batch: 'B24', section: 'Merch Logistics',
+			  role: 'Merch Logistics Head', meta: 'Head', email: 'riya24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24298.jpg',
+			  bio: 'meow meow meow [ im purpleee :) ]' },
 		],
 	},
 	{
@@ -363,7 +389,7 @@ const barsOf = (seed: string) => {
 const ROWS = GROUPS.map((g, di) => g.members.map((m, mi) => {
 	const r = m as {
 		roll?: string; batch?: string; email?: string; bio?: string;
-		section?: string; subject?: string;
+		section?: string; subject?: string; meta?: string;
 	};
 	return {
 		...m, di, mi, dept: g.name, no: pad(di + 1),
@@ -373,10 +399,12 @@ const ROWS = GROUPS.map((g, di) => g.members.map((m, mi) => {
 		// The rail's divider label. The subject folds into the section rather than
 		// becoming a second heading under it — see .tm-sub.
 		section: r.subject ? `${r.section} (${r.subject})` : r.section,
-		// The rail's right-hand label. Under a subject heading the role would read
-		// "CHEMISTRY COORDINATOR" one line below the word CHEMISTRY, so the heading takes
-		// the subject and the row keeps only the job. The card still shows the full title.
-		meta: r.subject ? 'Coordinator' : m.role,
+		// The rail's right-hand label. Under a heading that already names the thing, the
+		// full role says it twice — "CHEMISTRY COORDINATOR" one line below CHEMISTRY — so
+		// the heading takes the qualifier and the row keeps only the job. An explicit
+		// `meta` wins, then the subject rule, then the role as written. The card always
+		// shows the full title regardless.
+		meta: r.meta ?? (r.subject ? 'Coordinator' : m.role),
 		bars: barsOf(`${r.roll ?? m.name}-${m.name}`),
 	};
 }));
