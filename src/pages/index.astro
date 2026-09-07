@@ -47,12 +47,96 @@ const THEME = {
 	],
 };
 
-// TODO(anvesha): replace with the real 2025 figures before this goes public.
+/**
+ * The sponsors, by what they actually gave.
+ *
+ * `logo` points at a file that need not exist yet: each tile falls back to the name set
+ * in type if the image 404s, so dropping a file into public/img/sponsors/ is the whole
+ * job — no markup change and no code change.
+ *
+ * Five marks are in: Domino's, Burger King and Wow! Momo from Wikimedia Commons, Natraj
+ * and Imperial Life Sciences from their own sites. The other eight are small enough that
+ * they publish no usable mark, and they show their name instead — nothing here is drawn
+ * or approximated, because a logo we invented is worse than a wordmark.
+ * TODO(anvesha): ask the remaining eight for a PNG.
+ */
+const SPONSORS = [
+	{ cat: '3D Printing & Prototyping Partner', of: [
+		{ name: '69 Rigs', logo: '/img/sponsors/69rigs.png' },
+	] },
+	{ cat: 'Stationery Partners', of: [
+		{ name: 'Phoebus', logo: '/img/sponsors/phoebus.png' },
+		{ name: 'August', logo: '/img/sponsors/august.png' },
+	] },
+	{ cat: 'Food Partners', of: [
+		{ name: "Domino's", logo: '/img/sponsors/dominos.png' },
+		{ name: 'Natraj', logo: '/img/sponsors/natraj.png' },
+		{ name: 'Tasty', logo: '/img/sponsors/tasty.png' },
+		{ name: 'Burger King', logo: '/img/sponsors/burger-king.png' },
+		{ name: 'Wow! Momo', logo: '/img/sponsors/wow-momo.png' },
+		{ name: 'Dinu Bakeries', logo: '/img/sponsors/dinu.png' },
+	] },
+	{ cat: 'Learning Partner', of: [
+		{ name: 'Finlatics', logo: '/img/sponsors/finlatics.png' },
+	] },
+	{ cat: 'Trekking Partner', of: [
+		{ name: 'Adventure Amas', logo: '/img/sponsors/adventure-amas.png' },
+	] },
+	{ cat: 'Science Education Partner', of: [
+		{ name: 'Imperial Life Sciences', logo: '/img/sponsors/imperial-life-sciences.png' },
+	] },
+	{ cat: 'Hospitality Partner', of: [
+		{ name: 'RinShi', logo: '/img/sponsors/rinshi.png' },
+	] },
+];
+const sponsorCount = SPONSORS.reduce((n, g) => n + g.of.length, 0);
+
+/**
+ * The catalogue, numbered.
+ *
+ * Every entry gets a reference — A-01, B-02 — because that is what a catalogue is: a
+ * thing you can point at a line of. The letter is the category, the number the entry
+ * within it.
+ *
+ * Each category picks a column count that DIVIDES its own entry count, so its ribbon
+ * always comes out as complete rows. A fixed four columns left one partner sitting beside
+ * three empty cells, which reads as three sponsors we failed to sign rather than as one
+ * sponsor — the grid should fit the list, not the list fill the grid.
+ *
+ * Four down to two, largest first; a count with no divisor in that range (five, seven)
+ * falls back to four and is padded, which is the only case `fill` is ever non-zero.
+ */
+const LETTERS = 'ABCDEFGHIJ';
+const colsFor = (n: number) => {
+	for (let c = 4; c >= 2; c--) if (n % c === 0) return c;
+	return Math.min(n, 4);
+};
+const CATALOGUE = SPONSORS.map((g, gi) => {
+	const cols = colsFor(g.of.length);
+	return {
+		...g,
+		no: String(gi + 1).padStart(2, '0'),
+		of: g.of.map((sp, i) => ({
+			...sp,
+			ref: `${LETTERS[gi]}-${String(i + 1).padStart(2, '0')}`,
+		})),
+		cols,
+		fill: (cols - (g.of.length % cols)) % cols,
+	};
+});
+
+/**
+ * Open day, counted at the door.
+ *
+ * `was` is the same figure a year earlier, where there is one — the interesting thing
+ * about these numbers is not their size but that both of them roughly doubled, and a
+ * single column of 2025 figures does not say that.
+ */
 const STATS = [
-	{ value: 18000, suffix: '+', label: 'Footfall across three days' },
-	{ value: 140,   suffix: '+', label: 'Institutions represented' },
-	{ value: 120,   suffix: '',  label: 'Projects on the Expo floor' },
-	{ value: 8,     suffix: '',  label: 'Student teams running it' },
+	{ value: 458,  suffix: '',  label: 'Registered for open day', was: '350 in 2024' },
+	{ value: 2000, suffix: '+', label: 'Footfall on the day',     was: '1,000+ in 2024' },
+	{ value: 428,  suffix: '',  label: 'Students among them',     was: '294 in 2024' },
+	{ value: 11,   suffix: '',  label: 'Schools that came',       was: 'in 2024' },
 ];
 
 // The contact sheet. `src` points at a file that need not exist yet: every frame falls
@@ -137,20 +221,22 @@ const TICKER = [
 				<span class="home-x-rule"></span>
 			</div>
 
-			{/* Both carry an icon now, so the pair reads as one set rather than a filled
-			    button beside a bare one. The sponsors ROW is gone from this page, so the
-			    button opens the mail it used to scroll to — a dead #fragment would have
-			    silently done nothing. */}
+			{/* Both carry an icon, so the pair reads as one set rather than a filled button
+			    beside a bare one. Sponsors is a <button>, not a link: it opens a dialog on
+			    this page rather than going anywhere, and a link that does not navigate is a
+			    link that breaks middle-click, right-click and every other thing a reader
+			    expects of one. */}
 			<div class="home-actions" data-reveal>
 				<a class="cta" href="/events">
 					<span set:html={iCalendar} />
 					<span>EVENTS</span>
 					<span set:html={iArrowRight} />
 				</a>
-				<a class="btn home-alt" href="mailto:sponsors@anvesha26.in">
+				<button class="btn home-alt" id="spOpen" type="button"
+				        aria-haspopup="dialog" aria-controls="sp">
 					<span set:html={iHandshake} />
 					<span>SPONSORS</span>
-				</a>
+				</button>
 			</div>
 		</header>
 
@@ -300,8 +386,8 @@ const TICKER = [
 			<section class="fig" data-ab>
 				<div class="fig-in">
 					<header class="fig-head">
-						<p class="fig-kick mono">Last year, in figures</p>
-						<p class="fig-note">The 2025 edition, counted at the door.</p>
+						<p class="fig-kick mono">Open day, in figures</p>
+						<p class="fig-note">Counted at the door in 2025, against the same day in 2024.</p>
 					</header>
 
 					<div class="fig-band">
@@ -314,6 +400,9 @@ const TICKER = [
 									{st.value.toLocaleString('en-IN')}{st.suffix}
 								</span>
 								<span class="fig-l">{st.label}</span>
+								{/* The year-ago figure, small and under the label — it is context for
+								    the number above it, not a number of its own. */}
+								<span class="fig-was mono">{st.was}</span>
 							</div>
 						))}
 					</div>
@@ -395,6 +484,69 @@ const TICKER = [
 	</div>
 
 	<Fragment slot="overlays">
+		{/* ---- the sponsors ----
+		    A catalogue sheet, not a list of cards: an ink masthead, a numbered strip per
+		    category, and entries in a ruled grid. Every rule on the sheet is the ink ground
+		    showing through the grid's own 2px gap — one background and one gap value draw
+		    the whole table, so no cell carries a border and there are no nth-child sums to
+		    keep in step when a category changes length.
+
+		    In the overlays slot for the same reason the viewer is: .home-scroll is a scroll
+		    container, and a fixed child of one is still clipped by it on some engines. */}
+		<div class="sp" id="sp" hidden>
+			<div class="sp-panel" role="dialog" aria-modal="true" aria-labelledby="spTitle">
+				<header class="sp-head">
+					<div class="sp-head-in">
+						<span class="sp-kick mono"><span set:html={iHandshake} />Anvesha &rsquo;26</span>
+						<h2 class="sp-title" id="spTitle">Sponsor catalogue</h2>
+					</div>
+					<dl class="sp-meta mono">
+						<div><dt>Entries</dt><dd>{String(sponsorCount).padStart(2, '0')}</dd></div>
+						<div><dt>Sections</dt><dd>{String(CATALOGUE.length).padStart(2, '0')}</dd></div>
+						<div><dt>Edition</dt><dd>&rsquo;26</dd></div>
+					</dl>
+					<button class="btn x sp-close" id="spClose" type="button" aria-label="Close"
+					        set:html={iX}></button>
+				</header>
+
+				<div class="sp-body">
+					{CATALOGUE.map((g) => (
+						<section class="sp-sec">
+							<h3 class="sp-bar mono">
+								<i class="sp-bar-n">{g.no}</i>
+								<span class="sp-bar-t">{g.cat}</span>
+								<span class="sp-bar-c">{String(g.of.length).padStart(2, '0')}</span>
+							</h3>
+
+							<div class="sp-grid" style={`--cols:${g.cols}`}>
+								{g.of.map((sp) => (
+									<article class="sp-cell">
+										<i class="sp-ref mono">{sp.ref}</i>
+										{/* onerror rather than a build-time check: the file may not
+										    exist yet, and the name set in type is a better fallback
+										    than a broken-image glyph — or than a logo we drew. */}
+										<img class="sp-logo" src={sp.logo} alt={sp.name} loading="lazy"
+										     onerror="this.closest('.sp-cell').classList.add('is-text')" />
+										<span class="sp-name">{sp.name}</span>
+									</article>
+								))}
+								{/* Blank stock, so the last row of the sheet is still ruled. */}
+								{Array.from({ length: g.fill }, () => <span class="sp-cell is-blank" />)}
+							</div>
+						</section>
+					))}
+				</div>
+
+				<footer class="sp-foot mono">
+					<span>Partner with us</span>
+					{/* The href keeps the real address; only the label is trimmed. A visible
+					    string that is not a working address is one somebody types out by hand
+					    and never hears back from. */}
+					<a class="sp-mail" href="mailto:sponsors@anvesha26.in">sponsors@anvesha26</a>
+				</footer>
+			</div>
+		</div>
+
 		{/* The viewer. In the overlays slot because .home-scroll is a scroll container:
 		    a fixed child of it would still be clipped by the scroller on some engines. */}
 		<div class="lb" id="lb" hidden>
@@ -839,8 +991,58 @@ const TICKER = [
 		}, { signal });
 	}
 
+	/**
+	 * The sponsors dialog.
+	 *
+	 * Same shape as the viewer above and for the same reasons: bound on every client-router
+	 * navigation and torn down through an AbortController, or the Escape handler outlives
+	 * the page it belongs to and swallows Escape everywhere else on the site.
+	 */
+	let spAc: AbortController | null = null;
+
+	function sponsors() {
+		const sp = document.getElementById('sp');
+		const open = document.getElementById('spOpen');
+		if (!sp || !open) return;
+
+		spAc?.abort();
+		spAc = new AbortController();
+		const { signal } = spAc;
+
+		let opener: HTMLElement | null = null;
+
+		const show = () => {
+			// Fall back to the trigger itself: a click that did not move focus — a synthetic
+			// one, or a browser that does not focus buttons on click — leaves activeElement
+			// as <body>, and returning focus there on close strands the reader at the top of
+			// the document instead of where they were.
+			const active = document.activeElement as HTMLElement | null;
+			opener = active && active !== document.body ? active : open;
+			sp.hidden = false;
+			document.body.classList.add('sp-open');
+			// Focus moves into the dialog, or a keyboard reader is left outside a modal
+			// they cannot reach and cannot close.
+			document.getElementById('spClose')?.focus();
+		};
+
+		const hide = () => {
+			sp.hidden = true;
+			document.body.classList.remove('sp-open');
+			opener?.focus();
+		};
+
+		open.addEventListener('click', show, { signal });
+		document.getElementById('spClose')?.addEventListener('click', hide, { signal });
+		// Backdrop only: a click that started inside the panel must not close it.
+		sp.addEventListener('click', (e) => { if (e.target === sp) hide(); }, { signal });
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape' && !sp.hidden) hide();
+		}, { signal });
+	}
+
 	document.addEventListener('astro:page-load', story);
 	document.addEventListener('astro:page-load', viewer);
+	document.addEventListener('astro:page-load', sponsors);
 </script>
 
 <style is:global>
@@ -1343,6 +1545,11 @@ const TICKER = [
 		letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
 	}
 	.fig-l { font-size: 12px; line-height: 1.5; color: var(--ink-60); max-width: 22ch; }
+	.fig-was {
+		display: block; margin-top: 7px; padding-top: 7px;
+		border-top: 1.5px solid var(--hair);
+		font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-40);
+	}
 
 	/* ---- 3. the contact sheet ----
 	   Paper, not ink. The theme above is already a light block and the figures between
@@ -1482,6 +1689,161 @@ const TICKER = [
 				'g g'
 				'h h';
 		}
+	}
+
+	/* ============ THE SPONSORS ============
+	   A catalogue sheet. Every rule on it is the ink ground showing through the grid's own
+	   2px gap — one background and one gap draw the entire table, so no cell needs a
+	   border of its own and nothing has to be recounted when a category changes length. */
+	.sp {
+		position: fixed; inset: 0; z-index: 60;
+		display: grid; place-items: center;
+		padding: clamp(12px, 4vw, 48px);
+		background: color-mix(in srgb, var(--secondary) 88%, transparent);
+	}
+	.sp[hidden] { display: none; }
+	body.sp-open { overflow: hidden; }
+
+	.sp-panel {
+		display: flex; flex-direction: column;
+		width: min(100%, 900px); max-height: 100%;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop-lg);
+		overflow: hidden;
+	}
+
+	/* ---- the masthead ---- */
+	.sp-head {
+		position: relative; flex: none;
+		display: flex; align-items: flex-end; justify-content: space-between;
+		gap: 20px; flex-wrap: wrap;
+		padding: clamp(16px, 2.4vw, 24px) clamp(58px, 7vw, 74px) clamp(14px, 2vw, 20px)
+		         clamp(16px, 2.4vw, 28px);
+		background: var(--secondary); color: var(--primary);
+		overflow: hidden;
+	}
+	/* The page's own dot matrix, raked off the corner so it never sits under the type. */
+	.sp-head::before {
+		content: ''; position: absolute; inset: 0; pointer-events: none;
+		background-image: radial-gradient(circle at center,
+			color-mix(in srgb, var(--primary) 16%, transparent) 1.2px, transparent 1.4px);
+		background-size: 20px 20px;
+		mask-image: linear-gradient(250deg, #000 0%, transparent 66%);
+	}
+	.sp-head-in { position: relative; min-width: 0; }
+	.sp-kick {
+		display: flex; align-items: center; gap: 9px;
+		font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--accent) 60%, var(--primary));
+	}
+	.sp-kick svg { width: 14px; height: 14px; stroke-width: 2; }
+	.sp-title {
+		margin: 9px 0 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(20px, 3vw, 30px); line-height: 1;
+		letter-spacing: -.02em; text-transform: uppercase;
+	}
+	/* The plate a catalogue carries: what it holds, in how many sections, which edition. */
+	.sp-meta {
+		position: relative; display: flex; gap: clamp(14px, 2.4vw, 28px);
+		margin: 0;
+	}
+	.sp-meta dt {
+		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--primary) 52%, transparent);
+	}
+	.sp-meta dd {
+		margin: 3px 0 0; font-size: 15px; letter-spacing: .04em;
+		font-variant-numeric: tabular-nums;
+	}
+	.sp-close {
+		position: absolute; top: 13px; right: 13px; width: 36px; height: 36px; padding: 0;
+		background: var(--primary);
+	}
+	.sp-close svg { width: 15px; height: 15px; stroke-width: 2.4; }
+
+	/* ---- the sheet ---- */
+	.sp-body {
+		flex: 1; min-height: 0; overflow-y: auto;
+		scrollbar-width: thin; scrollbar-color: var(--secondary) transparent;
+	}
+	.sp-sec { border-bottom: var(--stroke) solid var(--secondary); }
+	.sp-sec:last-child { border-bottom: 0; }
+
+	/* The section strip: number, name, count — read like a row in an index. */
+	.sp-bar {
+		display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+		margin: 0; padding: 9px clamp(14px, 2vw, 20px);
+		background: var(--sink);
+		font-size: 9.5px; font-weight: 400; letter-spacing: .2em; text-transform: uppercase;
+	}
+	.sp-bar-n {
+		display: grid; place-items: center; min-width: 22px; height: 17px;
+		font-style: normal; font-size: 9px;
+		color: var(--primary); background: var(--accent); border-radius: var(--r);
+	}
+	.sp-bar-t { min-width: 0; color: var(--secondary); }
+	.sp-bar-c { color: var(--ink-40); font-variant-numeric: tabular-nums; }
+
+	/* Four across, and the gap IS the ruling.
+	   Inset from the panel and boxed on all four sides, so each category's entries read as
+	   a ribbon with end walls rather than as a band running off both edges of the sheet.
+	   The border is the same ink as the gap, so the walls and the inner rules are one
+	   weight and one colour. */
+	.sp-grid {
+		display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+		gap: var(--stroke);
+		margin: clamp(10px, 1.4vw, 14px) clamp(12px, 1.8vw, 20px) clamp(12px, 1.8vw, 18px);
+		background: var(--secondary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		overflow: hidden;
+	}
+	.sp-cell {
+		position: relative;
+		display: grid; place-items: center;
+		min-height: 62px; padding: 18px 10px 10px;
+		background: var(--primary);
+	}
+	/* Blank stock, and it is the GREY one. Filled cells are paper and empty cells are the
+	   sheet showing through, which is the way round a form reads — the other way, three
+	   blanks beside one entry looked like three entries that had failed to load. */
+	.sp-cell.is-blank { background: var(--sink); min-height: 0; }
+	.sp-ref {
+		position: absolute; top: 7px; left: 9px;
+		font-style: normal; font-size: 8px; letter-spacing: .14em;
+		color: var(--ink-40);
+	}
+	.sp-logo { display: block; max-width: 100%; max-height: 44px; object-fit: contain; }
+	/* The name is the fallback, not a caption: hidden while a logo is showing, and it
+	   takes the cell when there is none. Set by the img's own onerror. */
+	.sp-name {
+		display: none; text-align: center; text-wrap: balance;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 12.5px; line-height: 1.25; letter-spacing: -.01em;
+	}
+	.sp-cell.is-text .sp-logo { display: none; }
+	.sp-cell.is-text .sp-name { display: block; }
+
+	.sp-foot {
+		flex: none;
+		display: flex; align-items: center; justify-content: space-between;
+		gap: 14px; flex-wrap: wrap;
+		padding: 12px clamp(16px, 2.4vw, 28px);
+		border-top: var(--stroke) solid var(--secondary);
+		background: var(--sink);
+		font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.sp-mail { color: var(--accent); text-decoration: none; letter-spacing: .1em; }
+	.sp-mail:hover { text-decoration: underline; }
+
+	@media (max-width: 620px) {
+		/* Two across at most — a six-wide ribbon on a phone is six slivers. min() rather
+		   than a flat 2, so a solo partner still gets the whole ribbon instead of half of
+		   one with a blank beside it. */
+		.sp-grid { grid-template-columns: repeat(min(var(--cols, 4), 2), minmax(0, 1fr)); }
+		.sp-head { padding-right: clamp(52px, 14vw, 64px); }
+		.sp-meta { gap: 16px; }
 	}
 
 	/* ---- the viewer ---- */

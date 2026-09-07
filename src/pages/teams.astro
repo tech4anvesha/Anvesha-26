@@ -94,6 +94,77 @@ const DEPTS = [
 		],
 	},
 	{
+		name: 'Expo', icon: iFlask,
+		// The one department that runs as two halves, so its members carry a `section` and
+		// the rail draws a heading wherever that changes. Everyone else has no section and
+		// the list is drawn straight through.
+		//
+		// The subject coordinators are the same fourteen listed on /expo, in the same six
+		// subjects — one roster, two views of it. Most of them never filled in the crew
+		// form, so they carry a name, a batch and a subject and nothing else; the card
+		// drops the fields it has no answer for rather than printing blanks.
+		// TODO(anvesha): roll numbers, emails, portraits and one-liners for the eleven
+		// below that have none.
+		members: [
+			{ name: 'Yash Mhatre', roll: 'IMS24140', batch: 'B24', section: 'General Expo',
+			  role: 'Co-head', email: 'mhatre24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24140.jpg',
+			  bio: 'Brooklyn Nine-Nine, Season 3, episode 2, minute 17:50' },
+			{ name: 'Prathvi Seetaram Bhat', roll: 'IMS24174', batch: 'B24', section: 'General Expo',
+			  role: 'Co-head', email: 'prathvi24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24174.jpg',
+			  bio: 'Making the ideas come true through Aficionados.' },
+
+			{ name: 'Sarbajit Pathak', batch: 'B24', section: 'Subject Expo', subject: 'Biology',
+			  role: 'Biology Coordinator' },
+			{ name: 'Ankita Acharya', roll: 'IMS24034', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Biology', role: 'Biology Coordinator', email: 'acharya24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24034.jpg',
+			  bio: 'After actively participating in the Bio Expo for the last 2 years, I want to '
+				+ 'use this opportunity to give back and make it a similarly memorable experience '
+				+ 'for the next set of participants!' },
+			{ name: 'Gargi Datta', batch: 'B23', section: 'Subject Expo', subject: 'Biology',
+			  role: 'Biology Coordinator' },
+
+			{ name: 'Akshara Somala Raju', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
+			  role: 'Physics Coordinator' },
+			{ name: 'Sambit Dutta', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
+			  role: 'Physics Coordinator' },
+			{ name: 'Pranav Guptta', roll: 'IMS23197', batch: 'B23', section: 'Subject Expo',
+			  subject: 'Physics', role: 'Physics Coordinator', email: 'guptta23@iisertvm.ac.in',
+			  photo: '/img/crew/IMS23197.jpg',
+			  bio: 'Another day without arson' },
+
+			{ name: 'Mahalakshmi M', roll: 'IMS24128', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'mahalakshmi24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24128.jpg',
+			  bio: 'Anything chemistry, don\'t ask me.' },
+			{ name: 'Pavithra Praveen', roll: 'IMS24168', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'pavithra24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24168.jpg',
+			  bio: 'I\'m still figuring it out bro 😅' },
+			{ name: 'Aditya Katti', roll: 'IMS24270', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'katti24@iisertvm.ac.in',
+			  photo: '/img/crew/IMS24270.jpg',
+			  bio: 'Making things. Breaking things. Learning why.' },
+
+			{ name: 'Akash N', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
+			  role: 'Mathematics Coordinator' },
+			{ name: 'Arpan Koul', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
+			  role: 'Mathematics Coordinator' },
+			{ name: 'Joel Jobby Jacob', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
+			  role: 'Mathematics Coordinator' },
+
+			{ name: 'Saurabh Kumar Singh', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Data Science', role: 'Data Science Coordinator' },
+
+			{ name: 'Sonavane Samiksha Nilesh', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' },
+			{ name: 'Maheen Rituraj Buddhisagar', batch: 'B24', section: 'Subject Expo',
+			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' }
+		],
+	},
+	{
 		name: 'Content', icon: iContent,
 		members: [
 			{ name: 'Khirabdhi Tanaya', roll: 'IMS24116', batch: 'B24',
@@ -243,77 +314,6 @@ const DEPTS = [
 			  role: 'Head', email: 'swizzleshwetajain25@iisertvm.ac.in',
 			  photo: '/img/crew/IMS25215.jpg',
 			  bio: 'I enjoy finding patterns and solving problems—whether in maths, data, or the wonderfully unpredictable world of sponsorships. I like chasing things that seem slightly out of reach, so if something needs building, organising, or figuring out, I\'ll probably end up involved ...somehow ...' },
-		],
-	},
-	{
-		name: 'Expo', icon: iFlask,
-		// The one department that runs as two halves, so its members carry a `section` and
-		// the rail draws a heading wherever that changes. Everyone else has no section and
-		// the list is drawn straight through.
-		//
-		// The subject coordinators are the same fourteen listed on /expo, in the same six
-		// subjects — one roster, two views of it. Most of them never filled in the crew
-		// form, so they carry a name, a batch and a subject and nothing else; the card
-		// drops the fields it has no answer for rather than printing blanks.
-		// TODO(anvesha): roll numbers, emails, portraits and one-liners for the eleven
-		// below that have none.
-		members: [
-			{ name: 'Yash Mhatre', roll: 'IMS24140', batch: 'B24', section: 'General Expo',
-			  role: 'Co-head', email: 'mhatre24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24140.jpg',
-			  bio: 'Brooklyn Nine-Nine, Season 3, episode 2, minute 17:50' },
-			{ name: 'Prathvi Seetaram Bhat', roll: 'IMS24174', batch: 'B24', section: 'General Expo',
-			  role: 'Co-head', email: 'prathvi24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24174.jpg',
-			  bio: 'Making the ideas come true through Aficionados.' },
-
-			{ name: 'Sarbajit Pathak', batch: 'B24', section: 'Subject Expo', subject: 'Biology',
-			  role: 'Biology Coordinator' },
-			{ name: 'Ankita Acharya', roll: 'IMS24034', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Biology', role: 'Biology Coordinator', email: 'acharya24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24034.jpg',
-			  bio: 'After actively participating in the Bio Expo for the last 2 years, I want to '
-				+ 'use this opportunity to give back and make it a similarly memorable experience '
-				+ 'for the next set of participants!' },
-			{ name: 'Gargi Datta', batch: 'B23', section: 'Subject Expo', subject: 'Biology',
-			  role: 'Biology Coordinator' },
-
-			{ name: 'Akshara Somala Raju', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
-			  role: 'Physics Coordinator' },
-			{ name: 'Sambit Dutta', batch: 'B24', section: 'Subject Expo', subject: 'Physics',
-			  role: 'Physics Coordinator' },
-			{ name: 'Pranav Guptta', roll: 'IMS23197', batch: 'B23', section: 'Subject Expo',
-			  subject: 'Physics', role: 'Physics Coordinator', email: 'guptta23@iisertvm.ac.in',
-			  photo: '/img/crew/IMS23197.jpg',
-			  bio: 'Another day without arson' },
-
-			{ name: 'Mahalakshmi M', roll: 'IMS24128', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'mahalakshmi24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24128.jpg',
-			  bio: 'Anything chemistry, don\'t ask me.' },
-			{ name: 'Pavithra Praveen', roll: 'IMS24168', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'pavithra24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24168.jpg',
-			  bio: 'I\'m still figuring it out bro 😅' },
-			{ name: 'Aditya Katti', roll: 'IMS24270', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Chemistry', role: 'Chemistry Coordinator', email: 'katti24@iisertvm.ac.in',
-			  photo: '/img/crew/IMS24270.jpg',
-			  bio: 'Making things. Breaking things. Learning why.' },
-
-			{ name: 'Akash N', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
-			  role: 'Mathematics Coordinator' },
-			{ name: 'Arpan Koul', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
-			  role: 'Mathematics Coordinator' },
-			{ name: 'Joel Jobby Jacob', batch: 'B24', section: 'Subject Expo', subject: 'Mathematics',
-			  role: 'Mathematics Coordinator' },
-
-			{ name: 'Saurabh Kumar Singh', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Data Science', role: 'Data Science Coordinator' },
-
-			{ name: 'Sonavane Samiksha Nilesh', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' },
-			{ name: 'Maheen Rituraj Buddhisagar', batch: 'B24', section: 'Subject Expo',
-			  subject: 'Earth & Environment', role: 'Earth & Environment Coordinator' }
 		],
 	},
 ];
