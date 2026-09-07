@@ -387,3 +387,34 @@ separately.
   manual row edit.
 - **No images uploaded.** Nothing is in R2 yet, so `/api/merch/:id/image` 404s and the
   page falls back to a category icon. That is by design, not a bug — see `artHTML()`.
+
+## Security note: `POST /api/pay` trusts the buyer
+
+`/api/pay` exists because there was no payment gateway. It takes an order id and the
+buyer's details, mints its own transaction id, and marks the order paid. **Nothing in
+it verifies that money changed hands.** It is unauthenticated, and CORS does not
+protect it — CORS is a browser rule, and `curl` is not a browser.
+
+So while `DIRECT_PAY=1` is set, anyone can:
+
+1. `POST /api/checkout` with any cart, and read back the `order_id`
+2. `POST /api/pay` with that id and any valid-looking name, roll, phone and email
+3. receive a paid order and a collection QR, having paid nothing
+
+Reproduced against a local Worker: an order was settled with two `curl` calls and no
+credentials of any kind.
+
+This was acceptable when the endpoint stood in for a gateway that did not exist yet and
+the store was not announced. It is not acceptable once students can find the store.
+Two ways to close it:
+
+- **Turn on a real gateway.** Setting the Razorpay secrets and deleting `DIRECT_PAY`
+  makes this route 404, and the only way to mark an order paid becomes a
+  signature-verified webhook. This is the intended end state.
+- **Or gate it behind the counter.** Require `DISTRIBUTOR_TOKEN` (or an admin session)
+  on `/api/pay`, so only a volunteer's device can settle an order, and have the
+  volunteer confirm after taking cash. This is a change to how the counter works, not
+  a patch — the student's own browser currently calls this route.
+
+Until one of those is done, treat any `payment_status = 'paid'` row whose payment
+method is `counter` as unverified.

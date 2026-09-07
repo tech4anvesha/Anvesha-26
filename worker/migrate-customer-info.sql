@@ -1,0 +1,25 @@
+-- ============================================================
+-- One-time migration: orders.customer_info.
+--
+-- Who the buyer is, taken BEFORE payment rather than after.
+--
+-- The counter flow could ask afterwards: POST /api/pay carried the details in the same
+-- request that settled the order. A gateway cannot. Razorpay tells us a payment
+-- happened, and it has never heard of a roll number — so if the details are not already
+-- on the order when the webhook lands, they are lost, and a paid order arrives at the
+-- collection counter with no way to look it up.
+--
+-- JSON, not four columns: nothing queries inside it. roll_number stays its own column
+-- because the counter's lookup does, and that lookup needs an index.
+--
+-- Nullable with no backfill: orders that predate this were all counter orders, whose
+-- buyer details live in payments.transaction_info.
+--
+-- Run once, by hand:
+--   wrangler d1 execute anvesha --local  --file=./migrate-customer-info.sql
+--   wrangler d1 execute anvesha --remote --file=./migrate-customer-info.sql
+-- (or paste the body into --command if --file's import endpoint misbehaves, as it
+-- has before on this account — see worker/README.md.)
+-- ============================================================
+
+ALTER TABLE orders ADD COLUMN customer_info TEXT;

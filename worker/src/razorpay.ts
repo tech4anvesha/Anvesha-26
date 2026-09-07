@@ -71,7 +71,12 @@ export async function verifyWebhookSignature(
 	const secret = env.RAZORPAY_WEBHOOK_SECRET;
 	if (!secret) throw new ApiError(503, 'not_configured', 'RAZORPAY_WEBHOOK_SECRET is not set');
 	if (!signature) return false;
+	return timingSafeEqual(await hmacHex(secret, rawBody), signature.trim().toLowerCase());
+}
 
+/** HMAC-SHA256, hex. Both of Razorpay's signature schemes are this function over
+ *  different bytes with a different key — see verifyCheckoutSignature below. */
+async function hmacHex(secret: string, message: string): Promise<string> {
 	const enc = new TextEncoder();
 	const key = await crypto.subtle.importKey(
 		'raw',
@@ -80,9 +85,54 @@ export async function verifyWebhookSignature(
 		false,
 		['sign'],
 	);
-	const mac = await crypto.subtle.sign('HMAC', key, enc.encode(rawBody));
-	const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
-	return timingSafeEqual(hex, signature.trim().toLowerCase());
+	const mac = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+	return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verifies the signature Checkout hands the BROWSER when a payment succeeds.
+ *
+ * A different scheme from the webhook above, and easy to confuse with it: this one is
+ * HMAC over `order_id|payment_id` keyed with RAZORPAY_KEY_SECRET, where the webhook is
+ * HMAC over the raw body keyed with RAZORPAY_WEBHOOK_SECRET. Both are genuine proof
+ * the payment happened; the difference is who carries it. This one arrives only if the
+ * shopper's browser survives long enough to send it, which is why it makes the receipt
+ * appear instantly but is not what the order's paid state ultimately depends on.
+ */
+export async function verifyCheckoutSignature(
+	env: Env,
+	orderId: string,
+	paymentId: string,
+	signature: string,
+): Promise<boolean> {
+	const secret = env.RAZORPAY_KEY_SECRET;
+	if (!secret) throw new ApiError(503, 'not_configured', 'RAZORPAY_KEY_SECRET is not set');
+	return timingSafeEqual(
+		await hmacHex(secret, `${orderId}|${paymentId}`),
+		signature.trim().toLowerCase(),
+	);
+}
+
+/**
+ * Reads a payment back from Razorpay.
+ *
+ * The signature proves the browser was handed a real payment id for a real order; it
+ * does not say the money was captured or how much of it. Only Razorpay can answer
+ * that, so the amount and status a receipt is written from come from here rather than
+ * from anything the browser sent.
+ */
+export async function fetchPayment(env: Env, paymentId: string): Promise<PaymentEntity> {
+	const { RAZORPAY_KEY_ID: key, RAZORPAY_KEY_SECRET: secret } = env;
+	if (!key || !secret) throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured');
+
+	const res = await fetch(`${API}/payments/${encodeURIComponent(paymentId)}`, {
+		headers: { Authorization: `Basic ${btoa(`${key}:${secret}`)}` },
+	});
+	if (!res.ok) {
+		console.error('razorpay payment fetch failed', res.status, await res.text());
+		throw new ApiError(502, 'razorpay_error', 'Could not confirm the payment with Razorpay');
+	}
+	return (await res.json()) as PaymentEntity;
 }
 
 /** The bits of a Razorpay payment entity we care about. */

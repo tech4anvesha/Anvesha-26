@@ -34,12 +34,14 @@ import {
 	startDistribution,
 } from './distribution.ts';
 import {
+	attachCustomer,
 	checkout,
 	directPay,
 	getOrder,
 	listMerch,
 	merchImage,
 	razorpayWebhook,
+	verifyPayment,
 } from './routes.ts';
 import { ApiError, bad, corsHeaders, type Env, json, notFound, requireBudget } from './util.ts';
 
@@ -67,10 +69,23 @@ export default {
 
 			// No CORS headers here on purpose: Razorpay calls this server-to-server,
 			// and no browser origin should be able to reach it.
-			if (method === 'POST' && pathname === '/api/webhooks/razorpay') return await razorpayWebhook(env, req);
+			if (method === 'POST' && pathname === '/api/webhooks/razorpay')
+				return await razorpayWebhook(env, req, ctx);
+
+			// The browser's half of a gateway payment: signature in, receipt out. The
+			// webhook above is what an order's paid state actually rests on; this only
+			// stops the shopper watching a spinner until it arrives.
+			if (method === 'POST' && pathname === '/api/verify-payment')
+				return await verifyPayment(env, req, cors, ctx);
 
 			const order = pathname.match(/^\/api\/orders\/([^/]+)$/);
 			if (method === 'GET' && order) return await getOrder(env, decodeURIComponent(order[1]), cors);
+
+			// Buyer details, attached before Checkout opens — Razorpay never learns them,
+			// so they must be on the order before the money moves.
+			const cust = pathname.match(/^\/api\/orders\/([^/]+)\/customer$/);
+			if (method === 'POST' && cust)
+				return await attachCustomer(env, req, decodeURIComponent(cust[1]), cors);
 
 
 			// ---- distribution sessions ----

@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS orders (
   -- the row is created at checkout, before anyone has been asked who they are. This is
   -- what the counter looks an order up by when a student has no QR to show.
   roll_number        TEXT,
+  -- JSON: { name, phone, email, rollNumber }. Written before payment on the gateway
+  -- path, because Razorpay's webhook knows nothing about the buyer — without this a
+  -- paid order would reach the counter with no one attached to it. NULL on counter
+  -- orders, where POST /api/pay carries the same details and stores them alongside the
+  -- payment instead.
+  customer_info      TEXT,
   collected_at       TEXT,                      -- set only once collection_status reaches 'collected'
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
