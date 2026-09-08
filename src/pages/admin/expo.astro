@@ -249,9 +249,25 @@ import iPlus from 'lucide-static/icons/plus.svg?raw';
 
 			try {
 				// The server validates all three regardless; this is only so a missing
-				// field is caught before a round trip.
-				if (!body.subject.trim() || !body.starts_at || !body.venue.trim()) {
-					throw new Error('Subject, date and venue are all needed');
+				// field is caught before a round trip. Naming the field that is actually
+				// missing rather than listing all three: the common failure is a date typed
+				// with no time beside it, and "date is needed" is a baffling thing to read
+				// next to the date you just typed.
+				const missing: string[] = [];
+				if (!body.subject.trim()) missing.push('a subject');
+				if (!body.venue.trim()) missing.push('a venue');
+				if (!body.starts_at) {
+					// A datetime-local reads back '' both when it is untouched and when it
+					// is half filled. badInput is what tells the two apart — it is set only
+					// when the control holds input it cannot parse into a whole value.
+					const el = $('fStart') as HTMLInputElement;
+					missing.push(el.validity.badInput ? 'a time as well as the date' : 'a date and time');
+				}
+				if (missing.length) {
+					const last = missing.pop();
+					throw new Error(
+						'Still needs ' + (missing.length ? `${missing.join(', ')} and ${last}` : last),
+					);
 				}
 				await adminFetch(
 					editing ? `/api/ideation/${editing}` : '/api/ideation',
