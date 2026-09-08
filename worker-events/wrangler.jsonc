@@ -12,7 +12,11 @@
 	//
 	// Requires anvesha26.in to be a zone on this Cloudflare account; `wrangler deploy`
 	// creates the DNS record and the certificate.
-	"routes": [{ "pattern": "api.anvesha26.in", "custom_domain": true }],
+	// COMMENTED OUT until anvesha26.in is a zone on this Cloudflare account. A route for
+	// a zone the account does not hold fails the whole deploy, so this cannot be left
+	// enabled while the DNS still lives at GoDaddy — uncomment it in the same sitting as
+	// the nameserver change, not before.
+	// "routes": [{ "pattern": "api.anvesha26.in", "custom_domain": true }],
 	"observability": {
 		"enabled": true
 	},

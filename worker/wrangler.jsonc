@@ -5,7 +5,9 @@
 	"compatibility_date": "2026-08-01",
 	// Same reason as the events Worker: *.workers.dev is on ad blocklists, and the whole
 	// of merch — catalogue, checkout, admin, distribution — went through it.
-	"routes": [{ "pattern": "merch-api.anvesha26.in", "custom_domain": true }],
+	// COMMENTED OUT until anvesha26.in is a zone on this Cloudflare account — see the
+	// note on the same line in worker-events/wrangler.jsonc.
+	// "routes": [{ "pattern": "merch-api.anvesha26.in", "custom_domain": true }],
 	"observability": {
 		"enabled": true
 	},
@@ -41,6 +43,15 @@
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["CatalogueHub"] }],
 	"vars": {
 		"ENVIRONMENT": "development",
+		// Who the order confirmation comes from. Not a secret — it is printed in every
+		// email — so it lives here in version control rather than in `wrangler secret`.
+		//
+		// The mailbox does not have to exist to SEND. It does have to exist if anyone is
+		// ever going to read a reply, and people reply to order confirmations, so point
+		// it at something a human reads. The domain must be the one verified in Resend;
+		// without this the Worker falls back to onboarding@resend.dev, which only
+		// delivers to the address that owns the Resend account.
+		"MAIL_FROM": "Anvesha '26 <orders@anvesha26.in>",
 		// Comma-separated, and LIVE: `wrangler deploy` with no `--env` ships this block,
 		// not env.production below, so anything listed here is reachable from the open
 		// internet.
@@ -66,6 +77,7 @@
 		"production": {
 			"vars": {
 				"ENVIRONMENT": "production",
+				"MAIL_FROM": "Anvesha '26 <orders@anvesha26.in>",
 				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app"
 				// DIRECT_PAY and RAZORPAY_STUB deliberately absent.
 			},
