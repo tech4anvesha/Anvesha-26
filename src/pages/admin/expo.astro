@@ -1,0 +1,358 @@
+---
+/**
+ * Admin · Expo — the ideation meeting calendar.
+ *
+ * Deliberately one screen and one form. The events panel next door is a three-pane
+ * editor because an event has a poster, a registration link, a write-up and two tables
+ * to move between; a meeting has a subject, a time and a room. Building the same
+ * machinery for three fields would have been the wrong shape.
+ *
+ * The form is BOTH the add form and the edit form. Picking a row loads it in and the
+ * submit button changes verb — a second form would have been the same three inputs
+ * twice, kept in step by hand.
+ *
+ * Everything here talks to the EVENTS Worker, not the merch one. Same admin session:
+ * both read the same admin_login table, which is why adminFetch takes a base URL.
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { EVENTS_API } from '../../lib/api';
+
+import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
+import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
+import iPlus from 'lucide-static/icons/plus.svg?raw';
+---
+
+<AdminLayout title="Admin · Expo — Anvesha '26">
+	<div class="xa-wrap" data-api={EVENTS_API}>
+		<div class="xa-grid">
+			{/* ---- the form ---- */}
+			<section class="xa-pane">
+				<p class="a-eyebrow"><span id="xaFormLabel">New meeting</span></p>
+
+				<form class="xa-form" id="xaForm" novalidate>
+					<label class="field">
+						<span class="field-label">Subject</span>
+						<input class="field-input" id="fSubject" type="text" maxlength="200"
+						       placeholder="What the meeting is about" required />
+					</label>
+
+					<div class="xa-row">
+						<label class="field">
+							<span class="field-label">Date &amp; time</span>
+							<input class="field-input" id="fStart" type="datetime-local" required />
+						</label>
+						<label class="field">
+							<span class="field-label">Venue</span>
+							<input class="field-input" id="fVenue" type="text" maxlength="160"
+							       placeholder="LH 101" required />
+						</label>
+					</div>
+
+					<p class="a-err" id="xaErr" hidden></p>
+					<p class="xa-ok" id="xaOk" hidden></p>
+
+					<div class="xa-actions">
+						<button class="btn a-btn-primary" id="xaSave" type="submit">
+							<span class="xa-save-icon" set:html={iPlus} />
+							<span id="xaSaveLabel">ADD MEETING</span>
+						</button>
+						<button class="btn a-btn-secondary" id="xaCancel" type="button" hidden>CANCEL</button>
+					</div>
+
+					{/* Only ever filled when a row is loaded. It is the audit trail the table
+					    exists to keep, and it is the reason an edit is not the same as a
+					    delete-and-re-add. */}
+					<p class="xa-who" id="xaWho" hidden></p>
+				</form>
+			</section>
+
+			{/* ---- the list ---- */}
+			<section class="xa-pane">
+				<p class="a-eyebrow">Scheduled <b id="xaCount">—</b></p>
+
+				<div class="xa-list" id="xaList"></div>
+				<p class="xa-empty" id="xaEmpty" hidden>Nothing scheduled yet.</p>
+				<p class="a-err" id="xaListErr" hidden></p>
+			</section>
+		</div>
+	</div>
+</AdminLayout>
+
+<script>
+	import { adminFetch, onCatalogueChange } from '../../lib/admin';
+
+	interface Meeting {
+		meeting_id: string;
+		subject: string;
+		starts_at: string;
+		venue: string;
+		created_by_name: string;
+		created_by_roll: string;
+		created_at: string;
+		updated_by_name: string | null;
+		updated_by_roll: string | null;
+		updated_at: string | null;
+	}
+
+	let stopLive: (() => void) | null = null;
+
+	/** 'YYYY-MM-DD HH:MM' as the two strings a person reads. */
+	function readStamp(s: string) {
+		const [d, t] = (s ?? '').split(' ');
+		if (!d || !t) return { date: s, time: '', past: false };
+		const [y, mo, day] = d.split('-').map(Number);
+		const [hh, mm] = t.split(':').map(Number);
+		// Local-time construction, not Date.parse: the column is naive IST and the only
+		// job here is to render the same numbers back with a weekday on them.
+		const at = new Date(y, mo - 1, day, hh, mm);
+		return {
+			date: at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
+			time: at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
+			// Only used to grey a row out. The server decides what is public.
+			past: at.getTime() < Date.now(),
+		};
+	}
+
+	function boot() {
+		stopLive?.();
+		stopLive = null;
+
+		const wrap = document.querySelector<HTMLElement>('.xa-wrap');
+		if (!wrap) return;
+		const api = wrap.dataset.api ?? '';
+
+		const $ = <T extends HTMLElement = HTMLInputElement>(id: string) =>
+			document.getElementById(id) as T;
+		const form = $('xaForm') as unknown as HTMLFormElement;
+		const err = $('xaErr'), ok = $('xaOk'), who = $('xaWho');
+		const saveBtn = $('xaSave') as unknown as HTMLButtonElement;
+		const cancelBtn = $('xaCancel') as unknown as HTMLButtonElement;
+		const list = $('xaList'), empty = $('xaEmpty'), listErr = $('xaListErr');
+
+		/** null = the form is adding; an id = it is editing that row. */
+		let editing: string | null = null;
+
+		function setMode(m: Meeting | null) {
+			editing = m?.meeting_id ?? null;
+			$('xaFormLabel').textContent = m ? 'Edit meeting' : 'New meeting';
+			$('xaSaveLabel').textContent = m ? 'SAVE CHANGES' : 'ADD MEETING';
+			cancelBtn.hidden = !m;
+			err.hidden = true;
+			ok.hidden = true;
+
+			$('fSubject').value = m?.subject ?? '';
+			// The input wants a 'T', the column stores a space.
+			$('fStart').value = m ? m.starts_at.replace(' ', 'T') : '';
+			$('fVenue').value = m?.venue ?? '';
+
+			if (m) {
+				const added = `Added by ${m.created_by_name} (${m.created_by_roll})`;
+				who.textContent = m.updated_by_name
+					? `${added} · last edited by ${m.updated_by_name} (${m.updated_by_roll})`
+					: added;
+			}
+			who.hidden = !m;
+
+			if (m) $('fSubject').focus();
+		}
+
+		function render(rows: Meeting[]) {
+			$('xaCount').textContent = String(rows.length);
+			empty.hidden = rows.length > 0;
+			list.textContent = '';
+
+			for (const m of rows) {
+				const when = readStamp(m.starts_at);
+
+				const row = document.createElement('article');
+				row.className = 'xa-item' + (when.past ? ' is-past' : '');
+
+				const body = document.createElement('div');
+				body.className = 'xa-item-body';
+
+				const h = document.createElement('h3');
+				h.className = 'xa-item-subject';
+				// textContent throughout: a subject is free text typed by an admin, and
+				// innerHTML here would make the panel injectable by whoever typed it.
+				h.textContent = m.subject;
+
+				const meta = document.createElement('p');
+				meta.className = 'xa-item-meta';
+				meta.textContent = `${when.date} · ${when.time} · ${m.venue}`;
+
+				const by = document.createElement('p');
+				by.className = 'xa-item-by';
+				by.textContent = m.updated_by_name
+					? `${m.created_by_name} · edited by ${m.updated_by_name}`
+					: m.created_by_name;
+
+				body.append(h, meta, by);
+
+				const acts = document.createElement('div');
+				acts.className = 'xa-item-acts';
+
+				const edit = document.createElement('button');
+				edit.type = 'button';
+				edit.className = 'btn a-btn-secondary xa-mini';
+				edit.textContent = 'EDIT';
+				edit.onclick = () => setMode(m);
+
+				const del = document.createElement('button');
+				del.type = 'button';
+				del.className = 'btn a-btn-danger xa-mini';
+				del.textContent = 'DELETE';
+				del.onclick = async () => {
+					if (!confirm(`Delete “${m.subject}”?`)) return;
+					del.disabled = true;
+					try {
+						await adminFetch(`/api/ideation/${m.meeting_id}`, { method: 'DELETE' }, api);
+						// The row being edited has just stopped existing.
+						if (editing === m.meeting_id) setMode(null);
+						await load();
+					} catch (e) {
+						listErr.textContent = (e as Error).message;
+						listErr.hidden = false;
+						del.disabled = false;
+					}
+				};
+
+				acts.append(edit, del);
+				row.append(body, acts);
+				list.append(row);
+			}
+		}
+
+		async function load() {
+			try {
+				listErr.hidden = true;
+				// ?all=1 — the admin list includes meetings that have already happened, so
+				// stale rows can be cleared out. The public endpoint hides them.
+				const data = await adminFetch<{ meetings: Meeting[] }>('/api/ideation?all=1', {}, api);
+				render(data.meetings ?? []);
+			} catch (e) {
+				listErr.textContent = (e as Error).message;
+				listErr.hidden = false;
+			}
+		}
+
+		form.onsubmit = async (e) => {
+			e.preventDefault();
+			err.hidden = true;
+			ok.hidden = true;
+			saveBtn.disabled = true;
+
+			const body = {
+				subject: $('fSubject').value,
+				starts_at: $('fStart').value,
+				venue: $('fVenue').value,
+			};
+
+			try {
+				// The server validates all three regardless; this is only so a missing
+				// field is caught before a round trip.
+				if (!body.subject.trim() || !body.starts_at || !body.venue.trim()) {
+					throw new Error('Subject, date and venue are all needed');
+				}
+				await adminFetch(
+					editing ? `/api/ideation/${editing}` : '/api/ideation',
+					{ method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) },
+					api,
+				);
+				const verb = editing ? 'Saved' : 'Added';
+				setMode(null);
+				ok.textContent = `${verb}. It is live on the Expo page.`;
+				ok.hidden = false;
+				await load();
+			} catch (e2) {
+				err.textContent = (e2 as Error).message;
+				err.hidden = false;
+			} finally {
+				saveBtn.disabled = false;
+			}
+		};
+
+		cancelBtn.onclick = () => setMode(null);
+
+		setMode(null);
+		load();
+		// Two admins on the panel at once is normal on a fest weekend; this is what stops
+		// one of them working from a list the other has already changed.
+		if (api) stopLive = onCatalogueChange(load, ['ideation'], api);
+	}
+
+	document.addEventListener('astro:page-load', boot);
+	document.addEventListener('astro:before-swap', () => {
+		stopLive?.();
+		stopLive = null;
+	});
+</script>
+
+<style is:global>
+	.xa-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(18px, 2.4vw, 30px); }
+	.xa-grid {
+		display: grid; gap: clamp(16px, 2vw, 24px);
+		grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+		max-width: 1180px; margin: 0 auto;
+		align-items: start;
+	}
+	.xa-pane {
+		padding: clamp(16px, 2vw, 22px);
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+
+	.xa-form { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+	.xa-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+	.xa-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+	.xa-actions .btn { flex: 1 0 auto; padding: 13px 18px; font-size: 11.5px; }
+	.xa-save-icon { display: inline-grid; place-items: center; }
+	.xa-save-icon svg { width: 14px; height: 14px; stroke-width: 2.4; }
+	#xaSave { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+	.xa-ok {
+		margin: 0; padding: 9px 12px;
+		font-size: 12px; color: var(--secondary);
+		background: color-mix(in srgb, var(--accent) 12%, var(--primary));
+		border-left: var(--stroke) solid var(--accent); border-radius: var(--r);
+	}
+	.xa-ok[hidden], .xa-who[hidden], .xa-empty[hidden] { display: none; }
+	.xa-who {
+		margin: 0; font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; line-height: 1.6; color: var(--ink-60);
+	}
+
+	.xa-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+	.xa-item {
+		display: flex; align-items: center; gap: 12px;
+		padding: 12px 14px;
+		background: var(--sink);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+	}
+	/* Already happened. Still listed and still deletable — greying it out says which
+	   rows are housekeeping without hiding them. */
+	.xa-item.is-past { opacity: .55; }
+	.xa-item-body { flex: 1 1 auto; min-width: 0; }
+	.xa-item-subject {
+		margin: 0 0 4px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: 13.5px; letter-spacing: -.01em; color: var(--secondary);
+	}
+	.xa-item-meta { margin: 0; font-size: 12px; color: var(--ink-60); }
+	.xa-item-by {
+		margin: 4px 0 0; font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; letter-spacing: .08em; color: var(--ink-40);
+	}
+	.xa-item-acts { flex: none; display: flex; gap: 6px; }
+	.xa-mini { padding: 8px 11px; font-size: 9.5px; }
+
+	.xa-empty { margin: 14px 0 0; font-size: 12.5px; color: var(--ink-60); font-style: italic; }
+
+	@media (max-width: 860px) {
+		.xa-grid { grid-template-columns: minmax(0, 1fr); }
+	}
+	@media (max-width: 480px) {
+		.xa-row { grid-template-columns: minmax(0, 1fr); }
+		.xa-item { flex-direction: column; align-items: stretch; }
+		.xa-item-acts .btn { flex: 1; }
+	}
+</style>

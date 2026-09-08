@@ -2574,16 +2574,6 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	.m-field-grow { flex: 1; min-height: 0; }
 	.m-field-grow textarea { flex: 1; min-height: 90px; }
 
-	/* Destructive, and styled to say so. Only fills once armed — a permanently red
-	   button in a row of three is just noise until it matters. */
-	.a-btn-danger {
-		box-sizing: border-box; padding: 15px 18px;
-		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
-		color: var(--accent); border-color: var(--accent);
-	}
-	.a-btn-danger.armed { color: var(--primary); background: var(--accent); }
-	.a-btn-danger:disabled { opacity: .45; cursor: wait; }
-
 	/* ---- bento: details beside the pictures ---- */
 	/* Wired the same way the add form is, and stretched so the two cells end level. */
 	.m-bento {

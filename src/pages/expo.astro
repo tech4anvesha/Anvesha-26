@@ -4,12 +4,13 @@
  * does not.
  *
  * One page, five blocks: the pitch and a countdown, last year's floor as a running reel,
- * the six subjects with their coordinators, the practical details, and the forms.
+ * the next ideation meeting, the six subjects with their coordinators, and the forms.
  *
  * Everything below is data. The six subjects, their domains and their coordinators all
  * come off one array, so adding a subject is one entry and no markup.
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
+import { EVENTS_API } from '../lib/api';
 
 import iDna from 'lucide-static/icons/dna.svg?raw';
 import iAtom from 'lucide-static/icons/atom.svg?raw';
@@ -24,6 +25,8 @@ import iUsers from 'lucide-static/icons/users.svg?raw';
 import iSend from 'lucide-static/icons/send.svg?raw';
 import iMessage from 'lucide-static/icons/message-circle.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
+import iClock from 'lucide-static/icons/clock.svg?raw';
+import iLightbulb from 'lucide-static/icons/lightbulb.svg?raw';
 
 // The floor opens on the 30th. The countdown targets 00:00 IST that morning, written as
 // a UTC instant so it is the same moment for a reader in any timezone — IST is UTC+5:30,
@@ -312,6 +315,57 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			<p class="xp-reel-note mono">Hover to hold it still.</p>
 		</section>
 
+		{/* ---- the next ideation meeting ----
+		    The one block on this page that is not written here: it comes off the events
+		    Worker so the Expo team can move a meeting without a deploy.
+
+		    The card is rendered SERVER-SIDE as dashes and only filled by script, the same
+		    way the countdown above it is. Two reasons: nothing jumps when the fetch lands,
+		    and every rule below stays in this page's scoped <style> — markup created at
+		    runtime would have needed :global() on all of it. */}
+		<section class="section" data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Ideation</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta" id="ideMeta"></span>
+			</div>
+
+			<div class="xp-ide" id="xpIde" data-api={EVENTS_API}>
+				<article class="xp-ide-card" id="ideCard" hidden>
+					{/* A date stamp, not a third row of label/value cells. The card under the
+					    countdown already sets three facts out in a row; repeating that shape
+					    here would have made the two blocks read as the same thing said twice.
+					    A torn-off date beside the subject is how a meeting is actually
+					    announced, and it is the only place on the site that does it. */}
+					<time class="xp-ide-stamp" id="ideWhen" datetime="">
+						<span class="xp-ide-dow" id="ideDow">&mdash;</span>
+						<span class="xp-ide-day" id="ideDay">&mdash;</span>
+						<span class="xp-ide-mon" id="ideMon">&mdash;</span>
+					</time>
+
+					<div class="xp-ide-body">
+						<p class="xp-ide-kick mono"><span set:html={iLightbulb} />Next meeting</p>
+						<h3 class="xp-ide-subject" id="ideSubject">&mdash;</h3>
+
+						{/* The count rides the far end of this line rather than sitting under
+						    it: the card is as wide as the section, and a single meeting left
+						    the whole right half empty. */}
+						<p class="xp-ide-line">
+							<span class="xp-ide-bit"><span set:html={iClock} /><b id="ideTime">&mdash;</b></span>
+							<span class="xp-ide-sep" aria-hidden="true"></span>
+							<span class="xp-ide-bit"><span set:html={iMapPin} /><b id="ideVenue">&mdash;</b></span>
+							<span class="xp-ide-more mono" id="ideMore" hidden></span>
+						</p>
+					</div>
+				</article>
+
+				{/* Carries the loading, empty and failed states in turn. Starts as loading
+				    text rather than empty, so a slow network reads as "working" and not as
+				    "there are no meetings". */}
+				<p class="xp-ide-note" id="ideNote">Checking the calendar&hellip;</p>
+			</div>
+		</section>
+
 		{/* ---- the halls ----
 		    Six subjects, each with what it covered last year and who to call about it. */}
 		<section class="section" data-reveal>
@@ -321,7 +375,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 				<span class="sechead-meta"><b>{HALLS.length}</b> subjects · <b>{leadCount}</b> coordinators</span>
 			</div>
 
-			<div class="xp-halls" id="xpHalls">
+			<div class="xp-halls">
 				{HALLS.map((h, i) => (
 					<article class="xp-hall">
 						<header class="xp-hall-top">
@@ -376,6 +430,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 </SiteLayout>
 
 <script>
+	import { onCatalogueChange } from '../lib/admin';
+
 	/**
 	 * The countdown.
 	 *
@@ -429,53 +485,100 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	}
 
 	/**
-	 * The subject bento's hover.
+	 * The next ideation meeting.
 	 *
-	 * Written in script rather than as :has(.xp-hall:hover) for one reason: the CSS
-	 * version oscillates. Expanding a column sweeps the boundary between two cards under
-	 * a cursor that has not moved; the cursor is then over the neighbour, the selector
-	 * flips, the columns swap back, and the boundary sweeps the other way. The row shakes
-	 * for as long as you rest the pointer near a seam.
-	 *
-	 * The fix is hysteresis, and the honest source of it is the pointer itself: only
-	 * re-read which card is underneath when the pointer has actually MOVED. Layout
-	 * shifting under a still cursor then changes nothing, because no movement happened.
+	 * Fills the card that is already in the DOM rather than building one, and keeps a
+	 * live socket open so a meeting moved in the admin panel lands on an open page
+	 * without a reload — the same hub the events page listens to, filtered to 'ideation'
+	 * so an edit to the programme does not refetch this.
 	 */
-	let hallsAc: AbortController | null = null;
+	let stopIde: (() => void) | null = null;
 
-	function bento() {
-		hallsAc?.abort();
-		const grid = document.getElementById('xpHalls');
-		if (!grid) return;
-		hallsAc = new AbortController();
-		const { signal } = hallsAc;
-
-		const cards = [...grid.querySelectorAll<HTMLElement>('.xp-hall')];
-		let lastX = NaN, lastY = NaN;
-
-		const light = (card: HTMLElement | null) => {
-			for (const c of cards) c.classList.toggle('is-lit', c === card);
-			if (card) grid.dataset.col = String(cards.indexOf(card) % 3);
-			else delete grid.dataset.col;
+	/** 'YYYY-MM-DD HH:MM' -> the two strings the card shows. */
+	function readStamp(s: string) {
+		const [d, t] = s.split(' ');
+		const [y, mo, day] = d.split('-').map(Number);
+		const [hh, mm] = t.split(':').map(Number);
+		// Built from the parts in LOCAL time on purpose. The stamp is naive IST and the
+		// only job here is to render those same numbers back with a weekday and a 12-hour
+		// clock; going through UTC would shift both by five and a half hours.
+		const at = new Date(y, mo - 1, day, hh, mm);
+		return {
+			iso: `${d}T${t}`,
+			dow: at.toLocaleDateString('en-IN', { weekday: 'short' }),
+			day: String(day),
+			mon: at.toLocaleDateString('en-IN', { month: 'short' }),
+			time: at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
 		};
+	}
 
-		grid.addEventListener('pointermove', (e) => {
-			// The guard. A pointermove at the same coordinates is the browser telling us
-			// the layout moved, not the user — and acting on it is the oscillation.
-			if (e.clientX === lastX && e.clientY === lastY) return;
-			lastX = e.clientX; lastY = e.clientY;
-			light((e.target as HTMLElement).closest<HTMLElement>('.xp-hall'));
-		}, { signal });
+	async function ideation() {
+		stopIde?.();
+		stopIde = null;
 
-		grid.addEventListener('pointerleave', () => {
-			lastX = NaN; lastY = NaN;
-			light(null);
-		}, { signal });
+		const box = document.getElementById('xpIde');
+		if (!box) return;
+
+		const api = box.dataset.api;
+		const $ = (id: string) => document.getElementById(id) as HTMLElement;
+		const card = $('ideCard'), note = $('ideNote'), meta = $('ideMeta'), more = $('ideMore');
+
+		async function refresh() {
+			try {
+				const res = await fetch(api + '/api/ideation');
+				if (!res.ok) throw new Error(String(res.status));
+				const list = ((await res.json()) as { meetings?: any[] }).meetings ?? [];
+				const next = list[0];
+
+				if (!next) {
+					card.hidden = true;
+					note.hidden = false;
+					note.textContent = 'No meeting on the calendar yet — check back, or ask on the group.';
+					meta.textContent = '';
+					return;
+				}
+
+				const when = readStamp(String(next.starts_at));
+				$('ideSubject').textContent = String(next.subject);
+				$('ideDow').textContent = when.dow;
+				$('ideDay').textContent = when.day;
+				$('ideMon').textContent = when.mon;
+				// On the <time> itself, so the machine-readable value can never disagree
+				// with the three pieces of it on screen.
+				$('ideWhen').setAttribute('datetime', when.iso);
+				$('ideTime').textContent = when.time;
+				$('ideVenue').textContent = String(next.venue);
+
+				// The section shows one meeting. Saying how many others are behind it is
+				// the difference between "the next one" and "the only one".
+				const rest = list.length - 1;
+				more.hidden = rest < 1;
+				more.textContent = rest === 1 ? '1 more meeting after this one'
+					: `${rest} more meetings after this one`;
+
+				meta.innerHTML = `<b>${list.length}</b> scheduled`;
+				card.hidden = false;
+				note.hidden = true;
+			} catch {
+				// A dead Worker must not leave "Checking the calendar…" on screen forever.
+				card.hidden = true;
+				note.hidden = false;
+				note.textContent = 'Could not reach the calendar just now.';
+				meta.textContent = '';
+			}
+		}
+
+		await refresh();
+		if (api) stopIde = onCatalogueChange(refresh, ['ideation'], api);
 	}
 
 	document.addEventListener('astro:page-load', countdown);
-	document.addEventListener('astro:page-load', bento);
-	document.addEventListener('astro:before-swap', () => clearInterval(tick));
+	document.addEventListener('astro:page-load', ideation);
+	document.addEventListener('astro:before-swap', () => {
+		clearInterval(tick);
+		stopIde?.();
+		stopIde = null;
+	});
 </script>
 
 <style>
@@ -697,6 +800,96 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		.xp-facts { grid-template-columns: minmax(0, 1fr); }
 	}
 
+	/* ============ IDEATION ============
+	   One card, because the section answers one question. It is the only block on the
+	   page whose contents arrive over the network, so it is also the only one that has
+	   to look deliberate while empty — hence the note, which carries the loading, the
+	   nothing-scheduled and the cannot-reach states in turn rather than leaving a hole. */
+	.xp-ide { display: grid; }
+	.xp-ide-card {
+		display: grid; grid-template-columns: auto minmax(0, 1fr);
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop);
+		overflow: hidden;
+	}
+	.xp-ide-card[hidden] { display: none; }
+
+	/* The stamp. Ink ground and paper type, the same inversion the nav's active tab uses,
+	   so it reads as part of the site rather than as a widget dropped into it. */
+	.xp-ide-stamp {
+		display: flex; flex-direction: column; align-items: center; justify-content: center;
+		gap: 2px; padding: clamp(16px, 2vw, 24px) clamp(18px, 2.2vw, 28px);
+		background: var(--secondary); color: var(--primary);
+		text-align: center;
+	}
+	.xp-ide-dow, .xp-ide-mon {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--primary) 66%, transparent);
+	}
+	/* The one big number on the card. Tabular figures so a 1 and a 4 sit at the same
+	   width and the stamp does not change size from one meeting to the next. */
+	.xp-ide-day {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(38px, 5vw, 62px); line-height: .92;
+		letter-spacing: -.04em; font-variant-numeric: tabular-nums;
+	}
+	.xp-ide-mon { color: var(--accent); }
+
+	.xp-ide-body {
+		display: flex; flex-direction: column; justify-content: center;
+		padding: clamp(18px, 2.3vw, 28px);
+	}
+	.xp-ide-kick {
+		margin: 0 0 9px; display: flex; align-items: center; gap: 8px;
+		font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.xp-ide-kick :global(svg) { width: 14px; height: 14px; stroke-width: 1.9; color: var(--accent); }
+	.xp-ide-subject {
+		margin: 0; max-width: 26ch;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(18px, 2.4vw, 28px); line-height: 1.16;
+		letter-spacing: -.02em; text-wrap: balance; color: var(--secondary);
+	}
+	/* Time and venue on one line. They are two short facts, and giving each a labelled
+	   cell of its own was what made the old version look like a form. */
+	.xp-ide-line {
+		margin: clamp(12px, 1.5vw, 16px) 0 0;
+		display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
+	}
+	.xp-ide-bit { display: inline-flex; align-items: center; gap: 7px; }
+	.xp-ide-bit :global(svg) { width: 14px; height: 14px; stroke-width: 1.8; color: var(--accent); }
+	.xp-ide-bit b {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(12.5px, 1.2vw, 15px); letter-spacing: -.01em;
+		color: var(--secondary);
+	}
+	.xp-ide-sep { width: 5px; height: 5px; background: var(--hair); }
+	.xp-ide-more {
+		margin-left: auto; font-size: 10px; letter-spacing: .1em; color: var(--ink-60);
+	}
+	.xp-ide-more[hidden] { display: none; }
+
+	.xp-ide-note {
+		margin: 0; padding: clamp(18px, 2.2vw, 26px);
+		font-size: 13px; line-height: 1.6; color: var(--ink-60);
+		border: 1.5px dashed var(--hair); border-radius: var(--r);
+	}
+	.xp-ide-note[hidden] { display: none; }
+
+	@media (max-width: 560px) {
+		/* The stamp goes across the top and lies down: a column of ink down the side of a
+		   narrow card leaves the subject about twelve characters of room. */
+		.xp-ide-card { grid-template-columns: minmax(0, 1fr); }
+		.xp-ide-stamp { flex-direction: row; align-items: baseline; gap: 10px; padding: 12px 16px; }
+		.xp-ide-day { font-size: 30px; }
+		/* margin-left:auto pushes it to the right end of a line it shares; once it wraps
+		   onto its own row that reads as a stray right-aligned scrap. */
+		.xp-ide-more { margin-left: 0; width: 100%; }
+	}
+	}
+
 	/* ============ LAST YEAR ============
 	   Two rows of five, travelling opposite ways. The frames in each row are rendered
 	   TWICE and the track travels exactly -50%, so the second copy lands where the first
@@ -749,43 +942,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	}
 
 	/* ============ THE SUBJECTS ============ */
-	/* ---- the bento ----
-	   Three uneven columns at rest, so it reads as a bento rather than a table; on hover
-	   the column under the pointer takes most of the row and the other two give it up.
-
-	   The animation is on the CONTAINER's track sizes, not on the card — a card that
-	   scales grows over its neighbours and the row jumps; tracks that resize push the
-	   neighbours aside and everything stays on the grid. grid-template-columns has been
-	   animatable since Chrome 107, and the track count never changes, which is what makes
-	   it interpolate rather than snap.
-
-	   :has() reads the hover from the container, and :focus-within is there so tabbing
-	   through does the same thing as pointing at it. */
+	/* ---- the subject cards ----
+	   Three equal columns that stay equal. The row used to redistribute its track sizes
+	   toward whichever card the pointer was over, which meant every card in it was
+	   quietly changing size the whole time the cursor was anywhere near — six boxes
+	   moving to say one thing about one of them. The hover lives on the hovered card
+	   now, and only on it. */
 	.xp-halls {
 		display: grid; gap: 14px;
-		grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr) minmax(0, .94fr);
-		transition: grid-template-columns .42s cubic-bezier(.2, .8, .3, 1);
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
-	/* Driven by [data-col], set in script, NOT by :has(.xp-hall:hover).
-	   :has() oscillated: expanding a column sweeps the boundary between two cards under a
-	   stationary cursor, the cursor lands on the neighbour, :has() flips, the columns
-	   swap back, the boundary sweeps the other way — a feedback loop that shook the whole
-	   row. The gap between cards made it worse, being a strip that belongs to neither.
-	   The script only re-reads which card is under the pointer when the pointer has
-	   actually MOVED, so a boundary crossing a still cursor changes nothing. */
-	.xp-halls[data-col='0'] { grid-template-columns: minmax(0, 1.7fr) minmax(0, .78fr) minmax(0, .74fr); }
-	.xp-halls[data-col='1'] { grid-template-columns: minmax(0, .8fr) minmax(0, 1.7fr) minmax(0, .74fr); }
-	.xp-halls[data-col='2'] { grid-template-columns: minmax(0, .8fr) minmax(0, .76fr) minmax(0, 1.68fr); }
 
 	@media (max-width: 900px) {
-		/* Two across, and the redistribution goes with it — at this width the shrunken
-		   column is narrower than the words in it. */
-		.xp-halls, .xp-halls[data-col] {
-			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.xp-halls { transition: none; }
+		.xp-halls { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 	}
 	/* Opaque, not transparent: these sit over the Solaris drawing, and a card you can read
 	   the orbits through is a card nobody can read. */
@@ -794,13 +963,27 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		padding: clamp(16px, 1.9vw, 22px);
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		transition: box-shadow .3s ease, border-color .3s ease;
+		/* relative + a z-index on hover: a magnified card overlaps the 14px gap, and
+		   without a stacking order it would slide UNDER its neighbour on one side and
+		   over it on the other, depending on document order. */
+		position: relative; z-index: 0;
+		transition: transform .26s cubic-bezier(.2, .8, .3, 1),
+		            box-shadow .26s ease, border-color .26s ease;
 	}
-	.xp-hall.is-lit, .xp-hall:focus-within {
+	/* transform, not width or a grid track: a scale is painted, so it costs no layout and
+	   cannot move anything else. That matters here specifically — the old version resized
+	   the columns, which swept a card boundary under a stationary cursor, flipped the
+	   hover, swapped the columns back and shook the row. A card that only grows over its
+	   own neighbours has nothing to feed back into, which is why this can be plain
+	   :hover with no script behind it. */
+	.xp-hall:hover, .xp-hall:focus-within {
+		transform: scale(1.035); z-index: 1;
 		box-shadow: var(--pop-lg); border-color: var(--accent);
 	}
 	@media (prefers-reduced-motion: reduce) {
+		/* The shadow and the border still mark the hover — only the movement goes. */
 		.xp-hall { transition: none; }
+		.xp-hall:hover, .xp-hall:focus-within { transform: none; }
 	}
 	.xp-hall-top {
 		display: grid; grid-template-columns: auto auto 1fr auto;

@@ -12,6 +12,7 @@ import '../styles/admin-controls.css';
 
 import iMerch from 'lucide-static/icons/shopping-bag.svg?raw';
 import iEvents from 'lucide-static/icons/calendar-days.svg?raw';
+import iExpo from 'lucide-static/icons/lightbulb.svg?raw';
 import iLogout from 'lucide-static/icons/log-out.svg?raw';
 
 interface Props {
@@ -22,6 +23,7 @@ const { title = "Admin — Anvesha '26" } = Astro.props;
 const ADMIN_NAV = [
 	{ href: '/admin/merch', label: 'Merch', icon: iMerch },
 	{ href: '/admin/events', label: 'Events', icon: iEvents },
+	{ href: '/admin/expo', label: 'Expo', icon: iExpo },
 ];
 ---
 
