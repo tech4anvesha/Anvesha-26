@@ -26,3 +26,7 @@ pnpm-debug.log*
 # worker
 worker/.wrangler/
 worker/.dev.vars
+
+# Database dumps: these carry real student emails and transaction ids.
+# Kept locally, never pushed.
+worker/backups/

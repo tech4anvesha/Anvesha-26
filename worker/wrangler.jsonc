@@ -3,6 +3,9 @@
 	"name": "anvesha-merch-api",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-01",
+	// Same reason as the events Worker: *.workers.dev is on ad blocklists, and the whole
+	// of merch — catalogue, checkout, admin, distribution — went through it.
+	"routes": [{ "pattern": "merch-api.anvesha26.in", "custom_domain": true }],
 	"observability": {
 		"enabled": true
 	},
