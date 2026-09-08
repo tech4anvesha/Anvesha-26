@@ -347,17 +347,20 @@ const pad = (n: number) => String(n).padStart(2, '0');
 						<p class="xp-ide-kick mono"><span set:html={iLightbulb} />Next meeting</p>
 						<h3 class="xp-ide-subject" id="ideSubject">&mdash;</h3>
 
-						{/* The count rides the far end of this line rather than sitting under
-						    it: the card is as wide as the section, and a single meeting left
-						    the whole right half empty. */}
 						<p class="xp-ide-line">
 							<span class="xp-ide-bit"><span set:html={iClock} /><b id="ideTime">&mdash;</b></span>
 							<span class="xp-ide-sep" aria-hidden="true"></span>
 							<span class="xp-ide-bit"><span set:html={iMapPin} /><b id="ideVenue">&mdash;</b></span>
-							<span class="xp-ide-more mono" id="ideMore" hidden></span>
 						</p>
 					</div>
 				</article>
+
+				{/* Everything after the next one. The section used to say "2 more meetings
+				    after this one" and leave it at that, which told you they existed and
+				    then withheld them. The rows are built in script, so their rules below
+				    are :global() — this page's <style> is scoped, and a scoped rule never
+				    reaches an element that was not in the server-rendered HTML. */}
+				<ul class="xp-ide-rest" id="ideRest" hidden></ul>
 
 				{/* Carries the loading, empty and failed states in turn. Starts as loading
 				    text rather than empty, so a slow network reads as "working" and not as
@@ -521,7 +524,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 		const api = box.dataset.api;
 		const $ = (id: string) => document.getElementById(id) as HTMLElement;
-		const card = $('ideCard'), note = $('ideNote'), meta = $('ideMeta'), more = $('ideMore');
+		const card = $('ideCard'), note = $('ideNote'), meta = $('ideMeta'), rest = $('ideRest');
 
 		async function refresh() {
 			try {
@@ -532,6 +535,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 				if (!next) {
 					card.hidden = true;
+					rest.hidden = true;
+					rest.textContent = '';
 					note.hidden = false;
 					note.textContent = 'No meeting on the calendar yet — check back, or ask on the group.';
 					meta.textContent = '';
@@ -549,12 +554,31 @@ const pad = (n: number) => String(n).padStart(2, '0');
 				$('ideTime').textContent = when.time;
 				$('ideVenue').textContent = String(next.venue);
 
-				// The section shows one meeting. Saying how many others are behind it is
-				// the difference between "the next one" and "the only one".
-				const rest = list.length - 1;
-				more.hidden = rest < 1;
-				more.textContent = rest === 1 ? '1 more meeting after this one'
-					: `${rest} more meetings after this one`;
+				// Everything after the next one, listed rather than counted.
+				rest.textContent = '';
+				for (const m of list.slice(1)) {
+					const w = readStamp(String(m.starts_at));
+					const li = document.createElement('li');
+					li.className = 'xp-ide-row';
+
+					const d = document.createElement('time');
+					d.className = 'xp-ide-rowdate mono';
+					d.dateTime = w.iso;
+					d.textContent = `${w.dow} ${w.day} ${w.mon}`;
+
+					const sub = document.createElement('span');
+					sub.className = 'xp-ide-rowsub';
+					// textContent, not innerHTML: a subject is free text an admin typed.
+					sub.textContent = String(m.subject);
+
+					const at = document.createElement('span');
+					at.className = 'xp-ide-rowmeta mono';
+					at.textContent = `${w.time} · ${m.venue}`;
+
+					li.append(d, sub, at);
+					rest.append(li);
+				}
+				rest.hidden = list.length < 2;
 
 				meta.innerHTML = `<b>${list.length}</b> scheduled`;
 				card.hidden = false;
@@ -562,6 +586,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			} catch {
 				// A dead Worker must not leave "Checking the calendar…" on screen forever.
 				card.hidden = true;
+				rest.hidden = true;
+				rest.textContent = '';
 				note.hidden = false;
 				note.textContent = 'Could not reach the calendar just now.';
 				meta.textContent = '';
@@ -866,10 +892,40 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		color: var(--secondary);
 	}
 	.xp-ide-sep { width: 5px; height: 5px; background: var(--hair); }
-	.xp-ide-more {
-		margin-left: auto; font-size: 10px; letter-spacing: .1em; color: var(--ink-60);
+
+	/* The ones after the next. Rules are :global() because the rows are built in script
+	   and this page's <style> is scoped — the anchor stays on .xp-ide-rest, which IS
+	   server-rendered, so nothing here leaks past this section. */
+	.xp-ide-rest {
+		list-style: none; margin: 10px 0 0; padding: 0;
+		display: flex; flex-direction: column; gap: var(--stroke);
+		background: var(--hair);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		overflow: hidden;
 	}
-	.xp-ide-more[hidden] { display: none; }
+	.xp-ide-rest[hidden] { display: none; }
+	.xp-ide-rest :global(.xp-ide-row) {
+		display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: baseline; gap: 14px;
+		padding: 11px clamp(14px, 1.6vw, 18px);
+		background: var(--primary);
+	}
+	/* Tabular figures and a fixed measure: the dates are a column, and a column that
+	   jogs left and right as the day number changes width is not one. */
+	.xp-ide-rest :global(.xp-ide-rowdate) {
+		font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+		color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap;
+	}
+	.xp-ide-rest :global(.xp-ide-rowsub) {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 800; font-size: clamp(11.5px, 1.1vw, 13.5px); letter-spacing: -.01em;
+		color: var(--secondary);
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+	.xp-ide-rest :global(.xp-ide-rowmeta) {
+		font-size: 9.5px; letter-spacing: .08em; color: var(--ink-60);
+		white-space: nowrap; text-align: right;
+	}
 
 	.xp-ide-note {
 		margin: 0; padding: clamp(18px, 2.2vw, 26px);
@@ -884,9 +940,10 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		.xp-ide-card { grid-template-columns: minmax(0, 1fr); }
 		.xp-ide-stamp { flex-direction: row; align-items: baseline; gap: 10px; padding: 12px 16px; }
 		.xp-ide-day { font-size: 30px; }
-		/* margin-left:auto pushes it to the right end of a line it shares; once it wraps
-		   onto its own row that reads as a stray right-aligned scrap. */
-		.xp-ide-more { margin-left: 0; width: 100%; }
+		/* Three columns of this on a phone leaves the subject about eight characters. */
+		.xp-ide-rest :global(.xp-ide-row) { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+		.xp-ide-rest :global(.xp-ide-rowsub) { white-space: normal; }
+		.xp-ide-rest :global(.xp-ide-rowmeta) { text-align: left; }
 	}
 	}
 
