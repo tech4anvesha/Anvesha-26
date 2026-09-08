@@ -9,7 +9,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import worker, { type Env, istStamp, looksLikeEventId, newEventId, sweep } from '../src/index.ts';
+import worker, {
+	type Env, istStamp, looksLikeEventId, looksLikeMeetingId, newEventId, sweep,
+} from '../src/index.ts';
 
 describe('istStamp', () => {
 	it('is UTC plus 5:30, formatted for the column', () => {
@@ -26,6 +28,11 @@ describe('istStamp', () => {
 describe('newEventId', () => {
 	it('produces ids its own matcher accepts', () => {
 		for (let i = 0; i < 50; i++) assert.ok(looksLikeEventId(newEventId()));
+	});
+	it('takes a prefix, and the two matchers do not accept each other', () => {
+		for (let i = 0; i < 50; i++) assert.ok(looksLikeMeetingId(newEventId('IDE_')));
+		assert.equal(looksLikeMeetingId(newEventId()), false);
+		assert.equal(looksLikeEventId(newEventId('IDE_')), false);
 	});
 	it('rejects anything else', () => {
 		for (const v of ['', 'EVT_', 'MER_ABCDEFGH', 'EVT_ABCDEFGHI', 'EVT_ABCDEFGI', null]) {
@@ -122,8 +129,16 @@ const env = (db: D1Database, media: Partial<R2Bucket> = {}): Env =>
 /** The handler takes an ExecutionContext; only waitUntil is ever called on it. */
 const ctx = () => ({ waitUntil: () => {}, passThroughOnException: () => {} }) as unknown as ExecutionContext;
 
-/** A live admin session for requireAdmin's single lookup. */
-const signedIn = () => fakeDb([{ active: 1 }]);
+/**
+ * A live admin session for requireAdmin's single lookup.
+ *
+ * The identity columns are here because requireAdmin returns them now and the ideation
+ * rows are stamped with them — a stub that only had `active` would have let a bug that
+ * writes `undefined` into created_by_name pass.
+ */
+const signedIn = () => fakeDb([
+	{ active: 1, name: 'Asha R', roll_number: 'IMS21001', collegemail: 'asha@iisertvm.ac.in' },
+]);
 
 const post = (body: unknown) =>
 	new Request('https://api.test/api/events', {
@@ -228,5 +243,71 @@ describe('CORS', () => {
 			);
 		assert.equal((await call('https://anvesha26.in')).headers.get('Access-Control-Allow-Origin'), 'https://anvesha26.in');
 		assert.equal((await call('https://evil.example')).headers.get('Access-Control-Allow-Origin'), null);
+	});
+});
+
+// ---------- ideation meetings ----------
+describe('ideation', () => {
+	const body = { subject: 'Hall themes', starts_at: '2026-03-02T17:30', venue: 'LH 101' };
+	const send = (method: string, path: string, b?: unknown, auth = true) =>
+		new Request('https://api.test' + path, {
+			method,
+			...(auth ? { headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' } } : {}),
+			...(b === undefined ? {} : { body: JSON.stringify(b) }),
+		});
+
+	it('needs a session to schedule one', async () => {
+		const { db } = fakeDb([]);
+		const res = await worker.fetch(send('POST', '/api/ideation', body, false), env(db), ctx());
+		assert.equal(res.status, 401);
+	});
+
+	it('stamps the row with the admin who typed it, not with a join', async () => {
+		const { db, seen } = signedIn();
+		const res = await worker.fetch(send('POST', '/api/ideation', body), env(db), ctx());
+		assert.equal(res.status, 201);
+		const insert = seen.find((q) => /INSERT INTO ideation_meetings/.test(q.sql));
+		assert.ok(insert, 'no insert ran');
+		// id, subject, starts_at (normalised off the T), venue, then who.
+		assert.ok(looksLikeMeetingId(insert!.args[0]));
+		assert.deepEqual(insert!.args.slice(1), [
+			'Hall themes', '2026-03-02 17:30', 'LH 101',
+			'Asha R', 'IMS21001', 'asha@iisertvm.ac.in',
+		]);
+	});
+
+	it('rejects a start time that is not a real date', async () => {
+		const { db } = signedIn();
+		const res = await worker.fetch(
+			send('POST', '/api/ideation', { ...body, starts_at: '2026-02-30 10:00' }), env(db), ctx(),
+		);
+		assert.equal(res.status, 400);
+		assert.equal((await res.json() as any).error, 'bad_datetime');
+	});
+
+	it('an edit records the editor and leaves the caller alone', async () => {
+		const { db, seen } = signedIn();
+		const res = await worker.fetch(send('PUT', '/api/ideation/IDE_00000000', body), env(db), ctx());
+		assert.equal(res.status, 200);
+		const sql = seen.find((q) => /UPDATE ideation_meetings/.test(q.sql))!.sql;
+		assert.match(sql, /updated_by_name = \?/);
+		assert.doesNotMatch(sql, /created_by/);
+	});
+
+	it('rejects an id shaped like an event id', async () => {
+		const { db } = signedIn();
+		const res = await worker.fetch(send('DELETE', '/api/ideation/EVT_00000000'), env(db), ctx());
+		assert.equal(res.status, 404);
+	});
+
+	it('the public list hides what has already happened; ?all=1 needs an admin', async () => {
+		const { db, seen } = fakeDb([]);
+		const open = await worker.fetch(send('GET', '/api/ideation', undefined, false), env(db), ctx());
+		assert.equal(open.status, 200);
+		assert.match(seen.at(-1)!.sql, /WHERE starts_at > \?/);
+
+		const { db: db2 } = fakeDb([]);
+		const all = await worker.fetch(send('GET', '/api/ideation?all=1', undefined, false), env(db2), ctx());
+		assert.equal(all.status, 401);
 	});
 });

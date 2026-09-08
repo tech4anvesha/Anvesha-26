@@ -14,6 +14,12 @@
  *   DELETE /api/events/:id/poster   remove a poster                  [admin]
  *   GET    /api/live                live updates socket              [public]
  *
+ *   GET    /api/ideation           next ideation meetings           [public]
+ *   GET    /api/ideation?all=1     including ones already held      [admin]
+ *   POST   /api/ideation           schedule one                     [admin]
+ *   PUT    /api/ideation/:id       move or rename one               [admin]
+ *   DELETE /api/ideation/:id       drop one                         [admin]
+ *
  * Separate deployment from the merch Worker, same D1 database. It shares nothing with
  * merch but the admin_login table — signing in on the existing admin panel has to let
  * you edit events too, and re-implementing a second login would mean a second password
@@ -56,8 +62,14 @@ export function istStamp(at: number = Date.now()): string {
 }
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no I, L, O, U
-/** `EVT_` + 40 bits of randomness. Public data, so it only has to be unique. */
-export function newEventId(): string {
+/**
+ * A prefix + 40 bits of randomness. Public data, so it only has to be unique.
+ *
+ * The prefix is an argument with a default rather than a second copy of this function:
+ * ideation meetings need their own ids and the alphabet, the bit-packing and the
+ * length are not what differs between them.
+ */
+export function newEventId(prefix = 'EVT_'): string {
 	const raw = crypto.getRandomValues(new Uint8Array(5));
 	let bits = 0, value = 0, out = '';
 	for (const byte of raw) {
@@ -65,11 +77,14 @@ export function newEventId(): string {
 		bits += 8;
 		while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
 	}
-	return 'EVT_' + out;
+	return prefix + out;
 }
 
 export const looksLikeEventId = (v: unknown): v is string =>
 	typeof v === 'string' && /^EVT_[0-9A-HJKMNP-TV-Z]{8}$/.test(v);
+
+export const looksLikeMeetingId = (v: unknown): v is string =>
+	typeof v === 'string' && /^IDE_[0-9A-HJKMNP-TV-Z]{8}$/.test(v);
 
 class ApiError extends Error {
 	status: number;
@@ -119,8 +134,21 @@ async function readJson<T>(req: Request, maxBytes = 16_384): Promise<T> {
 // auth — the merch Worker's session, read from the shared D1
 // ============================================================
 
-/** Throws 401 unless the Bearer token is a live admin session. */
-async function requireAdmin(env: Env, req: Request): Promise<void> {
+/** The signed-in admin, for rows that record who did something. */
+export interface AdminIdentity {
+	name: string;
+	roll_number: string;
+	collegemail: string;
+}
+
+/**
+ * Throws 401 unless the Bearer token is a live admin session; returns who it belongs to.
+ *
+ * The identity comes back from the query that was already being run — callers that do
+ * not need it simply ignore the return, which is every caller that existed before the
+ * ideation table needed to record an author.
+ */
+async function requireAdmin(env: Env, req: Request): Promise<AdminIdentity> {
 	const header = req.headers.get('Authorization') ?? '';
 	const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 	if (!token) throw unauthorized('Not signed in');
@@ -129,7 +157,7 @@ async function requireAdmin(env: Env, req: Request): Promise<void> {
 	// so flipping `active` to 0 locks out sessions that are already open. Expiry lives
 	// in the WHERE clause — an aged-out session simply stops matching.
 	const row = await env.DB.prepare(
-		`SELECT v.active
+		`SELECT v.active, a.name, a.roll_number, a.collegemail
 		   FROM admin_login a, login_validation v
 		  WHERE a.session_token = ?
 		    AND a.logout_time IS NULL
@@ -137,10 +165,11 @@ async function requireAdmin(env: Env, req: Request): Promise<void> {
 		    AND v.id = 1`,
 	)
 		.bind(token, `-${SESSION_HOURS} hours`)
-		.first<{ active: number }>();
+		.first<{ active: number } & AdminIdentity>();
 
 	if (!row) throw unauthorized('Session expired — sign in again');
 	if (row.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
+	return { name: row.name, roll_number: row.roll_number, collegemail: row.collegemail };
 }
 
 // ============================================================
@@ -226,11 +255,13 @@ function parseEvent(body: EventBody) {
  * decide whether it cares — the storefront refetches for anything, the admin panel
  * ignores its own saves because it already has the answer.
  */
-async function broadcast(env: Env, reason: string): Promise<void> {
+async function broadcast(env: Env, reason: string, type = 'events'): Promise<void> {
 	try {
 		// One well-known name = one object = every viewer on the same fan-out point.
+		// `type` so the expo page can listen for ideation changes without refetching the
+		// whole schedule every time an event is edited, and vice versa.
 		const hub = env.HUB.get(env.HUB.idFromName('events'));
-		await hub.broadcast(JSON.stringify({ type: 'events', reason, at: Date.now() }));
+		await hub.broadcast(JSON.stringify({ type, reason, at: Date.now() }));
 	} catch (e) {
 		console.error('events: broadcast failed', e);
 	}
@@ -548,6 +579,92 @@ async function deleteDone(env: Env, req: Request, id: string, cors: Cors): Promi
 // ============================================================
 // entry points
 // ============================================================
+// ideation meetings
+// ============================================================
+
+/**
+ * How long after it starts a meeting still counts as "next".
+ *
+ * These rows have no end time, so without a grace window the section on the expo page
+ * would go blank at the exact moment people were walking into the room. Two hours is
+ * longer than any of these has ever run and short enough that yesterday's meeting is
+ * never the one being advertised.
+ */
+const MEETING_GRACE_MIN = 120;
+
+interface MeetingBody { subject?: unknown; starts_at?: unknown; venue?: unknown }
+
+function parseMeeting(body: MeetingBody) {
+	return {
+		subject: str(body.subject, 'subject', 200),
+		starts_at: stamp(body.starts_at, 'starts_at'),
+		venue: str(body.venue, 'venue', 160),
+	};
+}
+
+/**
+ * Upcoming by default; everything ever with ?all=1, which needs an admin.
+ *
+ * One route rather than two: the difference is a WHERE clause and who is allowed to
+ * drop it, and a second path would have duplicated the SELECT to say so.
+ */
+async function listIdeation(env: Env, req: Request, cors: Cors, all: boolean): Promise<Response> {
+	if (all) await requireAdmin(env, req);
+	const cols = `meeting_id, subject, starts_at, venue,
+	              created_by_name, created_by_roll, created_at,
+	              updated_by_name, updated_by_roll, updated_at`;
+	const stmt = all
+		? env.DB.prepare(`SELECT ${cols} FROM ideation_meetings ORDER BY starts_at DESC`)
+		: env.DB.prepare(`SELECT ${cols} FROM ideation_meetings WHERE starts_at > ? ORDER BY starts_at ASC`)
+			.bind(istStamp(Date.now() - MEETING_GRACE_MIN * 60_000));
+	const { results } = await stmt.all();
+	return json({ meetings: results }, {}, cors);
+}
+
+async function createMeeting(env: Env, req: Request, cors: Cors): Promise<Response> {
+	const who = await requireAdmin(env, req);
+	const m = parseMeeting(await readJson<MeetingBody>(req));
+	const meeting_id = newEventId('IDE_');
+	await env.DB.prepare(
+		`INSERT INTO ideation_meetings
+		   (meeting_id, subject, starts_at, venue, created_by_name, created_by_roll, created_by_email)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	)
+		.bind(meeting_id, m.subject, m.starts_at, m.venue, who.name, who.roll_number, who.collegemail)
+		.run();
+	await broadcast(env, 'created', 'ideation');
+	return json({ meeting_id, ...m, created_by_name: who.name, created_by_roll: who.roll_number }, { status: 201 }, cors);
+}
+
+async function updateMeeting(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	const who = await requireAdmin(env, req);
+	if (!looksLikeMeetingId(id)) throw notFound('No such meeting');
+	const m = parseMeeting(await readJson<MeetingBody>(req));
+	// created_by_* is deliberately untouched: it says who called the meeting, and an
+	// edit by someone else is a different fact, which is what updated_by_* is for.
+	const res = await env.DB.prepare(
+		`UPDATE ideation_meetings
+		    SET subject = ?, starts_at = ?, venue = ?,
+		        updated_by_name = ?, updated_by_roll = ?, updated_at = datetime('now')
+		  WHERE meeting_id = ?`,
+	)
+		.bind(m.subject, m.starts_at, m.venue, who.name, who.roll_number, id)
+		.run();
+	if (!res.meta.changes) throw notFound('No such meeting');
+	await broadcast(env, 'updated', 'ideation');
+	return json({ meeting_id: id, ...m }, {}, cors);
+}
+
+async function deleteMeeting(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeMeetingId(id)) throw notFound('No such meeting');
+	const res = await env.DB.prepare(`DELETE FROM ideation_meetings WHERE meeting_id = ?`).bind(id).run();
+	if (!res.meta.changes) throw notFound('No such meeting');
+	await broadcast(env, 'deleted', 'ideation');
+	return json({ ok: true }, {}, cors);
+}
+
+// ============================================================
 
 // The Durable Object class must be exported from the entry point for the runtime to
 // find it — the binding in wrangler.jsonc only names it.
@@ -558,7 +675,8 @@ export default {
 		const cors = corsHeaders(env, req);
 		if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
-		const { pathname } = new URL(req.url);
+		const url = new URL(req.url);
+		const { pathname } = url;
 		const method = req.method;
 
 		try {
@@ -570,6 +688,18 @@ export default {
 				const moved = await sweep(env);
 				if (moved) await broadcast(env, 'archived');
 				return json({ moved }, {}, cors);
+			}
+
+			if (method === 'GET' && pathname === '/api/ideation') {
+				return await listIdeation(env, req, cors, url.searchParams.get('all') === '1');
+			}
+			if (method === 'POST' && pathname === '/api/ideation') return await createMeeting(env, req, cors);
+
+			const meeting = pathname.match(/^\/api\/ideation\/([^/]+)$/);
+			if (meeting) {
+				const id = decodeURIComponent(meeting[1]);
+				if (method === 'PUT') return await updateMeeting(env, req, id, cors);
+				if (method === 'DELETE') return await deleteMeeting(env, req, id, cors);
 			}
 
 			// The socket itself. No CORS headers: a WebSocket upgrade is not a CORS
