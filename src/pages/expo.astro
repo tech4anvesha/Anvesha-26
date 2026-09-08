@@ -891,6 +891,57 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	}
 	.xp-ide-note[hidden] { display: none; }
 
+	/* ============ LAST YEAR ============
+	   Two rows of five, travelling opposite ways. The frames in each row are rendered
+	   TWICE and the track travels exactly -50%, so the second copy lands where the first
+	   began and neither loop can show a seam.
+
+	   No mask on these: a gradient mask over a moving strip repaints the whole masked band
+	   every frame, which is what cost this page 48 frames in 150 when the sky had one. The
+	   rows are full-bleed to the frame's edge instead, which reads as continuing past the
+	   page anyway. */
+	.xp-reels { display: flex; flex-direction: column; gap: 12px; }
+	.xp-reel { overflow: hidden; margin: 0 calc(-1 * clamp(0px, 2vw, 28px)); }
+	.xp-track {
+		display: flex; width: max-content;
+		animation: xp-roll 52s linear infinite;
+		will-change: transform;
+	}
+	[data-dir='rev'] .xp-track { animation-direction: reverse; animation-duration: 61s; }
+	@keyframes xp-roll { to { transform: translateX(-50%); } }
+	/* A frame you are trying to look at must stop moving — and both rows stop, or the one
+	   you are not pointing at keeps sliding under your eye. */
+	.xp-reels:hover .xp-track, .xp-reels:focus-within .xp-track { animation-play-state: paused; }
+	.xp-run { display: flex; gap: 12px; padding: 3px 6px; }
+
+	.xp-frame {
+		flex: none; width: clamp(190px, 21vw, 270px); margin: 0;
+		display: block;
+	}
+	.xp-frame img,
+	.xp-frame .xp-frame-empty {
+		display: block; width: 100%; aspect-ratio: 4 / 3;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		background: var(--sink);
+	}
+	.xp-frame img { object-fit: cover; box-shadow: var(--pop); }
+	/* Shown by the img's own onerror, so a frame with no file yet still reads as a frame
+	   rather than as a broken image. */
+	.xp-frame .xp-frame-empty { display: none; place-items: center; color: var(--ink-40); }
+	.xp-frame .xp-frame-empty :global(svg) { width: 26px; height: 26px; stroke-width: 1.4; }
+	.xp-frame.is-empty img { display: none; }
+	.xp-frame.is-empty .xp-frame-empty { display: grid; }
+	.xp-reel-note {
+		margin: 10px 0 0;
+		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		/* The rows stop and become strips you scroll yourself — every frame is still
+		   reachable, they just no longer come to you. */
+		.xp-track { animation: none; }
+		.xp-reel { overflow-x: auto; overscroll-behavior-x: contain; }
+	}
+
 	/* ============ THE SUBJECTS ============ */
 	/* ---- the subject cards ----
 	   Three equal columns that stay equal. The row used to redistribute its track sizes
