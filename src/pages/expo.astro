@@ -25,8 +25,6 @@ import iUsers from 'lucide-static/icons/users.svg?raw';
 import iSend from 'lucide-static/icons/send.svg?raw';
 import iMessage from 'lucide-static/icons/message-circle.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
-import iClock from 'lucide-static/icons/clock.svg?raw';
-import iLightbulb from 'lucide-static/icons/lightbulb.svg?raw';
 
 // The floor opens on the 30th. The countdown targets 00:00 IST that morning, written as
 // a UTC instant so it is the same moment for a reader in any timezone — IST is UTC+5:30,
@@ -315,14 +313,14 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			<p class="xp-reel-note mono">Hover to hold it still.</p>
 		</section>
 
-		{/* ---- the next ideation meeting ----
+		{/* ---- ideation meetings ----
 		    The one block on this page that is not written here: it comes off the events
 		    Worker so the Expo team can move a meeting without a deploy.
 
-		    The card is rendered SERVER-SIDE as dashes and only filled by script, the same
-		    way the countdown above it is. Two reasons: nothing jumps when the fetch lands,
-		    and every rule below stays in this page's scoped <style> — markup created at
-		    runtime would have needed :global() on all of it. */}
+		    A real <table>, because this is one: four columns of the same four facts, and
+		    the thing a reader does with it is scan down a column. The <thead> and the
+		    empty <tbody> are server-rendered so the shape is there before the fetch lands
+		    and nothing jumps when it does. */}
 		<section class="section" data-reveal>
 			<div class="sechead">
 				<span class="sechead-label">Ideation</span>
@@ -331,36 +329,23 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			</div>
 
 			<div class="xp-ide" id="xpIde" data-api={EVENTS_API}>
-				<article class="xp-ide-card" id="ideCard" hidden>
-					{/* A date stamp, not a third row of label/value cells. The card under the
-					    countdown already sets three facts out in a row; repeating that shape
-					    here would have made the two blocks read as the same thing said twice.
-					    A torn-off date beside the subject is how a meeting is actually
-					    announced, and it is the only place on the site that does it. */}
-					<time class="xp-ide-stamp" id="ideWhen" datetime="">
-						<span class="xp-ide-dow" id="ideDow">&mdash;</span>
-						<span class="xp-ide-day" id="ideDay">&mdash;</span>
-						<span class="xp-ide-mon" id="ideMon">&mdash;</span>
-					</time>
-
-					<div class="xp-ide-body">
-						<p class="xp-ide-kick mono"><span set:html={iLightbulb} />Next meeting</p>
-						<h3 class="xp-ide-subject" id="ideSubject">&mdash;</h3>
-
-						<p class="xp-ide-line">
-							<span class="xp-ide-bit"><span set:html={iClock} /><b id="ideTime">&mdash;</b></span>
-							<span class="xp-ide-sep" aria-hidden="true"></span>
-							<span class="xp-ide-bit"><span set:html={iMapPin} /><b id="ideVenue">&mdash;</b></span>
-						</p>
-					</div>
-				</article>
-
-				{/* Everything after the next one. The section used to say "2 more meetings
-				    after this one" and leave it at that, which told you they existed and
-				    then withheld them. The rows are built in script, so their rules below
-				    are :global() — this page's <style> is scoped, and a scoped rule never
-				    reaches an element that was not in the server-rendered HTML. */}
-				<ul class="xp-ide-rest" id="ideRest" hidden></ul>
+				{/* The wrapper scrolls, not the page: four columns do not fit a phone, and a
+				    table that makes the whole document scroll sideways is worse than one
+				    that scrolls inside its own box. */}
+				<div class="xp-ide-scroll" id="ideScroll" hidden>
+					<table class="xp-ide-table">
+						<caption class="xp-ide-cap">Upcoming ideation meetings</caption>
+						<thead>
+							<tr>
+								<th scope="col">Meeting</th>
+								<th scope="col">Date</th>
+								<th scope="col">Time</th>
+								<th scope="col">Venue</th>
+							</tr>
+						</thead>
+						<tbody id="ideBody"></tbody>
+					</table>
+				</div>
 
 				{/* Carries the loading, empty and failed states in turn. Starts as loading
 				    text rather than empty, so a slow network reads as "working" and not as
@@ -524,70 +509,69 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 		const api = box.dataset.api;
 		const $ = (id: string) => document.getElementById(id) as HTMLElement;
-		const card = $('ideCard'), note = $('ideNote'), meta = $('ideMeta'), rest = $('ideRest');
+		const scroll = $('ideScroll'), body = $('ideBody'), note = $('ideNote'), meta = $('ideMeta');
 
 		async function refresh() {
 			try {
 				const res = await fetch(api + '/api/ideation');
 				if (!res.ok) throw new Error(String(res.status));
 				const list = ((await res.json()) as { meetings?: any[] }).meetings ?? [];
-				const next = list[0];
 
-				if (!next) {
-					card.hidden = true;
-					rest.hidden = true;
-					rest.textContent = '';
+				if (!list.length) {
+					scroll.hidden = true;
+					body.textContent = '';
 					note.hidden = false;
 					note.textContent = 'No meeting on the calendar yet — check back, or ask on the group.';
 					meta.textContent = '';
 					return;
 				}
 
-				const when = readStamp(String(next.starts_at));
-				$('ideSubject').textContent = String(next.subject);
-				$('ideDow').textContent = when.dow;
-				$('ideDay').textContent = when.day;
-				$('ideMon').textContent = when.mon;
-				// On the <time> itself, so the machine-readable value can never disagree
-				// with the three pieces of it on screen.
-				$('ideWhen').setAttribute('datetime', when.iso);
-				$('ideTime').textContent = when.time;
-				$('ideVenue').textContent = String(next.venue);
-
-				// Everything after the next one, listed rather than counted.
-				rest.textContent = '';
-				for (const m of list.slice(1)) {
+				body.textContent = '';
+				list.forEach((m: any, i: number) => {
 					const w = readStamp(String(m.starts_at));
-					const li = document.createElement('li');
-					li.className = 'xp-ide-row';
+					const tr = document.createElement('tr');
+					// The soonest one is the one anybody came here for. A class, not a
+					// separate block above the table — it stays in the column it belongs to.
+					if (i === 0) tr.className = 'is-next';
 
-					const d = document.createElement('time');
-					d.className = 'xp-ide-rowdate mono';
-					d.dateTime = w.iso;
-					d.textContent = `${w.dow} ${w.day} ${w.mon}`;
-
-					const sub = document.createElement('span');
-					sub.className = 'xp-ide-rowsub';
+					const name = document.createElement('th');
+					name.scope = 'row';
+					name.className = 'xp-ide-name';
 					// textContent, not innerHTML: a subject is free text an admin typed.
-					sub.textContent = String(m.subject);
+					name.textContent = String(m.subject);
+					if (i === 0) {
+						const chip = document.createElement('span');
+						chip.className = 'xp-ide-next mono';
+						chip.textContent = 'NEXT';
+						name.append(chip);
+					}
 
-					const at = document.createElement('span');
-					at.className = 'xp-ide-rowmeta mono';
-					at.textContent = `${w.time} · ${m.venue}`;
+					const date = document.createElement('td');
+					date.className = 'xp-ide-date mono';
+					const t = document.createElement('time');
+					t.dateTime = w.iso;
+					t.textContent = `${w.dow} ${w.day} ${w.mon}`;
+					date.append(t);
 
-					li.append(d, sub, at);
-					rest.append(li);
-				}
-				rest.hidden = list.length < 2;
+					const time = document.createElement('td');
+					time.className = 'xp-ide-time mono';
+					time.textContent = w.time;
+
+					const venue = document.createElement('td');
+					venue.className = 'xp-ide-venue';
+					venue.textContent = String(m.venue);
+
+					tr.append(name, date, time, venue);
+					body.append(tr);
+				});
 
 				meta.innerHTML = `<b>${list.length}</b> scheduled`;
-				card.hidden = false;
+				scroll.hidden = false;
 				note.hidden = true;
 			} catch {
 				// A dead Worker must not leave "Checking the calendar…" on screen forever.
-				card.hidden = true;
-				rest.hidden = true;
-				rest.textContent = '';
+				scroll.hidden = true;
+				body.textContent = '';
 				note.hidden = false;
 				note.textContent = 'Could not reach the calendar just now.';
 				meta.textContent = '';
@@ -827,105 +811,78 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	}
 
 	/* ============ IDEATION ============
-	   One card, because the section answers one question. It is the only block on the
-	   page whose contents arrive over the network, so it is also the only one that has
-	   to look deliberate while empty — hence the note, which carries the loading, the
-	   nothing-scheduled and the cannot-reach states in turn rather than leaving a hole. */
+	   A table, because that is what this is: four columns of the same four facts, read by
+	   scanning down one of them. The rows are built in script, so their rules are
+	   :global() — this page's <style> is scoped and a scoped rule never reaches an element
+	   that was not in the server-rendered HTML. Every one is anchored on .xp-ide-table,
+	   which IS server-rendered, so nothing here escapes the section. */
 	.xp-ide { display: grid; }
-	.xp-ide-card {
-		display: grid; grid-template-columns: auto minmax(0, 1fr);
-		background: var(--primary);
+
+	.xp-ide-scroll {
+		overflow-x: auto; overscroll-behavior-x: contain;
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		box-shadow: var(--pop);
-		overflow: hidden;
-	}
-	.xp-ide-card[hidden] { display: none; }
-
-	/* The stamp. Ink ground and paper type, the same inversion the nav's active tab uses,
-	   so it reads as part of the site rather than as a widget dropped into it. */
-	.xp-ide-stamp {
-		display: flex; flex-direction: column; align-items: center; justify-content: center;
-		gap: 2px; padding: clamp(16px, 2vw, 24px) clamp(18px, 2.2vw, 28px);
-		background: var(--secondary); color: var(--primary);
-		text-align: center;
-	}
-	.xp-ide-dow, .xp-ide-mon {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
-		color: color-mix(in srgb, var(--primary) 66%, transparent);
-	}
-	/* The one big number on the card. Tabular figures so a 1 and a 4 sit at the same
-	   width and the stamp does not change size from one meeting to the next. */
-	.xp-ide-day {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(38px, 5vw, 62px); line-height: .92;
-		letter-spacing: -.04em; font-variant-numeric: tabular-nums;
-	}
-	.xp-ide-mon { color: var(--accent); }
-
-	.xp-ide-body {
-		display: flex; flex-direction: column; justify-content: center;
-		padding: clamp(18px, 2.3vw, 28px);
-	}
-	.xp-ide-kick {
-		margin: 0 0 9px; display: flex; align-items: center; gap: 8px;
-		font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-60);
-	}
-	.xp-ide-kick :global(svg) { width: 14px; height: 14px; stroke-width: 1.9; color: var(--accent); }
-	.xp-ide-subject {
-		margin: 0; max-width: 26ch;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(18px, 2.4vw, 28px); line-height: 1.16;
-		letter-spacing: -.02em; text-wrap: balance; color: var(--secondary);
-	}
-	/* Time and venue on one line. They are two short facts, and giving each a labelled
-	   cell of its own was what made the old version look like a form. */
-	.xp-ide-line {
-		margin: clamp(12px, 1.5vw, 16px) 0 0;
-		display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
-	}
-	.xp-ide-bit { display: inline-flex; align-items: center; gap: 7px; }
-	.xp-ide-bit :global(svg) { width: 14px; height: 14px; stroke-width: 1.8; color: var(--accent); }
-	.xp-ide-bit b {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: clamp(12.5px, 1.2vw, 15px); letter-spacing: -.01em;
-		color: var(--secondary);
-	}
-	.xp-ide-sep { width: 5px; height: 5px; background: var(--hair); }
-
-	/* The ones after the next. Rules are :global() because the rows are built in script
-	   and this page's <style> is scoped — the anchor stays on .xp-ide-rest, which IS
-	   server-rendered, so nothing here leaks past this section. */
-	.xp-ide-rest {
-		list-style: none; margin: 10px 0 0; padding: 0;
-		display: flex; flex-direction: column; gap: var(--stroke);
-		background: var(--hair);
-		border: 1.5px solid var(--hair); border-radius: var(--r);
-		overflow: hidden;
-	}
-	.xp-ide-rest[hidden] { display: none; }
-	.xp-ide-rest :global(.xp-ide-row) {
-		display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-		align-items: baseline; gap: 14px;
-		padding: 11px clamp(14px, 1.6vw, 18px);
 		background: var(--primary);
 	}
-	/* Tabular figures and a fixed measure: the dates are a column, and a column that
-	   jogs left and right as the day number changes width is not one. */
-	.xp-ide-rest :global(.xp-ide-rowdate) {
-		font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
-		color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap;
+	.xp-ide-scroll[hidden] { display: none; }
+
+	.xp-ide-table {
+		width: 100%; min-width: 520px;
+		border-collapse: collapse;
+		text-align: left;
 	}
-	.xp-ide-rest :global(.xp-ide-rowsub) {
+	/* Named for a screen reader, off-screen for everyone else. The section's own heading
+	   is decorative markup that cannot be associated with a table. */
+	.xp-ide-cap {
+		position: absolute; width: 1px; height: 1px;
+		margin: -1px; padding: 0; overflow: hidden;
+		clip-path: inset(50%); white-space: nowrap;
+	}
+	/* Both selectors, and the tbody one is :global(). A scoped `.xp-ide-table td` reaches
+	   the <thead> because that is in the server-rendered HTML, and silently does NOT reach
+	   the body cells, which script builds — which showed up as a properly padded header
+	   sitting on top of rows 27px tall. */
+	.xp-ide-table thead th,
+	.xp-ide-table :global(tbody th), .xp-ide-table :global(tbody td) {
+		padding: 12px clamp(12px, 1.5vw, 18px);
+		vertical-align: baseline;
+	}
+	.xp-ide-table thead th {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; font-weight: 400; letter-spacing: .2em; text-transform: uppercase;
+		color: var(--ink-60);
+		background: var(--sink);
+		border-bottom: var(--stroke) solid var(--secondary);
+		white-space: nowrap;
+	}
+	/* The rule belongs to the row above, so the last one does not draw a line against the
+	   table's own border. */
+	.xp-ide-table :global(tbody tr + tr) { border-top: 1.5px solid var(--hair); }
+
+	.xp-ide-table :global(.xp-ide-name) {
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: clamp(11.5px, 1.1vw, 13.5px); letter-spacing: -.01em;
+		font-weight: 800; font-size: clamp(12.5px, 1.2vw, 14.5px); letter-spacing: -.01em;
 		color: var(--secondary);
-		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		display: flex; align-items: baseline; gap: 9px;
 	}
-	.xp-ide-rest :global(.xp-ide-rowmeta) {
-		font-size: 9.5px; letter-spacing: .08em; color: var(--ink-60);
-		white-space: nowrap; text-align: right;
+	/* The soonest meeting, marked in the column it belongs to rather than lifted out into
+	   a block of its own above the table. */
+	.xp-ide-table :global(.xp-ide-next) {
+		flex: none; padding: 2px 6px;
+		font-size: 8.5px; letter-spacing: .16em;
+		color: var(--primary); background: var(--accent); border-radius: 1px;
 	}
+	/* Tabular figures down both: a column of dates that jogs left and right as the day
+	   number changes width is not a column. */
+	.xp-ide-table :global(.xp-ide-date),
+	.xp-ide-table :global(.xp-ide-time) {
+		font-size: 11px; letter-spacing: .06em; color: var(--ink-60);
+		font-variant-numeric: tabular-nums; white-space: nowrap;
+	}
+	.xp-ide-table :global(.xp-ide-date) { text-transform: uppercase; color: var(--accent); }
+	.xp-ide-table :global(.xp-ide-venue) {
+		font-size: 12.5px; color: var(--secondary);
+	}
+	.xp-ide-table :global(tbody tr:hover) { background: var(--sink); }
 
 	.xp-ide-note {
 		margin: 0; padding: clamp(18px, 2.2vw, 26px);
@@ -933,70 +890,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		border: 1.5px dashed var(--hair); border-radius: var(--r);
 	}
 	.xp-ide-note[hidden] { display: none; }
-
-	@media (max-width: 560px) {
-		/* The stamp goes across the top and lies down: a column of ink down the side of a
-		   narrow card leaves the subject about twelve characters of room. */
-		.xp-ide-card { grid-template-columns: minmax(0, 1fr); }
-		.xp-ide-stamp { flex-direction: row; align-items: baseline; gap: 10px; padding: 12px 16px; }
-		.xp-ide-day { font-size: 30px; }
-		/* Three columns of this on a phone leaves the subject about eight characters. */
-		.xp-ide-rest :global(.xp-ide-row) { grid-template-columns: minmax(0, 1fr); gap: 3px; }
-		.xp-ide-rest :global(.xp-ide-rowsub) { white-space: normal; }
-		.xp-ide-rest :global(.xp-ide-rowmeta) { text-align: left; }
-	}
-	}
-
-	/* ============ LAST YEAR ============
-	   Two rows of five, travelling opposite ways. The frames in each row are rendered
-	   TWICE and the track travels exactly -50%, so the second copy lands where the first
-	   began and neither loop can show a seam.
-
-	   No mask on these: a gradient mask over a moving strip repaints the whole masked band
-	   every frame, which is what cost this page 48 frames in 150 when the sky had one. The
-	   rows are full-bleed to the frame's edge instead, which reads as continuing past the
-	   page anyway. */
-	.xp-reels { display: flex; flex-direction: column; gap: 12px; }
-	.xp-reel { overflow: hidden; margin: 0 calc(-1 * clamp(0px, 2vw, 28px)); }
-	.xp-track {
-		display: flex; width: max-content;
-		animation: xp-roll 52s linear infinite;
-		will-change: transform;
-	}
-	[data-dir='rev'] .xp-track { animation-direction: reverse; animation-duration: 61s; }
-	@keyframes xp-roll { to { transform: translateX(-50%); } }
-	/* A frame you are trying to look at must stop moving — and both rows stop, or the one
-	   you are not pointing at keeps sliding under your eye. */
-	.xp-reels:hover .xp-track, .xp-reels:focus-within .xp-track { animation-play-state: paused; }
-	.xp-run { display: flex; gap: 12px; padding: 3px 6px; }
-
-	.xp-frame {
-		flex: none; width: clamp(190px, 21vw, 270px); margin: 0;
-		display: block;
-	}
-	.xp-frame img,
-	.xp-frame .xp-frame-empty {
-		display: block; width: 100%; aspect-ratio: 4 / 3;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		background: var(--sink);
-	}
-	.xp-frame img { object-fit: cover; box-shadow: var(--pop); }
-	/* Shown by the img's own onerror, so a frame with no file yet still reads as a frame
-	   rather than as a broken image. */
-	.xp-frame .xp-frame-empty { display: none; place-items: center; color: var(--ink-40); }
-	.xp-frame .xp-frame-empty :global(svg) { width: 26px; height: 26px; stroke-width: 1.4; }
-	.xp-frame.is-empty img { display: none; }
-	.xp-frame.is-empty .xp-frame-empty { display: grid; }
-	.xp-reel-note {
-		margin: 10px 0 0;
-		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
-	}
-	@media (prefers-reduced-motion: reduce) {
-		/* The rows stop and become strips you scroll yourself — every frame is still
-		   reachable, they just no longer come to you. */
-		.xp-track { animation: none; }
-		.xp-reel { overflow-x: auto; overscroll-behavior-x: contain; }
-	}
 
 	/* ============ THE SUBJECTS ============ */
 	/* ---- the subject cards ----
