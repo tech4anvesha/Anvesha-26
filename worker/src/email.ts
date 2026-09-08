@@ -20,6 +20,22 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 // address that owns the Resend account — set MAIL_FROM once a domain is verified.
 const DEFAULT_FROM = "Anvesha '26 <onboarding@resend.dev>";
 
+/**
+ * Where a reply goes, which is NOT where the mail comes from.
+ *
+ * Resend will only send `from` a domain verified in the Resend account, and it enforces
+ * that hard — an unverified domain is a 403 and no email at all. Verified here:
+ * anvesha26.in. NOT verified, and never going to be: iisertvm.ac.in, which is the
+ * institute's own domain and would need IISER's IT to publish DKIM records letting this
+ * account send as the whole institute.
+ *
+ * So the From stays on the domain we own and Reply-To carries the address a buyer should
+ * actually reach. Hitting Reply on the confirmation lands in the STC inbox, which is the
+ * thing that was wanted; the envelope sender is a deliverability constraint, not a
+ * preference.
+ */
+const DEFAULT_REPLY_TO = 'stc@iisertvm.ac.in';
+
 const INK = '#0b0b0f';
 const ACCENT = '#9333ea'; // keep in sync with --accent in src/styles/theme.css
 const PAPER = '#ffffff';
@@ -189,6 +205,10 @@ export async function sendOrderEmail(env: Env, o: OrderEmail): Promise<boolean> 
 			},
 			body: JSON.stringify({
 				from: env.MAIL_FROM || DEFAULT_FROM,
+				// Resend's field is reply_to, not replyTo — it is silently ignored if
+				// misspelled, and a silently ignored Reply-To sends every buyer's question
+				// to a mailbox nobody reads.
+				reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
 				to: [o.to],
 				subject: `Your Anvesha '26 order — ${o.orderId}`,
 				html: html(o),

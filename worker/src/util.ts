@@ -13,6 +13,7 @@ export interface Env {
 	// Confirmation email. Unset means no mail is sent — the order still completes.
 	RESEND_API_KEY?: string;
 	MAIL_FROM?: string;
+	MAIL_REPLY_TO?: string;
 	MONEY_RL: RateLimit;
 	HUB: DurableObjectNamespace<import('./hub.ts').CatalogueHub>;
 }
