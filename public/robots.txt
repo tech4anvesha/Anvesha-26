@@ -1,0 +1,11 @@
+# Anvesha '26
+#
+# Everything public is fair game. The two exceptions are not secrets — both are
+# enforced server-side and both send noindex of their own — but there is no reason
+# for a crawler to spend requests on a login wall or a volunteer's scanner screen.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /distribution
+
+Sitemap: https://www.anvesha26.in/sitemap-index.xml

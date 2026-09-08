@@ -27,7 +27,10 @@ const ADMIN_NAV = [
 ];
 ---
 
-<SiteLayout title={title} nav={ADMIN_NAV} brandHref="/admin/merch" brandTag="ADMIN" srijana>
+{/* noindex on the panel itself, not only in robots.txt. robots.txt asks a crawler not
+    to FETCH a page, which means a URL it learns about elsewhere can still be listed with
+    no description — the meta tag is what actually keeps it out of results. */}
+<SiteLayout title={title} nav={ADMIN_NAV} brandHref="/admin/merch" brandTag="ADMIN" srijana noindex>
 	<div slot="tools" class="who">
 		<span class="who-name" data-who>—</span>
 		<button class="btn signout" id="signOut" type="button" title="Sign out">

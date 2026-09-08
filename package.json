@@ -7,11 +7,13 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "dev:testpay": "PUBLIC_API_URL=http://127.0.0.1:8787 astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.2.0",
     "gsap": "^3.15.0",

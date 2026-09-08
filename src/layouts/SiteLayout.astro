@@ -32,6 +32,10 @@ export interface NavItem {
 
 interface Props {
 	title?: string;
+	/** The sentence Google prints under the title. Every public page sets its own. */
+	description?: string;
+	/** Keep this page out of search results. The admin shell sets it. */
+	noindex?: boolean;
 	/** Override the tabs — the admin panel ships its own set. Defaults to the site nav. */
 	nav?: NavItem[];
 	/** Where the wordmark points. Admin keeps you inside the panel. */
@@ -62,7 +66,8 @@ const SITE_NAV: NavItem[] = [
 const SRIJANA = 'https://pragunnepal.github.io/Srijana/';
 
 const {
-	title = "Anvesha '26", nav = SITE_NAV, brandHref = '/', brandTag, srijana = false,
+	title = "Anvesha '26", description, noindex = false,
+	nav = SITE_NAV, brandHref = '/', brandTag, srijana = false,
 } = Astro.props;
 
 // The home hero already carries ANVESHA '26 at full size, so repeating the wordmark in
@@ -78,7 +83,7 @@ const here = Astro.url.pathname.replace(/\/$/, '') || '/';
 const hasTools = Astro.slots.has('tools');
 ---
 
-<Layout title={title}>
+<Layout title={title} description={description} noindex={noindex}>
 	<Fragment slot="head">
 		{/* ponytail: this flag is what lets the CSS hide anything at all. It is set by
 		    inline JS before first paint, so a browser with JS off (or a bundle that never

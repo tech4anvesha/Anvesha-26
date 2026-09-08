@@ -179,7 +179,72 @@ const TICKER = [
 ];
 ---
 
-<SiteLayout title="Anvesha '26">
+{/* The title carries the institute and the words "science fest" on purpose. Someone
+    searching "anvesha" alone gets a Sanskrit dictionary and three unrelated companies;
+    the words that separate this from those have to be IN the title, not only on the
+    page. It stays under ~60 characters so Google does not truncate it. */}
+<SiteLayout
+	title="Anvesha '26 — IISER Thiruvananthapuram Science Fest"
+	description="Anvesha is the annual science fest of IISER Thiruvananthapuram. Three days of exhibitions, keynote talks, competitions and student-led innovation — 11-13 September 2026, open to all."
+>
+	{/* Structured data. This is the difference between Google reading a page of words and
+	    knowing there is a THING here called Anvesha, run by IISER TVM, happening on
+	    specific dates at a specific place. It is also what feeds the knowledge panel when
+	    somebody searches the name.
+
+	    Two objects: the Organization is what the fest IS, the Event is what it is DOING
+	    this year. sameAs is how Google connects the name to the social accounts already
+	    ranking for it. */}
+	<Fragment slot="head">
+		<script type="application/ld+json" is:inline set:html={JSON.stringify({
+			'@context': 'https://schema.org',
+			'@graph': [
+				{
+					'@type': 'Organization',
+					'@id': 'https://www.anvesha26.in/#organization',
+					name: 'Anvesha',
+					alternateName: "Anvesha '26",
+					description: 'The annual science fest of IISER Thiruvananthapuram.',
+					url: 'https://www.anvesha26.in/',
+					email: 'hello@anvesha26.in',
+					parentOrganization: {
+						'@type': 'CollegeOrUniversity',
+						name: 'Indian Institute of Science Education and Research Thiruvananthapuram',
+						alternateName: 'IISER TVM',
+						url: 'https://www.iisertvm.ac.in/',
+					},
+					sameAs: SOCIALS.map((s) => s.href),
+				},
+				{
+					'@type': 'Event',
+					name: "Anvesha '26",
+					description: 'Three days of exhibitions, keynote talks, competitions and '
+						+ 'student-led innovation at IISER Thiruvananthapuram.',
+					startDate: '2026-09-11',
+					endDate: '2026-09-13',
+					eventStatus: 'https://schema.org/EventScheduled',
+					eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+					url: 'https://www.anvesha26.in/',
+					image: 'https://www.anvesha26.in/img/hero-flare.jpg',
+					organizer: { '@id': 'https://www.anvesha26.in/#organization' },
+					location: {
+						'@type': 'Place',
+						name: 'IISER Thiruvananthapuram',
+						address: {
+							'@type': 'PostalAddress',
+							streetAddress: 'Maruthamala P.O., Vithura',
+							addressLocality: 'Thiruvananthapuram',
+							addressRegion: 'Kerala',
+							postalCode: '695551',
+							addressCountry: 'IN',
+						},
+					},
+					// Free and open, said in the vocabulary Google reads.
+					isAccessibleForFree: true,
+				},
+			],
+		})} />
+	</Fragment>
 	<Fragment slot="head">
 		{/* Hides the real wordmark before first paint, so it cannot flash in finished and
 		    then be replaced by the particle build. Mirrors the shell's own [data-anim]

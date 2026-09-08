@@ -1,6 +1,29 @@
 ---
 import { ClientRouter } from 'astro:transitions';
-const { title = 'Astro Basics' } = Astro.props;
+
+interface Props {
+	title?: string;
+	/** The sentence Google prints under the title. ~155 chars before it is cut. */
+	description?: string;
+	/** Social card image, relative to the site root. */
+	image?: string;
+	/** Keep this page out of search results. The admin panel sets it. */
+	noindex?: boolean;
+}
+
+const {
+	title = "Anvesha '26",
+	description = "Anvesha is the annual science fest of IISER Thiruvananthapuram — three days of "
+		+ 'exhibitions, keynote talks, competitions and student-led innovation, open to all.',
+	image = '/img/hero-flare.jpg',
+	noindex = false,
+} = Astro.props;
+
+// Built against `site` in astro.config, so these are absolute and point at the host that
+// actually serves. A canonical is what tells Google that /events and /events/ and any
+// ?utm-tagged copy are one page rather than three competing ones.
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL(image, Astro.site).href;
 ---
 <!doctype html>
 <html lang="en">
@@ -10,7 +33,25 @@ const { title = 'Astro Basics' } = Astro.props;
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
+
 		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+		{/* What a link to this site looks like when it is pasted into WhatsApp, Instagram
+		    or a college group — which is how most people will meet it. Without these the
+		    preview is a bare URL. */}
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Anvesha '26" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={ogImage} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={ogImage} />
 		{/* client-side routing: only the page body is swapped, so the shell never reloads */}
 		<ClientRouter />
 		<slot name="head" />

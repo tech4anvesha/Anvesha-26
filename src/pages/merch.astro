@@ -12,7 +12,10 @@ import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 ---
 
-<SiteLayout title="Merch · Anvesha '26">
+<SiteLayout
+	title="Merch · Anvesha '26"
+	description="Official Anvesha '26 merchandise — tees, hoodies and more from the IISER Thiruvananthapuram science fest."
+>
 	<button slot="tools" id="cartToggle" class="btn bagbtn" aria-label="Open bag">
 		<span class="bagicon" set:html={shoppingCart}></span>
 		<span class="bagword">BAG</span>
@@ -930,6 +933,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		resetProgress();
 
 		let currentOrder: string | null = null;
+		// Which path this order takes, decided by the server at checkout — the browser
+		// never picks. `direct` is the counter flow; `razorpay` opens the gateway.
+		let payMode: 'direct' | 'razorpay' = 'direct';
+		let rzpOrder: { order_id: string; amount: number; currency: string; key_id: string | null } | null = null;
 		type ReceiptData = {
 			order_id: string; transaction_id: string; total_price_paise: number;
 			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
@@ -991,6 +998,8 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				if (!res.ok) throw new Error(data.message || data.error || 'Checkout failed');
 
 				currentOrder = data.order_id;
+				payMode = data.mode === 'razorpay' ? 'razorpay' : 'direct';
+				rzpOrder = data.razorpay ?? null;
 				orderItems.innerHTML = data.items
 					.map((l: any) =>
 						`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
@@ -1012,6 +1021,142 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			}
 		};
 
+		/** Paints the paid face from a settled order and hands the student their pass. */
+		function showReceipt(data: any) {
+			orderIdEl.textContent = data.order_id;
+			txnIdEl.textContent = data.transaction_id ?? data.razorpay_transaction_id ?? '';
+			paidTotal.textContent = rupees(data.total_price_paise);
+			receiptNameEl.textContent = data.customer?.name ?? '';
+			receiptItemsEl.innerHTML = data.items
+				.map((l: any) =>
+					`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
+					`<b>${rupees(l.line_total_paise)}</b></li>`)
+				.join('');
+			lastReceipt = { order_id: data.order_id,
+				transaction_id: data.transaction_id ?? data.razorpay_transaction_id ?? '',
+				total_price_paise: data.total_price_paise, items: data.items,
+				name: data.customer?.name ?? '', roll_number: data.customer?.rollNumber ?? '' };
+			drawQR(qrCanvas, data.order_id);
+
+			// The order is settled server-side; clear the bag so a refresh cannot
+			// re-checkout the same items.
+			cart = {}; saveCart(); renderCart();
+			payForm.reset();
+			setFace('paid');
+
+			// Save the pass to the student's device without waiting to be asked — the
+			// QR is the only proof of purchase, and a closed tab loses it. Deliberately
+			// not awaited: a failed or blocked download must not surface as a payment
+			// error on an order that already succeeded. The DOWNLOAD button stays as
+			// the retry, and on iOS Safari (which ignores `download`) it is the real
+			// path — there the image opens in a tab to be long-pressed instead.
+			saveReceipt().catch((e) => console.warn('receipt auto-save failed', e));
+		}
+
+		// ---- Razorpay Checkout ----
+		// Loaded on demand, not in <head>: most visits to this page never reach a
+		// payment, and until the gateway is switched on none of them do. A third-party
+		// script that only the last step needs should not be on the critical path of
+		// every catalogue browse.
+		let rzpScript: Promise<void> | null = null;
+		function loadCheckout(): Promise<void> {
+			rzpScript ??= new Promise<void>((resolve, reject) => {
+				const el = document.createElement('script');
+				el.src = 'https://checkout.razorpay.com/v1/checkout.js';
+				el.onload = () => resolve();
+				// Null the cache on failure so a retry re-requests rather than replaying
+				// the rejection for the rest of the session.
+				el.onerror = () => { rzpScript = null; reject(new Error('Could not reach Razorpay. Check your connection and try again.')); };
+				document.head.appendChild(el);
+			});
+			return rzpScript;
+		}
+
+		/**
+		 * Waits for the webhook to settle an order the browser could not.
+		 *
+		 * Reached when a payment is authorised but not yet captured — real money, just
+		 * not taken yet. Razorpay's own server-to-server call finishes the job a moment
+		 * later, so this polls the order the shopper already owns rather than showing a
+		 * failure for a payment that actually went through.
+		 */
+		async function awaitSettlement(orderId: string, tries = 10): Promise<any> {
+			for (let i = 0; i < tries; i++) {
+				await new Promise((r) => setTimeout(r, 1500));
+				const res = await fetch(`${API}/api/orders/${encodeURIComponent(orderId)}`);
+				if (!res.ok) continue;
+				const o = await res.json();
+				if (o.payment_status === 'paid') return o;
+			}
+			throw new Error(
+				'Your payment went through but is still being confirmed. ' +
+				'Your order id is ' + orderId + ' — show it at the counter, or check your email in a few minutes.',
+			);
+		}
+
+		/** Opens the gateway and resolves once the order is settled. */
+		function payWithRazorpay(orderId: string, name: string, email: string, phone: string): Promise<any> {
+			return new Promise((resolve, reject) => {
+				const rzp = new (window as any).Razorpay({
+					key: rzpOrder!.key_id,
+					order_id: rzpOrder!.order_id,
+					amount: rzpOrder!.amount,
+					currency: rzpOrder!.currency,
+					name: "Anvesha '26",
+					description: 'Merch order ' + orderId,
+					// `method: 'upi'` opens Checkout on the UPI tab rather than on cards.
+					// Nearly everyone buying this is a student paying by UPI, so landing
+					// anywhere else costs them a tap for no reason.
+					prefill: { name, email, contact: phone, method: 'upi' },
+					theme: { color: '#7C3AED' },
+					// Promotes UPI to the top of the method list. `show_default_blocks: true`
+					// is load-bearing: without it this becomes an allow-list and every other
+					// way to pay disappears, which on a phone with no UPI app is a dead end.
+					//
+					// The `intent` flow is what draws the GPay / PhonePe / Paytm buttons that
+					// hand off to the app with the amount already filled in. It renders on
+					// MOBILE ONLY — a desktop browser has no app to open, so Razorpay falls
+					// back to a QR code and a VPA box there no matter what this says.
+					config: {
+						display: {
+							blocks: {
+								upi: { name: 'Pay by UPI', instruments: [{ method: 'upi', flows: ['intent', 'qr', 'collect'] }] },
+							},
+							sequence: ['block.upi'],
+							preferences: { show_default_blocks: true },
+						},
+					},
+					// Razorpay hands these three to the browser; the worker re-derives the
+					// signature and reads the payment back from Razorpay before it believes
+					// any of them. Nothing here is trusted on the client's word.
+					handler: async (r: any) => {
+						try {
+							const res = await fetch(API + '/api/verify-payment', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									razorpay_order_id: r.razorpay_order_id,
+									razorpay_payment_id: r.razorpay_payment_id,
+									razorpay_signature: r.razorpay_signature,
+								}),
+							});
+							const data = await res.json();
+							if (!res.ok) throw new Error(data.message || data.error || 'Payment could not be verified');
+							resolve(data.settled ? data : await awaitSettlement(orderId));
+						} catch (err) { reject(err); }
+					},
+					modal: {
+						// Dismissed without paying. Not an error — the order is still there,
+						// unpaid, and the same details can be resubmitted against it.
+						ondismiss: () => reject(new Error('Payment cancelled. Your order is still waiting — press PAY to try again.')),
+					},
+				});
+				rzp.on('payment.failed', (e: any) =>
+					reject(new Error(e?.error?.description || 'The payment failed. No money has been taken — please try again.')));
+				rzp.open();
+			});
+		}
+
 		// ---- 2. details -> paid ----
 		payForm.onsubmit = async (e) => {
 			e.preventDefault();
@@ -1019,6 +1164,45 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 
 			payBtn.disabled = true;
 			payErr.hidden = true;
+
+			// The gateway path leaves the form up while Checkout is open: the popup sits
+			// over it, and dismissing it has to come back to editable details, not to a
+			// progress bar for a payment that never started.
+			if (payMode === 'razorpay') {
+				try {
+					if (!rzpOrder?.key_id) throw new Error('The payment gateway is not configured. Please tell the merch team.');
+					await loadCheckout();
+
+					// Who is buying, stored against the order BEFORE the money moves.
+					// Razorpay never learns a roll number, so if this is not on the order
+					// when the webhook lands, the counter cannot find it later.
+					const cust = { name: fName.value, roll_number: fRoll.value, phone: fPhone.value, email: fEmail.value };
+					const attach = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/customer`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(cust),
+					});
+					const attached = await attach.json();
+					// The server owns the rules for name, roll, phone and email, so its
+					// message is the one shown — the browser keeps no second copy of them.
+					if (!attach.ok) throw new Error(attached.message || attached.error || 'Please check your details');
+
+					const paid = await payWithRazorpay(currentOrder, cust.name, cust.email, cust.phone);
+					setFace('processing');
+					startProgress();
+					finishProgress();
+					await new Promise((r) => setTimeout(r, 420));
+					showReceipt(paid);
+				} catch (err) {
+					setFace('details');
+					payErr.textContent = (err as Error).message;
+					payErr.hidden = false;
+				} finally {
+					payBtn.disabled = false;
+					resetProgress();
+				}
+				return;
+			}
 
 			// The form is replaced, not merely disabled — the details behind a payment in
 			// flight must not be editable, and there is nothing to do here but wait.
@@ -1047,33 +1231,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				finishProgress();
 				await new Promise((r) => setTimeout(r, 420));
 
-				orderIdEl.textContent = data.order_id;
-				txnIdEl.textContent = data.transaction_id;
-				paidTotal.textContent = rupees(data.total_price_paise);
-				receiptNameEl.textContent = data.customer?.name ?? '';
-				receiptItemsEl.innerHTML = data.items
-					.map((l: any) =>
-						`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
-						`<b>${rupees(l.line_total_paise)}</b></li>`)
-					.join('');
-				lastReceipt = { order_id: data.order_id, transaction_id: data.transaction_id,
-					total_price_paise: data.total_price_paise, items: data.items,
-					name: data.customer?.name ?? '', roll_number: data.customer?.rollNumber ?? '' };
-				drawQR(qrCanvas, data.order_id);
-
-				// The order is settled server-side; clear the bag so a refresh cannot
-				// re-checkout the same items.
-				cart = {}; saveCart(); renderCart();
-				payForm.reset();
-				setFace('paid');
-
-				// Save the pass to the student's device without waiting to be asked — the
-				// QR is the only proof of purchase, and a closed tab loses it. Deliberately
-				// not awaited: a failed or blocked download must not surface as a payment
-				// error on an order that already succeeded. The DOWNLOAD button stays as
-				// the retry, and on iOS Safari (which ignores `download`) it is the real
-				// path — there the image opens in a tab to be long-pressed instead.
-				saveReceipt().catch((e) => console.warn('receipt auto-save failed', e));
+				showReceipt(data);
 			} catch (err) {
 				// Back to the form with the details intact, so a rejected phone or email can
 				// be corrected and resubmitted against the same order.
