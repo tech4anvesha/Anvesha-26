@@ -105,6 +105,28 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		<div class="m-grid" id="mGrid"></div>
 	</div>
 
+	<!-- ============ SHOP CLOSED ============
+	     Shown instead of everything above when the release switch is off. Hidden by
+	     default rather than shown-then-hidden: the shop is open far more often than it
+	     is shut, and a closed panel flashing on every load would be worse than the one
+	     frame of empty catalogue it saves. -->
+	<section class="soon scroll-y" id="soon" hidden>
+		<div class="soon-card">
+			<p class="soon-kick mono">
+				<span class="soon-tick" aria-hidden="true"></span>Anvesha &rsquo;26 &middot; Merch
+			</p>
+			<h1 class="soon-title">DROPPING<br />SOON</h1>
+			<p class="soon-text">
+				The store is being stitched together. Tees, stickers and the rest of it go on
+				sale here shortly &mdash; check back, or watch our socials for the drop.
+			</p>
+			<div class="soon-rule" aria-hidden="true">
+				<span></span><b></b><span></span>
+			</div>
+			<p class="soon-meta mono">Bag stays where you left it</p>
+		</div>
+	</section>
+
 	<Fragment slot="overlays">
 		<!-- ============ CART DRAWER ============ -->
 <aside id="cart" class="drawer" aria-label="Your bag" aria-hidden="true">
@@ -349,10 +371,13 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	const rupees = (paise: number) =>
 		'₹' + (paise % 100 === 0 ? String(paise / 100) : (paise / 100).toFixed(2));
 
-	async function loadCatalog(): Promise<Cat[]> {
+	async function loadCatalog(): Promise<{ released: boolean; cats: Cat[] }> {
 		const res = await fetch(API + '/api/merch');
 		if (!res.ok) throw new Error('Catalogue request failed: ' + res.status);
-		const { merch } = (await res.json()) as { merch: ApiMerch[] };
+		const { merch, released } = (await res.json()) as { merch: ApiMerch[]; released?: boolean };
+		// Absent means an API older than the switch, which is open by definition —
+		// matching the worker's own default, so the two cannot disagree.
+		const open = released !== false;
 
 		// Group into the tree's category buckets, preserving the order the API sent.
 		const byCat = new Map<string, Cat>();
@@ -377,7 +402,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				})),
 			});
 		}
-		return [...byCat.values()];
+		return { released: open, cats: [...byCat.values()] };
 	}
 
 	/**
@@ -1501,9 +1526,30 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		mSizeBtn.onclick = () => openSize(true);
 
 		// ---- boot ----
+		/**
+		 * Swaps the page between the shop and the closed notice.
+		 *
+		 * The bag button goes with it: left up over a "dropping soon" page it would
+		 * invite a checkout against a catalogue the server will no longer price.
+		 */
+		const heroEl = document.querySelector<HTMLElement>('.hero');
+		const mShopEl = document.querySelector<HTMLElement>('.m-shop');
+		const soonEl = $('soon');
+		const bagBtn = $('cartToggle');
+		function setShopOpen(open: boolean) {
+			if (heroEl) heroEl.hidden = !open;
+			if (mShopEl) mShopEl.hidden = !open;
+			soonEl.hidden = open;
+			bagBtn.hidden = !open;
+			if (!open) { openCart(false); openPay(false); }
+		}
+
 		// Everything above is wiring; nothing renders until the catalogue arrives.
+		let released: boolean;
 		try {
-			catalog = await loadCatalog();
+			const first = await loadCatalog();
+			released = first.released;
+			catalog = first.cats;
 		} catch (e) {
 			// A dead API must say so plainly. Silently showing an empty shop would look
 			// like the fest sold out.
@@ -1512,6 +1558,22 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				`<br />Is the worker running on ${API}?</small></p>`;
 			return;
 		}
+		// Closed on purpose, which is not the same as empty. The notice goes up and the
+		// shop never renders — there is nothing to render, the API sent no items.
+		if (!released) {
+			setShopOpen(false);
+			// Still subscribed: an admin opening the shop should reach this tab without
+			// the shopper reloading, exactly as a price change does.
+			stopLive?.();
+			stopLive = onCatalogueChange(async () => {
+				const fresh = await loadCatalog().catch(() => null);
+				if (!fresh?.released || !fresh.cats.length) return;
+				location.reload();
+			});
+			return;
+		}
+		setShopOpen(true);
+
 		if (!catalog.length) {
 			treeEl.innerHTML = `<p class="load-err">No merch on sale yet.</p>`;
 			return;
@@ -1530,9 +1592,14 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		stopLive = onCatalogueChange(async () => {
 			const openId = item?.id;
 			const fresh = await loadCatalog().catch(() => null);
-			if (!fresh?.length) return; // a blip must not blank a working shop
+			if (!fresh) return;
 
-			catalog = fresh;
+			// A deliberate close is the one case that MAY blank a working shop, so it is
+			// checked before the guard below rather than being caught by it.
+			if (!fresh.released) { catalog = []; setShopOpen(false); return; }
+			if (!fresh.cats.length) return; // a blip must not blank a working shop
+
+			catalog = fresh.cats;
 			buildTree();
 			renderMCats();
 			renderMGrid();
@@ -2444,6 +2511,54 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		/* the drawer is full-width on a phone */
 		.drawer { width: 100%; max-width: none; }
 	}
+
+	/* ============ SHOP CLOSED ============
+	   Deliberately quiet: one card on the page's own dot matrix. A closed shop should
+	   read as "not yet", not as an error, so it borrows the site's furniture — the
+	   accent tick from .crumb, the cross-rule from .divider — rather than inventing a
+	   look of its own. */
+	.soon {
+		flex: 1; min-height: 0;
+		display: grid; place-items: center;
+		padding: clamp(24px, 5vw, 60px);
+		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
+		background-size: 22px 22px;
+	}
+	.soon-card {
+		width: min(560px, 100%);
+		display: flex; flex-direction: column; align-items: center; text-align: center;
+		padding: clamp(28px, 4.5vw, 46px) clamp(22px, 4vw, 44px);
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop-lg);
+	}
+	.soon-kick {
+		display: flex; align-items: center; gap: 11px; margin: 0 0 18px;
+		font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--ink-40);
+	}
+	.soon-tick { flex: none; width: 16px; height: 1.5px; background: var(--accent); }
+	.soon-title {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: clamp(38px, 7vw, 68px);
+		line-height: .9; letter-spacing: -0.02em; text-transform: uppercase;
+		/* Same guard as .title: a long word in a display face outgrows its box and
+		   would run straight out of the card. */
+		overflow-wrap: anywhere;
+	}
+	.soon-text {
+		margin: 18px 0 0; max-width: 46ch;
+		font-style: italic; font-size: 14px; line-height: 1.62; color: var(--ink-60);
+		text-wrap: pretty;
+	}
+	.soon-rule { display: flex; align-items: center; gap: 10px; width: 100%; margin: 24px 0 14px; }
+	.soon-rule span { flex: 1; height: 1.5px; background: var(--hair); }
+	.soon-rule b {
+		flex: none; width: 7px; height: 7px; background: var(--accent);
+		transform: rotate(45deg);
+	}
+	.soon-meta { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40); }
 
 	/* ============ RESPONSIVE ============ */
 	/* shell breakpoints (nav, menu, card) live in SiteLayout — these are page-local only */

@@ -193,8 +193,13 @@ export async function adminListMerch(env: Env, req: Request, cors: Cors): Promis
 	for (const e of extras)
 		(viewsFor.get(e.merch_id) ?? viewsFor.set(e.merch_id, []).get(e.merch_id)!).push(e.label);
 
+	// Rides along on the list the panel already fetches. A dedicated endpoint would be
+	// a second round trip on every panel load to answer one boolean.
+	const release = await readRelease(env);
+
 	return json(
 		{
+			release,
 			merch: results.map((m) => {
 				const labels = viewsFor.get(m.id) ?? [];
 				return {
@@ -593,4 +598,88 @@ export async function adminCreateMerch(
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, id }, { status: 201 }, cors);
+}
+
+// ============================================================
+// GET  (embedded in adminListMerch) / POST /api/admin/merch/release
+// ============================================================
+/** The switch, as the panel renders it. */
+export interface ReleaseState {
+	active: boolean;
+	by_name: string | null;
+	by_roll: string | null;
+	at: string | null;
+}
+
+/**
+ * Reads the shop-wide switch.
+ *
+ * A missing row means the deployment predates the migration, and that reads as OPEN —
+ * the same default the public route uses. A switch whose job is closing the shop must
+ * not be able to close it by failing to exist.
+ */
+export async function readRelease(env: Env): Promise<ReleaseState> {
+	const row = await env.DB.prepare(
+		`SELECT activation_status, changed_by_name, changed_by_roll, changed_at
+		   FROM merch_release WHERE id = 1`,
+	).first<{
+		activation_status: number;
+		changed_by_name: string | null;
+		changed_by_roll: string | null;
+		changed_at: string | null;
+	}>();
+
+	if (!row) return { active: true, by_name: null, by_roll: null, at: null };
+	return {
+		active: row.activation_status === 1,
+		by_name: row.changed_by_name,
+		by_roll: row.changed_by_roll,
+		at: row.changed_at,
+	};
+}
+
+/**
+ * Opens or closes the shop.
+ *
+ * Takes the state to set rather than toggling. A toggle would decide from whatever the
+ * panel last saw, so two admins on two phones — or one admin double-tapping a slow
+ * button — could flip past each other and land on the state neither of them chose.
+ * Sending the target makes a repeat a no-op instead of an inversion.
+ */
+export async function adminSetRelease(env: Env, req: Request, cors: Cors): Promise<Response> {
+	const session = await requireAdmin(env, req);
+	const body = await readJson<{ active?: unknown }>(req);
+	if (typeof body.active !== 'boolean')
+		throw bad('bad_active', 'active must be true or false');
+
+	const active = body.active ? 1 : 0;
+
+	// Upsert, not UPDATE: on a database seeded before this table existed there is no
+	// row to update, and an UPDATE would silently change nothing and report success.
+	await env.DB.prepare(
+		`INSERT INTO merch_release (id, activation_status, changed_by_roll, changed_by_name, changed_at)
+		 VALUES (1, ?, ?, ?, datetime('now'))
+		 ON CONFLICT (id) DO UPDATE SET
+		   activation_status = excluded.activation_status,
+		   changed_by_roll   = excluded.changed_by_roll,
+		   changed_by_name   = excluded.changed_by_name,
+		   changed_at        = excluded.changed_at`,
+	)
+		.bind(active, session.roll_number, session.name)
+		.run();
+
+	// The shared password means this log is the only attribution beyond the row itself.
+	console.log(
+		`admin: ${session.collegemail} (${session.roll_number}) ${active ? 'OPENED' : 'CLOSED'} the merch shop`,
+	);
+
+	// After the write, never before. The purge is what makes the change visible: the
+	// public catalogue is edge-cached, so without it a closed shop would keep serving
+	// its last open copy for up to a minute per colo.
+	await Promise.all([
+		purgeCatalogue(env, req),
+		broadcastChange(env, 'catalogue', active ? 'shop opened' : 'shop closed'),
+	]);
+
+	return json({ ok: true, release: await readRelease(env) }, {}, cors);
 }

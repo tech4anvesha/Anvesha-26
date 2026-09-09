@@ -111,6 +111,22 @@ CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at DESC);
 -- collation here, `WHERE roll_number = ? COLLATE NOCASE` would fall back to a scan.
 CREATE INDEX IF NOT EXISTS idx_orders_roll ON orders (roll_number COLLATE NOCASE);
 
+-- ---------- merch release ----------
+-- The shop-wide on/off switch. One row, forced by CHECK (id = 1) — a table that can
+-- only hold one row cannot drift into two disagreeing answers to "is the shop open".
+-- Distinct from merch.is_active, which hides a single item; this hides the catalogue.
+CREATE TABLE IF NOT EXISTS merch_release (
+  id                INTEGER PRIMARY KEY CHECK (id = 1),
+  activation_status INTEGER NOT NULL DEFAULT 0 CHECK (activation_status IN (0, 1)),
+  -- Copied off the admin's session, not joined to admin_login: the panel password is
+  -- shared, so a session is logged out and its token cleared, and this must still name
+  -- someone afterwards.
+  changed_by_roll   TEXT,
+  changed_by_name   TEXT,
+  changed_at        TEXT
+);
+INSERT OR IGNORE INTO merch_release (id, activation_status) VALUES (1, 0);
+
 -- ---------- webhook audit ----------
 -- Every verified webhook lands here before anything is mutated. When a payment is
 -- disputed months later, this is the only record of what Razorpay actually sent.

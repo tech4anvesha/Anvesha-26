@@ -21,24 +21,41 @@ import iOrders from 'lucide-static/icons/receipt-text.svg?raw';
 import iDownload from 'lucide-static/icons/download.svg?raw';
 import iLayers from 'lucide-static/icons/layers.svg?raw';
 import iScan from 'lucide-static/icons/scan-line.svg?raw';
+import iFlame from 'lucide-static/icons/flame.svg?raw';
 ---
 
 <AdminLayout title="Merch — Admin — Anvesha '26">
 	<div class="a-wrap m-shell" data-task="edit">
 		<!-- TASK RAIL -->
 		<nav class="m-tasks" aria-label="Merch tasks">
-			<button class="btn m-task" data-task-btn="edit" aria-current="true">
-				<span class="m-task-icon" set:html={iEdit} />
-				<span class="m-task-label">Edit merch</span>
-			</button>
-			<button class="btn m-task" data-task-btn="add">
-				<span class="m-task-icon" set:html={iAdd} />
-				<span class="m-task-label">Add merch</span>
-			</button>
-			<button class="btn m-task" data-task-btn="orders">
-				<span class="m-task-icon" set:html={iOrders} />
-				<span class="m-task-label">Orders</span>
-			</button>
+			<div class="m-task-row">
+				<button class="btn m-task" data-task-btn="edit" aria-current="true">
+					<span class="m-task-icon" set:html={iEdit} />
+					<span class="m-task-label">Edit merch</span>
+				</button>
+				<button class="btn m-task" data-task-btn="add">
+					<span class="m-task-icon" set:html={iAdd} />
+					<span class="m-task-label">Add merch</span>
+				</button>
+				<button class="btn m-task" data-task-btn="orders">
+					<span class="m-task-icon" set:html={iOrders} />
+					<span class="m-task-label">Orders</span>
+				</button>
+			</div>
+
+			<!-- ---- shop-wide switch ----
+			     Bottom of the rail on desktop, its own bar under the tabs on a phone. It
+			     is not a task, so it is not a task tab: this one changes what the whole
+			     site shows, and sitting in the same list as "Add merch" would read as
+			     another place to go rather than a thing that happens. -->
+			<div class="m-release" id="mRelease">
+				<p class="m-release-state mono" id="mReleaseState">Checking&hellip;</p>
+				<button class="btn m-release-btn" id="mReleaseBtn" type="button" disabled>
+					<span class="m-release-icon" set:html={iFlame} />
+					<span class="m-release-label" id="mReleaseLabel">Activate merch</span>
+				</button>
+				<p class="m-release-by mono" id="mReleaseBy" hidden></p>
+			</div>
 		</nav>
 
 		<div class="m-panes">
@@ -1299,11 +1316,71 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		}
 	}
 
+	// ---- shop-wide release switch ----
+	type Release = { active: boolean; by_name: string | null; by_roll: string | null; at: string | null };
+	// Declared, not captured — same reason as treeEl above: ClientRouter swaps in fresh
+	// nodes, so these are re-queried in initMerchAdmin() on every navigation. Bound once
+	// at module load, the switch would go dead the moment you came back from Events.
+	let relBox: HTMLElement, relState: HTMLElement, relBy: HTMLElement;
+	let relBtn: HTMLButtonElement, relLabel: HTMLElement;
+	// null until the first load answers. The button stays disabled until then rather
+	// than guessing — a button that says "Activate" over a live shop is worse than one
+	// that says nothing yet.
+	let release: Release | null = null;
+
+	function renderRelease() {
+		relBox.classList.toggle('is-live', release?.active === true);
+		relBtn.disabled = release === null;
+		if (!release) { relState.textContent = 'Checking…'; relLabel.textContent = 'Activate merch'; relBy.hidden = true; return; }
+
+		relState.textContent = release.active ? 'Shop is live' : 'Shop is hidden';
+		// The label is the ACTION, not the state — the dot and the fill already carry
+		// the state, and a button that names what it will do cannot be misread.
+		relLabel.textContent = release.active ? 'Deactivate merch' : 'Activate merch';
+
+		if (release.by_name && release.at) {
+			const when = new Date(release.at.replace(' ', 'T') + 'Z');
+			relBy.textContent =
+				`${release.active ? 'Opened' : 'Closed'} by ${release.by_name}` +
+				(Number.isNaN(when.getTime()) ? '' : ` · ${when.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`);
+			relBy.hidden = false;
+		} else {
+			relBy.hidden = true;
+		}
+	}
+
+	async function onReleaseClick() {
+		if (!release) return;
+		const next = !release.active;
+		// Taking the shop down is the destructive direction, and it is one tap from a
+		// button that sits under a catalogue someone was just editing.
+		if (!next && !confirm('Hide the merch store from students?\n\nThe catalogue stops being served and the page shows "dropping soon". Orders already placed are untouched.')) return;
+
+		relBtn.disabled = true;
+		const before = relLabel.textContent;
+		relLabel.textContent = next ? 'Activating…' : 'Deactivating…';
+		try {
+			// Sends the target state, not "toggle": two admins on two phones would
+			// otherwise flip past each other and land on whichever the last one assumed.
+			const res = await adminFetch<{ release: Release }>('/api/admin/merch/release', {
+				method: 'POST',
+				body: JSON.stringify({ active: next }),
+			});
+			release = res.release;
+		} catch (e) {
+			relLabel.textContent = before;
+			alert((e as Error).message);
+		} finally {
+			renderRelease();
+		}
+	}
+
 	async function load(keepSelection = false) {
 		try {
 			const wanted = keepSelection ? current?.id : undefined;
-			const data = await adminFetch<{ merch: Item[] }>('/api/admin/merch');
+			const data = await adminFetch<{ merch: Item[]; release?: Release }>('/api/admin/merch');
 			items = data.merch;
+			if (data.release) { release = data.release; renderRelease(); }
 			renderTree();
 			// Re-select what was open if it still exists, so a live update from another
 			// admin does not yank the editor out from under whoever is typing.
@@ -1651,7 +1728,18 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		savedEl = $('eSaved');
 		saveBtn = $<HTMLButtonElement>('eSave');
 
+		relBox = $('mRelease');
+		relState = $('mReleaseState');
+		relBtn = $<HTMLButtonElement>('mReleaseBtn');
+		relLabel = $('mReleaseLabel');
+		relBy = $('mReleaseBy');
+
 		formEl.onsubmit = save;
+		relBtn.onclick = onReleaseClick;
+		// Repaint from whatever the last load left in `release`: on a ClientRouter
+		// return the state is already known, and "Checking…" over a live shop would be
+		// a lie the next fetch takes a round trip to correct.
+		renderRelease();
 		$('eReset').onclick = () => current && select(current.id);
 		$('eDelete').onclick = onDelete;
 
@@ -1762,15 +1850,58 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 	}
 	/* The catalogue rail itself is styles/catalogue-tree.css — the storefront's component. */
 
+	/* ---- shop-wide release switch ----
+	   `margin-top: auto` is what puts it at the foot of the rail: the block is pushed
+	   down by whatever height the task list does not use, so it stays pinned however
+	   many tasks appear above it. */
+	.m-release {
+		margin-top: auto; padding-top: 18px;
+		display: flex; flex-direction: column; gap: 9px;
+		border-top: 1.5px solid var(--hair);
+	}
+	.m-release-state {
+		display: flex; align-items: center; gap: 8px; margin: 0;
+		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--ink-40);
+	}
+	/* A lamp, not a label: the dot carries the state at a glance and the words confirm
+	   it. Grey while unknown, so a slow load never claims the shop is shut. */
+	.m-release-state::before {
+		content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%;
+		background: var(--ink-40);
+	}
+	.m-release.is-live .m-release-state::before { background: var(--accent); }
+	.m-release.is-live .m-release-state { color: var(--secondary); }
+
+	.m-release-btn {
+		display: flex; align-items: center; justify-content: center; gap: 9px;
+		box-sizing: border-box; width: 100%; padding: 12px 13px;
+		font-size: 12px; font-weight: 800; letter-spacing: .06em;
+	}
+	/* Filled while live, outlined while shut — the button shows the state it is in, and
+	   its label says what pressing it would do. Those are different things, so the
+	   colour never has to double as the instruction. */
+	.m-release.is-live .m-release-btn {
+		color: var(--primary); background: var(--accent); border-color: var(--accent);
+	}
+	.m-release-btn:disabled { opacity: .45; cursor: wait; }
+	.m-release-icon { display: grid; place-items: center; flex: none; }
+	.m-release-icon svg { width: 15px; height: 15px; stroke-width: 2.2; }
+	.m-release-by {
+		margin: 0; font-size: 9px; line-height: 1.5; letter-spacing: .04em;
+		color: var(--ink-40);
+	}
+
 	/* ---- shell: task rail | catalogue | work area ---- */
 	/* One variable drives both rails, so they cannot drift out of alignment. */
 	.m-shell { flex-direction: row; --rail: 280px; }
 	.m-tasks {
 		flex: none; width: var(--rail); box-sizing: border-box;
-		display: flex; flex-direction: column; gap: 6px;
+		display: flex; flex-direction: column;
 		padding: 20px 14px;
 		border-right: var(--stroke) solid var(--secondary);
 	}
+	.m-task-row { display: flex; flex-direction: column; gap: 6px; }
 	.m-task {
 		display: flex; align-items: center; gap: 10px;
 		box-sizing: border-box; width: 100%;
@@ -2682,13 +2813,31 @@ import iScan from 'lucide-static/icons/scan-line.svg?raw';
 		   a phone screen. */
 		.m-shell { flex-direction: column; }
 		.m-tasks {
-			width: auto; flex-direction: row; gap: 8px;
-			padding: 12px; overflow-x: auto; scrollbar-width: none;
+			width: auto; gap: 10px;
+			padding: 12px;
 			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
 		}
-		.m-tasks::-webkit-scrollbar { display: none; }
+		/* The tabs scroll sideways; the rail itself does not, so the switch below stays
+		   put instead of sliding off with them. */
+		.m-task-row {
+			flex-direction: row; gap: 8px;
+			overflow-x: auto; scrollbar-width: none;
+		}
+		.m-task-row::-webkit-scrollbar { display: none; }
 		.m-task { width: auto; flex: none; padding: 10px 13px; }
 		.m-task-soon { display: none; }
+
+		/* No `margin-top: auto` to obey here — stacked, there is no spare height to push
+		   into. It becomes a single bar: state on the left, action on the right, which
+		   is one thumb-width row rather than three stacked ones. */
+		.m-release {
+			margin-top: 0; padding-top: 10px;
+			flex-direction: row; align-items: center; gap: 10px;
+			border-top: 1.5px solid var(--hair);
+		}
+		.m-release-state { flex: 1; min-width: 0; }
+		.m-release-btn { width: auto; flex: none; padding: 10px 14px; }
+		.m-release-by { display: none; }
 
 		.m-panes { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 		.m-list-pane {

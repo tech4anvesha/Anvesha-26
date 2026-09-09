@@ -18,6 +18,7 @@ import {
 	adminDeleteMerch,
 	adminDeleteOrder,
 	adminListMerch,
+	adminSetRelease,
 	adminListOrders,
 	adminScan,
 	adminLogin,
@@ -113,6 +114,10 @@ export default {
 			}
 			if (method === 'POST' && pathname === '/api/admin/logout') return await adminLogout(env, req, cors);
 			if (method === 'GET' && pathname === '/api/admin/merch') return await adminListMerch(env, req, cors);
+			// The shop-wide switch. Before the /:id route below, or 'release' would be
+			// read as a merch id.
+			if (method === 'POST' && pathname === '/api/admin/merch/release')
+				return await adminSetRelease(env, req, cors);
 			if (method === 'POST' && pathname === '/api/admin/merch')
 				return await adminCreateMerch(env, req, cors, ctx);
 

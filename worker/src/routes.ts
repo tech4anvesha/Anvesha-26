@@ -54,6 +54,26 @@ export async function listMerch(
 		}
 	}
 
+	// The shop-wide switch, read before the catalogue rather than filtered after it.
+	// A closed shop returns NO items at all: leaving them in the payload for the page to
+	// hide would put every unreleased name and price in the network tab, which is the
+	// one thing a "coming soon" page is meant to prevent.
+	// Missing row (a deployment that predates the migration) reads as OPEN, so the
+	// switch can never take the shop down by failing to exist.
+	const release = await env.DB.prepare(
+		`SELECT activation_status FROM merch_release WHERE id = 1`,
+	).first<{ activation_status: number }>();
+	const released = release ? release.activation_status === 1 : true;
+
+	if (!released) {
+		// Cached and headered exactly like the open catalogue below, and purged by the
+		// same key, so flipping the switch reaches shoppers as fast as a price change.
+		const body = json({ released: false, merch: [] }, {}, cors);
+		body.headers.set('Cache-Control', 'public, max-age=60');
+		if (cacheKey && ctx) ctx.waitUntil(cache.put(cacheKey, body.clone()));
+		return body;
+	}
+
 	const { results } = await env.DB.prepare(
 		`SELECT id, name, description, designer, category, price_paise, has_size, r2_path
 		   FROM merch WHERE is_active = 1 ORDER BY category, id`,
@@ -75,6 +95,7 @@ export async function listMerch(
 
 	const body = json(
 		{
+			released: true,
 			merch: results.map((m) => {
 				const labels = viewsFor.get(m.id) ?? [];
 				return {
@@ -188,6 +209,17 @@ export async function merchImage(
 // ============================================================
 export async function checkout(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireBudget(env, req, 'checkout');
+
+	// A closed shop takes no orders. Hiding the catalogue is a page-level change and
+	// this route never reads it, so without this a stale tab — or a replayed request —
+	// could still price and place an order against merch nobody is meant to see yet.
+	// Missing row reads as open, matching listMerch.
+	const release = await env.DB.prepare(
+		`SELECT activation_status FROM merch_release WHERE id = 1`,
+	).first<{ activation_status: number }>();
+	if (release && release.activation_status !== 1)
+		throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+
 	const body = await readJson<{ cart?: unknown }>(req);
 	const lines = parseCart(body);
 
