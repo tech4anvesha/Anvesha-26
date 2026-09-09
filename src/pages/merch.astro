@@ -371,8 +371,21 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	const rupees = (paise: number) =>
 		'₹' + (paise % 100 === 0 ? String(paise / 100) : (paise / 100).toFixed(2));
 
-	async function loadCatalog(): Promise<{ released: boolean; cats: Cat[] }> {
-		const res = await fetch(API + '/api/merch');
+	/**
+	 * @param bypassCache  Skip every cache between here and D1.
+	 *
+	 * /api/merch is served `max-age=60` and is held BOTH in the browser's HTTP cache and
+	 * at the Cloudflare edge — and the Worker's edge purge only reaches the colo that ran
+	 * the admin's request, not the one serving the shopper. So a live event saying "this
+	 * changed" followed by a plain refetch reads back the very copy the event just said
+	 * was stale, and the change does not land until that minute expires. The unique `t`
+	 * misses both caches (it is part of the cache key), and `no-store` stops the answer
+	 * being kept either. Only for event-driven refetches: doing it on first load would
+	 * throw the edge cache away for every visitor.
+	 */
+	async function loadCatalog(bypassCache = false): Promise<{ released: boolean; cats: Cat[] }> {
+		const url = API + '/api/merch' + (bypassCache ? `?t=${Date.now()}` : '');
+		const res = await fetch(url, bypassCache ? { cache: 'no-store' } : undefined);
 		if (!res.ok) throw new Error('Catalogue request failed: ' + res.status);
 		const { merch, released } = (await res.json()) as { merch: ApiMerch[]; released?: boolean };
 		// Absent means an API older than the switch, which is open by definition —
@@ -1558,40 +1571,43 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				`<br />Is the worker running on ${API}?</small></p>`;
 			return;
 		}
-		// Closed on purpose, which is not the same as empty. The notice goes up and the
-		// shop never renders — there is nothing to render, the API sent no items.
-		if (!released) {
-			setShopOpen(false);
-			// Still subscribed: an admin opening the shop should reach this tab without
-			// the shopper reloading, exactly as a price change does.
-			stopLive?.();
-			stopLive = onCatalogueChange(async () => {
-				const fresh = await loadCatalog().catch(() => null);
-				if (!fresh?.released || !fresh.cats.length) return;
-				location.reload();
-			});
-			return;
+		/**
+		 * Draws the shop from `catalog`. Called on first load and again whenever the
+		 * store is switched back on, so opening it does NOT need a page reload — which
+		 * matters, because a reload would re-read the still-stale cached catalogue and
+		 * bounce the shopper straight back to the closed notice.
+		 *
+		 * @param keepId  Item to stay on if it still exists.
+		 */
+		function renderShop(keepId?: string) {
+			if (!catalog.length) {
+				treeEl.innerHTML = `<p class="load-err">No merch on sale yet.</p>`;
+				return;
+			}
+			// Only on the first draw. On a live update the shopper's open branch is
+			// theirs, not ours to reset.
+			if (!catId) { catId = catalog[0].id; openCat = catId; }
+			buildTree(); renderCart(); renderMCats(); renderMGrid();
+			const keep = keepId ? catalog.flatMap((c) => c.items).find((i) => i.id === keepId) : undefined;
+			selectItem(keep ?? catalog[0].items[0]);
 		}
-		setShopOpen(true);
 
-		if (!catalog.length) {
-			treeEl.innerHTML = `<p class="load-err">No merch on sale yet.</p>`;
-			return;
-		}
-
-		catId = catalog[0].id;
-		openCat = catId;
-		buildTree(); renderCart(); renderMCats(); renderMGrid();
-		selectItem(catalog[0].items[0]);
+		// Closed on purpose is not the same as empty: the API sent no items, so there is
+		// nothing to draw and the notice goes up in the shop's place.
+		setShopOpen(released);
+		if (released) renderShop();
 
 		// ---- live catalogue ----
-		// An admin adding or repricing an item reaches open tabs immediately. The
-		// shopper's place is kept: the same item stays selected if it still exists, and
-		// the bag is untouched — renderCart() drops any line whose item has vanished.
-		stopLive?.();
-		stopLive = onCatalogueChange(async () => {
+		// One subscription, both directions. An admin adding an item, repricing one, or
+		// flipping the whole store on or off reaches open tabs immediately. The shopper's
+		// place is kept: the same item stays selected if it still exists, and the bag is
+		// untouched — renderCart() drops any line whose item has vanished.
+		/** Re-reads the catalogue, uncached, and redraws whatever it now says. */
+		async function refresh() {
 			const openId = item?.id;
-			const fresh = await loadCatalog().catch(() => null);
+			// Uncached: whatever triggered this is proof that what the caches hold is
+			// out of date, and a plain read would just hand that same copy back.
+			const fresh = await loadCatalog(true).catch(() => null);
 			if (!fresh) return;
 
 			// A deliberate close is the one case that MAY blank a working shop, so it is
@@ -1600,14 +1616,21 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			if (!fresh.cats.length) return; // a blip must not blank a working shop
 
 			catalog = fresh.cats;
-			buildTree();
-			renderMCats();
-			renderMGrid();
-			renderCart();
+			setShopOpen(true);
+			renderShop(openId);
+		}
 
-			const stillThere = catalog.flatMap((c) => c.items).find((i) => i.id === openId);
-			selectItem(stillThere ?? catalog[0].items[0]);
-		});
+		stopLive?.();
+		stopLive = onCatalogueChange(refresh);
+
+		// Second way in, because the first one is not always available: this API is on
+		// *.workers.dev, which several ad blocklists flag outright, so a shopper running
+		// uBlock never receives the socket event at all — and the store opening would
+		// only reach them when the 60s cache lapsed and they happened to reload.
+		// Coming back to the tab is the moment they are most likely to be looking.
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') void refresh();
+		}, { signal });
 	}
 
 	let stopLive: (() => void) | null = null;
