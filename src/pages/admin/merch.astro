@@ -22,6 +22,7 @@ import iDownload from 'lucide-static/icons/download.svg?raw';
 import iLayers from 'lucide-static/icons/layers.svg?raw';
 import iScan from 'lucide-static/icons/scan-line.svg?raw';
 import iFlame from 'lucide-static/icons/flame.svg?raw';
+import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 ---
 
 <AdminLayout title="Merch — Admin — Anvesha '26">
@@ -48,13 +49,32 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 			     is not a task, so it is not a task tab: this one changes what the whole
 			     site shows, and sitting in the same list as "Add merch" would read as
 			     another place to go rather than a thing that happens. -->
-			<div class="m-release" id="mRelease">
-				<p class="m-release-state mono" id="mReleaseState">Checking&hellip;</p>
-				<button class="btn m-release-btn" id="mReleaseBtn" type="button" disabled>
-					<span class="m-release-icon" set:html={iFlame} />
-					<span class="m-release-label" id="mReleaseLabel">Activate merch</span>
-				</button>
-				<p class="m-release-by mono" id="mReleaseBy" hidden></p>
+			<div class="m-release">
+				<!-- Switch 1: is the catalogue visible. -->
+				<div class="m-switch" id="mShopSwitch">
+					<p class="m-release-state mono" id="mShopState">Checking&hellip;</p>
+					<button class="btn m-release-btn" id="mShopBtn" type="button" disabled>
+						<span class="m-release-icon" set:html={iFlame} />
+						<span class="m-release-label" id="mShopLabel">Activate merch</span>
+					</button>
+					<p class="m-release-by mono" id="mShopBy" hidden></p>
+				</div>
+
+				<!-- Switch 2: can money be taken. Independent of the first — the
+				     catalogue goes up days before the checkout does. -->
+				<div class="m-switch" id="mSalesSwitch">
+					<p class="m-release-state mono" id="mSalesState">Checking&hellip;</p>
+					<button class="btn m-release-btn" id="mSalesBtn" type="button" disabled>
+						<span class="m-release-icon" set:html={iRupee} />
+						<span class="m-release-label" id="mSalesLabel">Activate sales</span>
+					</button>
+					<p class="m-release-by mono" id="mSalesBy" hidden></p>
+				</div>
+
+				<!-- What is behind switch 2. Sales ON with no gateway is a state the
+				     admin has to be able to see, or the storefront's still-disabled
+				     checkout looks like a bug. -->
+				<p class="m-gateway mono" id="mGateway" hidden></p>
 			</div>
 		</nav>
 
@@ -1316,59 +1336,112 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 		}
 	}
 
-	// ---- shop-wide release switch ----
-	type Release = { active: boolean; by_name: string | null; by_roll: string | null; at: string | null };
-	// Declared, not captured — same reason as treeEl above: ClientRouter swaps in fresh
-	// nodes, so these are re-queried in initMerchAdmin() on every navigation. Bound once
-	// at module load, the switch would go dead the moment you came back from Events.
-	let relBox: HTMLElement, relState: HTMLElement, relBy: HTMLElement;
-	let relBtn: HTMLButtonElement, relLabel: HTMLElement;
-	// null until the first load answers. The button stays disabled until then rather
-	// than guessing — a button that says "Activate" over a live shop is worse than one
-	// that says nothing yet.
+	// ---- the two switches: catalogue visible, sales open ----
+	type SwitchState = { active: boolean; by_name: string | null; by_roll: string | null; at: string | null };
+	type Release = {
+		shop: SwitchState;
+		sales: SwitchState;
+		gateway: { mode: 'test' | 'live'; configured: boolean; counter: boolean };
+	};
+
+	/**
+	 * Everything one switch needs on screen. Both switches are the same shape with
+	 * different words and a different endpoint, so one description drives both rather
+	 * than two copies of the render and click code drifting apart.
+	 */
+	interface SwitchUI {
+		key: 'shop' | 'sales';
+		path: string;
+		on: string; off: string;          // state line
+		turnOn: string; turnOff: string;  // button label — the ACTION, never the state
+		didOn: string; didOff: string;    // attribution verb
+		confirmOff: string | null;        // null = no confirmation for the off direction
+		// Declared, not captured — same reason as treeEl above: ClientRouter swaps in
+		// fresh nodes, so these are re-queried in initMerchAdmin() on every navigation.
+		box?: HTMLElement; state?: HTMLElement; by?: HTMLElement;
+		btn?: HTMLButtonElement; label?: HTMLElement;
+	}
+
+	const SHOP: SwitchUI = {
+		key: 'shop', path: '/api/admin/merch/release',
+		on: 'Catalogue is live', off: 'Catalogue is hidden',
+		turnOn: 'Activate merch', turnOff: 'Deactivate merch',
+		didOn: 'Opened', didOff: 'Closed',
+		confirmOff: 'Hide the merch store from students?\n\nThe catalogue stops being served and the page shows "dropping soon". Orders already placed are untouched.',
+	};
+	const SALES: SwitchUI = {
+		key: 'sales', path: '/api/admin/merch/sales',
+		on: 'Sales are open', off: 'Sales are closed',
+		turnOn: 'Activate sales', turnOff: 'Deactivate sales',
+		didOn: 'Opened', didOff: 'Closed',
+		// Closing sales is not destructive — no order is touched — and it may be
+		// urgent, so it is one tap.
+		confirmOff: null,
+	};
+
+	let gatewayEl: HTMLElement;
+	// null until the first load answers. Both buttons stay disabled until then rather
+	// than guessing — "Activate" over a live shop is worse than saying nothing yet.
 	let release: Release | null = null;
 
-	function renderRelease() {
-		relBox.classList.toggle('is-live', release?.active === true);
-		relBtn.disabled = release === null;
-		if (!release) { relState.textContent = 'Checking…'; relLabel.textContent = 'Activate merch'; relBy.hidden = true; return; }
+	function renderSwitch(ui: SwitchUI) {
+		const st = release?.[ui.key] ?? null;
+		ui.box!.classList.toggle('is-live', st?.active === true);
+		ui.btn!.disabled = st === null;
+		if (!st) { ui.state!.textContent = 'Checking…'; ui.label!.textContent = ui.turnOn; ui.by!.hidden = true; return; }
 
-		relState.textContent = release.active ? 'Shop is live' : 'Shop is hidden';
+		ui.state!.textContent = st.active ? ui.on : ui.off;
 		// The label is the ACTION, not the state — the dot and the fill already carry
 		// the state, and a button that names what it will do cannot be misread.
-		relLabel.textContent = release.active ? 'Deactivate merch' : 'Activate merch';
+		ui.label!.textContent = st.active ? ui.turnOff : ui.turnOn;
 
-		if (release.by_name && release.at) {
-			const when = new Date(release.at.replace(' ', 'T') + 'Z');
-			relBy.textContent =
-				`${release.active ? 'Opened' : 'Closed'} by ${release.by_name}` +
+		if (st.by_name && st.at) {
+			const when = new Date(st.at.replace(' ', 'T') + 'Z');
+			ui.by!.textContent =
+				`${st.active ? ui.didOn : ui.didOff} by ${st.by_name}` +
 				(Number.isNaN(when.getTime()) ? '' : ` · ${when.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`);
-			relBy.hidden = false;
+			ui.by!.hidden = false;
 		} else {
-			relBy.hidden = true;
+			ui.by!.hidden = true;
 		}
 	}
 
-	async function onReleaseClick() {
-		if (!release) return;
-		const next = !release.active;
-		// Taking the shop down is the destructive direction, and it is one tap from a
-		// button that sits under a catalogue someone was just editing.
-		if (!next && !confirm('Hide the merch store from students?\n\nThe catalogue stops being served and the page shows "dropping soon". Orders already placed are untouched.')) return;
+	function renderGateway() {
+		if (!release) { gatewayEl.hidden = true; return; }
+		const g = release.gateway;
+		const behind = g.counter ? 'counter payments' : g.configured ? `Razorpay · ${g.mode} keys` : null;
+		// The one state that needs shouting about: the admin turned sales on and the
+		// storefront's button is STILL off, because nothing is configured to take the
+		// money. Without this line that looks like a bug on the student side.
+		const warn = release.sales.active && !g.configured;
+		gatewayEl.textContent = warn
+			? 'Sales are on but no payment gateway is configured — checkout stays disabled for students'
+			: behind ? `Gateway: ${behind}` : 'Gateway: none configured';
+		gatewayEl.classList.toggle('is-warn', warn);
+		gatewayEl.hidden = false;
+	}
 
-		relBtn.disabled = true;
-		const before = relLabel.textContent;
-		relLabel.textContent = next ? 'Activating…' : 'Deactivating…';
+	function renderRelease() { renderSwitch(SHOP); renderSwitch(SALES); renderGateway(); }
+
+	async function flip(ui: SwitchUI) {
+		const st = release?.[ui.key];
+		if (!st) return;
+		const next = !st.active;
+		if (!next && ui.confirmOff && !confirm(ui.confirmOff)) return;
+
+		ui.btn!.disabled = true;
+		const before = ui.label!.textContent;
+		ui.label!.textContent = next ? 'Activating…' : 'Deactivating…';
 		try {
 			// Sends the target state, not "toggle": two admins on two phones would
 			// otherwise flip past each other and land on whichever the last one assumed.
-			const res = await adminFetch<{ release: Release }>('/api/admin/merch/release', {
+			const res = await adminFetch<{ release: Release }>(ui.path, {
 				method: 'POST',
 				body: JSON.stringify({ active: next }),
 			});
 			release = res.release;
 		} catch (e) {
-			relLabel.textContent = before;
+			ui.label!.textContent = before;
 			alert((e as Error).message);
 		} finally {
 			renderRelease();
@@ -1728,14 +1801,17 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 		savedEl = $('eSaved');
 		saveBtn = $<HTMLButtonElement>('eSave');
 
-		relBox = $('mRelease');
-		relState = $('mReleaseState');
-		relBtn = $<HTMLButtonElement>('mReleaseBtn');
-		relLabel = $('mReleaseLabel');
-		relBy = $('mReleaseBy');
+		for (const [ui, id] of [[SHOP, 'Shop'], [SALES, 'Sales']] as const) {
+			ui.box = $(`m${id}Switch`);
+			ui.state = $(`m${id}State`);
+			ui.btn = $<HTMLButtonElement>(`m${id}Btn`);
+			ui.label = $(`m${id}Label`);
+			ui.by = $(`m${id}By`);
+			ui.btn.onclick = () => flip(ui);
+		}
+		gatewayEl = $('mGateway');
 
 		formEl.onsubmit = save;
-		relBtn.onclick = onReleaseClick;
 		// Repaint from whatever the last load left in `release`: on a ClientRouter
 		// return the state is already known, and "Checking…" over a live shop would be
 		// a lie the next fetch takes a round trip to correct.
@@ -1856,9 +1932,17 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 	   many tasks appear above it. */
 	.m-release {
 		margin-top: auto; padding-top: 18px;
-		display: flex; flex-direction: column; gap: 9px;
+		display: flex; flex-direction: column; gap: 16px;
 		border-top: 1.5px solid var(--hair);
 	}
+	.m-switch { display: flex; flex-direction: column; gap: 9px; }
+	/* The only line here that can be a warning. Accent when sales are on with nothing
+	   behind them; quiet otherwise. */
+	.m-gateway {
+		margin: 0; font-size: 9px; line-height: 1.5; letter-spacing: .06em;
+		color: var(--ink-40);
+	}
+	.m-gateway.is-warn { color: var(--accent); font-weight: 500; }
 	.m-release-state {
 		display: flex; align-items: center; gap: 8px; margin: 0;
 		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
@@ -1870,8 +1954,8 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 		content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%;
 		background: var(--ink-40);
 	}
-	.m-release.is-live .m-release-state::before { background: var(--accent); }
-	.m-release.is-live .m-release-state { color: var(--secondary); }
+	.m-switch.is-live .m-release-state::before { background: var(--accent); }
+	.m-switch.is-live .m-release-state { color: var(--secondary); }
 
 	.m-release-btn {
 		display: flex; align-items: center; justify-content: center; gap: 9px;
@@ -1881,7 +1965,7 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 	/* Filled while live, outlined while shut — the button shows the state it is in, and
 	   its label says what pressing it would do. Those are different things, so the
 	   colour never has to double as the instruction. */
-	.m-release.is-live .m-release-btn {
+	.m-switch.is-live .m-release-btn {
 		color: var(--primary); background: var(--accent); border-color: var(--accent);
 	}
 	.m-release-btn:disabled { opacity: .45; cursor: wait; }
@@ -2830,11 +2914,8 @@ import iFlame from 'lucide-static/icons/flame.svg?raw';
 		/* No `margin-top: auto` to obey here — stacked, there is no spare height to push
 		   into. It becomes a single bar: state on the left, action on the right, which
 		   is one thumb-width row rather than three stacked ones. */
-		.m-release {
-			margin-top: 0; padding-top: 10px;
-			flex-direction: row; align-items: center; gap: 10px;
-			border-top: 1.5px solid var(--hair);
-		}
+		.m-release { margin-top: 0; padding-top: 10px; gap: 8px; }
+		.m-switch { flex-direction: row; align-items: center; gap: 10px; }
 		.m-release-state { flex: 1; min-width: 0; }
 		.m-release-btn { width: auto; flex: none; padding: 10px 14px; }
 		.m-release-by { display: none; }

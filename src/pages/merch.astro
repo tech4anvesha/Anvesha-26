@@ -145,6 +145,11 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	<div class="drawer-foot">
 		<div class="row"><span>Total</span><span id="cartTotal">₹0</span></div>
 		<p class="order-err" id="orderErr" hidden></p>
+		<!-- Shown while the shop is browse-only. Above the button, not in place of it:
+		     a disabled CHECKOUT with no reason next to it reads as broken. -->
+		<p class="sales-soon mono" id="salesSoon" hidden>
+			<span class="sales-soon-dot" aria-hidden="true"></span>Merch sales going live soon
+		</p>
 		<button id="checkout" class="btn checkout" disabled>
 			<span>CHECKOUT</span><span class="chk-arrow" set:html={iArrowRight} />
 		</button>
@@ -383,14 +388,17 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	 * being kept either. Only for event-driven refetches: doing it on first load would
 	 * throw the edge cache away for every visitor.
 	 */
-	async function loadCatalog(bypassCache = false): Promise<{ released: boolean; cats: Cat[] }> {
+	async function loadCatalog(bypassCache = false): Promise<{ released: boolean; salesOpen: boolean; cats: Cat[] }> {
 		const url = API + '/api/merch' + (bypassCache ? `?t=${Date.now()}` : '');
 		const res = await fetch(url, bypassCache ? { cache: 'no-store' } : undefined);
 		if (!res.ok) throw new Error('Catalogue request failed: ' + res.status);
-		const { merch, released } = (await res.json()) as { merch: ApiMerch[]; released?: boolean };
+		const { merch, released, sales_open } =
+			(await res.json()) as { merch: ApiMerch[]; released?: boolean; sales_open?: boolean };
 		// Absent means an API older than the switch, which is open by definition —
 		// matching the worker's own default, so the two cannot disagree.
 		const open = released !== false;
+		// Same reasoning for sales: an API that predates the flag could always sell.
+		const selling = sales_open !== false;
 
 		// Group into the tree's category buckets, preserving the order the API sent.
 		const byCat = new Map<string, Cat>();
@@ -415,7 +423,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				})),
 			});
 		}
-		return { released: open, cats: [...byCat.values()] };
+		return { released: open, salesOpen: selling, cats: [...byCat.values()] };
 	}
 
 	/**
@@ -828,6 +836,11 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		const cartItemsEl = $('cartItems'), cartEmptyEl = $('cartEmpty');
 		const cartTotalEl = $('cartTotal'), cartCountEl = $('cartCount'), cartCount2El = $('cartCount2');
 		const checkoutEl = $<HTMLButtonElement>('checkout'), orderErr = $('orderErr');
+		const salesSoonEl = $('salesSoon');
+		// Whether money can be taken right now — read off the catalogue response, so the
+		// button and the server's checkout gate are fed by one answer. Assumed open until
+		// the first load says otherwise, so the notice never flashes on a working shop.
+		let salesOpen = true;
 		gsap.set(cartEl, { xPercent: 100, visibility: 'visible' });
 		gsap.set(scrim, { autoAlpha: 0 });
 
@@ -861,7 +874,9 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			cartTotalEl.textContent = rupees(total);
 			cartCountEl.textContent = String(count);
 			cartCount2El.textContent = String(count);
-			checkoutEl.disabled = ids.length === 0;
+			// Browse-only beats a full bag: nothing can be bought, however much is in it.
+			checkoutEl.disabled = ids.length === 0 || !salesOpen;
+			salesSoonEl.hidden = salesOpen;
 		}
 
 		cartItemsEl.addEventListener('click', (e) => {
@@ -878,7 +893,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			cartOpen = on;
 			cartEl.setAttribute('aria-hidden', String(!on));
 			gsap.to(cartEl, { xPercent: on ? 0 : 100, duration: rm ? 0 : 0.4, ease: 'power3.out' });
-			gsap.to(scrim, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.3 });
+			gsap.to(scrim, { autoAlpha: on ? 1 : 0, duration: rm ? 0 : 0.3 });''
 		}
 		$('cartToggle').onclick = () => openCart(!cartOpen);
 		$('cartClose').onclick = () => openCart(false);
@@ -1020,7 +1035,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		// ---- 1. cart -> order ----
 		checkoutEl.onclick = async () => {
 			const lines = Object.values(cart);
-			if (!lines.length) return;
+			if (!lines.length || !salesOpen) return;
 
 			checkoutEl.disabled = true;
 			orderErr.hidden = true;
@@ -1562,6 +1577,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		try {
 			const first = await loadCatalog();
 			released = first.released;
+			salesOpen = first.salesOpen;
 			catalog = first.cats;
 		} catch (e) {
 			// A dead API must say so plainly. Silently showing an empty shop would look
@@ -1616,6 +1632,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			if (!fresh.cats.length) return; // a blip must not blank a working shop
 
 			catalog = fresh.cats;
+			salesOpen = fresh.salesOpen; // renderShop -> renderCart redraws the button
 			setShopOpen(true);
 			renderShop(openId);
 		}
@@ -2030,6 +2047,15 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	.drawer-foot .row {
 		display: flex; justify-content: space-between; align-items: baseline;
 		font-weight: 700; font-size: 17px; margin-bottom: 6px;
+	}
+	.sales-soon {
+		display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+		color: var(--ink-60);
+	}
+	.sales-soon-dot {
+		flex: none; width: 7px; height: 7px; border-radius: 50%;
+		background: var(--accent);
 	}
 	.checkout {
 		width: 100%;
