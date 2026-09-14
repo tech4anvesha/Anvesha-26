@@ -7,9 +7,10 @@ export interface Env {
 	ENVIRONMENT: string;
 	RAZORPAY_STUB?: string;
 	DIRECT_PAY?: string;
-	// Which Razorpay key set is in force: 'test' or 'live'. A plain var, not a
-	// database switch — flipping to real money should cost a deploy, not a click.
-	// Absent reads as 'test', which is the only safe default.
+	// Which Razorpay key set is in force: 'test' or 'live'. Loaded as a SECRET, not a
+	// var, purely because secrets apply the instant they are put and vars need a
+	// deploy. Not a database switch: the admin panel must not be one tap from real
+	// money. Absent reads as 'test', which is the only safe default.
 	RAZORPAY_MODE?: string;
 	// Both sets live side by side so switching mode never means re-entering keys.
 	// Each is a Worker secret, never a var. razorpayKeys() picks the active set.

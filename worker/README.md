@@ -449,6 +449,25 @@ dashboard's own Test/Live toggle first), both at
 A live delivery arriving while the Worker is in test mode fails signature verification,
 which is correct — nothing in test mode should settle live orders.
 
-Going live is: load the LIVE set, register the live webhook, set `RAZORPAY_MODE` to
-`live`, deploy. The mode is a var and not a dashboard switch on purpose: moving to real
-money should cost a deploy, not a click.
+Going live is: load the LIVE set, register the live webhook, then
+`npm run switch -- mode live`. No deploy — `RAZORPAY_MODE` is a secret, and secrets
+apply the moment they are put. It is NOT a dashboard switch on purpose: real money must
+never be one request away from a stolen panel session. The CLI needs your Cloudflare
+login for this, which the panel password cannot substitute for.
+
+## From the terminal: `npm run switch`
+
+```
+npm run switch -- status            what the Worker currently sees
+npm run switch -- shop on|off       catalogue visible to students?
+npm run switch -- sales on|off      checkout button on?
+npm run switch -- mode test|live    which Razorpay key set is in force
+npm run switch -- refresh           purge the catalogue cache + poke open tabs
+```
+
+`shop` and `sales` are clients of the same two admin endpoints the panel's buttons
+call, so a change made here is attributed to you, purges the edge cache and reaches
+open tabs — exactly as a click would. A raw `wrangler d1 execute ... UPDATE` would do
+none of those. It prompts for the panel password (hidden); who you are comes from
+`ANVESHA_ADMIN_NAME` / `_ROLL` / `_EMAIL` in the environment or `.dev.vars`, or is
+prompted. `ANVESHA_API` retargets it (default: the deployed Worker).

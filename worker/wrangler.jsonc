@@ -60,13 +60,15 @@
 		// drive the deployed API; `npm run dev:testpay` against a local `wrangler dev`
 		// does that job without widening what the internet-facing Worker will answer.
 		// localhost belongs in .dev.vars, which overrides this under `wrangler dev`.
-		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app",
-		// Which Razorpay key set is in force. "test" or "live" — anything else reads as
-		// test. A var rather than a dashboard switch on purpose: moving to real money
-		// should cost a deploy, not a click. Flip to "live" ONLY once the LIVE secrets
-		// below are set and the live webhook is registered in the Razorpay dashboard.
-		"RAZORPAY_MODE": "test"
-		// The keys themselves are secrets, never vars — `wrangler secret put <NAME>`:
+		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app"
+		// RAZORPAY_MODE is NOT a var here. It is loaded as a secret — not because it is
+		// secret, but because secrets take effect the moment they are put, with no
+		// deploy, and a var does not:
+		//   wrangler secret put RAZORPAY_MODE      (type: test  or  live)
+		// Unset or anything other than "live" reads as test. The `npm run switch` CLI
+		// wraps this and purges the catalogue cache afterwards.
+		//
+		// The keys — `wrangler secret put <NAME>`:
 		//   RAZORPAY_TEST_KEY_ID   RAZORPAY_TEST_KEY_SECRET   RAZORPAY_TEST_WEBHOOK_SECRET
 		//   RAZORPAY_LIVE_KEY_ID   RAZORPAY_LIVE_KEY_SECRET   RAZORPAY_LIVE_WEBHOOK_SECRET
 		// Both sets can be loaded at once; RAZORPAY_MODE picks which one is used. With
@@ -88,9 +90,8 @@
 			"vars": {
 				"ENVIRONMENT": "production",
 				"MAIL_FROM": "Anvesha '26 <orders@anvesha26.in>",
-				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app",
-				"RAZORPAY_MODE": "test"
-				// DIRECT_PAY and RAZORPAY_STUB deliberately absent.
+				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app"
+				// DIRECT_PAY and RAZORPAY_STUB deliberately absent; RAZORPAY_MODE is a secret.
 			},
 			"ratelimits": [
 				{ "name": "MONEY_RL", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }

@@ -13,7 +13,8 @@
     "db:local": "wrangler d1 execute anvesha --local --file=./schema.sql",
     "db:seed": "wrangler d1 execute anvesha --local --file=./seed.sql",
     "db:remote": "wrangler d1 execute anvesha --remote --file=./schema.sql",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "switch": "node scripts/switch.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260811.1",

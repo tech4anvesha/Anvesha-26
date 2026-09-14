@@ -776,3 +776,21 @@ export async function adminSetSales(env: Env, req: Request, cors: Cors): Promise
 
 	return json({ ok: true, release: await readRelease(env) }, {}, cors);
 }
+
+// ============================================================
+// POST /api/admin/merch/refresh
+// ============================================================
+/**
+ * Purges the cached catalogue and pokes every open tab, changing nothing.
+ *
+ * For changes made OUTSIDE the two switch endpoints — chiefly `wrangler secret put
+ * RAZORPAY_MODE`, which alters `sales_open` in the catalogue payload without touching
+ * the row that would normally trigger a purge. Without this the edge keeps serving
+ * the old answer for up to a minute per colo, and open tabs never hear about it.
+ */
+export async function adminRefreshCatalogue(env: Env, req: Request, cors: Cors): Promise<Response> {
+	const session = await requireAdmin(env, req);
+	console.log(`admin: ${session.collegemail} (${session.roll_number}) refreshed the catalogue`);
+	await Promise.all([purgeCatalogue(env, req), broadcastChange(env, 'catalogue', 'refreshed')]);
+	return json({ ok: true, release: await readRelease(env) }, {}, cors);
+}
