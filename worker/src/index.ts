@@ -19,6 +19,7 @@ import {
 	adminDeleteOrder,
 	adminListMerch,
 	adminSetRelease,
+	adminSetSales,
 	adminListOrders,
 	adminScan,
 	adminLogin,
@@ -118,6 +119,8 @@ export default {
 			// read as a merch id.
 			if (method === 'POST' && pathname === '/api/admin/merch/release')
 				return await adminSetRelease(env, req, cors);
+			if (method === 'POST' && pathname === '/api/admin/merch/sales')
+				return await adminSetSales(env, req, cors);
 			if (method === 'POST' && pathname === '/api/admin/merch')
 				return await adminCreateMerch(env, req, cors, ctx);
 

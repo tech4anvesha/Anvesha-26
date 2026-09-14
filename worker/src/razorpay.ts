@@ -1,6 +1,6 @@
 /** Razorpay: order creation and webhook signature verification. */
 
-import { ApiError, type Env, timingSafeEqual } from './util.ts';
+import { ApiError, type Env, razorpayKeys, timingSafeEqual } from './util.ts';
 
 export interface RazorpayOrder {
 	id: string; // order_xxxxxxxxxxxx
@@ -29,14 +29,14 @@ export async function createRazorpayOrder(
 		return { id: `order_STUB${receipt.slice(-12)}`, amount: amountPaise, currency: 'INR', status: 'created' };
 	}
 
-	const { RAZORPAY_KEY_ID: key, RAZORPAY_KEY_SECRET: secret } = env;
-	if (!key || !secret)
-		throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured');
+	const keys = razorpayKeys(env);
+	if (!keys)
+		throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured for the active mode');
 
 	const res = await fetch(`${API}/orders`, {
 		method: 'POST',
 		headers: {
-			Authorization: `Basic ${btoa(`${key}:${secret}`)}`,
+			Authorization: `Basic ${btoa(`${keys.keyId}:${keys.keySecret}`)}`,
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
@@ -68,8 +68,12 @@ export async function verifyWebhookSignature(
 	rawBody: string,
 	signature: string | null,
 ): Promise<boolean> {
-	const secret = env.RAZORPAY_WEBHOOK_SECRET;
-	if (!secret) throw new ApiError(503, 'not_configured', 'RAZORPAY_WEBHOOK_SECRET is not set');
+	// The active mode's webhook secret. Test and live are registered separately in the
+	// Razorpay dashboard with different secrets, so a live delivery arriving while the
+	// Worker is in test mode simply fails to verify — which is correct: nothing in test
+	// mode should be settling live orders.
+	const secret = razorpayKeys(env)?.webhookSecret;
+	if (!secret) throw new ApiError(503, 'not_configured', 'No webhook secret is set for the active Razorpay mode');
 	if (!signature) return false;
 	return timingSafeEqual(await hmacHex(secret, rawBody), signature.trim().toLowerCase());
 }
@@ -105,10 +109,10 @@ export async function verifyCheckoutSignature(
 	paymentId: string,
 	signature: string,
 ): Promise<boolean> {
-	const secret = env.RAZORPAY_KEY_SECRET;
-	if (!secret) throw new ApiError(503, 'not_configured', 'RAZORPAY_KEY_SECRET is not set');
+	const keys = razorpayKeys(env);
+	if (!keys) throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured for the active mode');
 	return timingSafeEqual(
-		await hmacHex(secret, `${orderId}|${paymentId}`),
+		await hmacHex(keys.keySecret, `${orderId}|${paymentId}`),
 		signature.trim().toLowerCase(),
 	);
 }
@@ -122,11 +126,11 @@ export async function verifyCheckoutSignature(
  * from anything the browser sent.
  */
 export async function fetchPayment(env: Env, paymentId: string): Promise<PaymentEntity> {
-	const { RAZORPAY_KEY_ID: key, RAZORPAY_KEY_SECRET: secret } = env;
-	if (!key || !secret) throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured');
+	const keys = razorpayKeys(env);
+	if (!keys) throw new ApiError(503, 'not_configured', 'Razorpay keys are not configured for the active mode');
 
 	const res = await fetch(`${API}/payments/${encodeURIComponent(paymentId)}`, {
-		headers: { Authorization: `Basic ${btoa(`${key}:${secret}`)}` },
+		headers: { Authorization: `Basic ${btoa(`${keys.keyId}:${keys.keySecret}`)}` },
 	});
 	if (!res.ok) {
 		console.error('razorpay payment fetch failed', res.status, await res.text());

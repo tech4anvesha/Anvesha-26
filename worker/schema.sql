@@ -123,9 +123,16 @@ CREATE TABLE IF NOT EXISTS merch_release (
   -- someone afterwards.
   changed_by_roll   TEXT,
   changed_by_name   TEXT,
-  changed_at        TEXT
+  changed_at        TEXT,
+  -- The SECOND switch, independent of the first: whether money can be taken. The
+  -- catalogue goes up days before sales open, so the two are flipped at different
+  -- times by (possibly) different people — hence its own attribution trio.
+  sale_activation                 INTEGER NOT NULL DEFAULT 0 CHECK (sale_activation IN (0, 1)),
+  sale_activation_changed_by_name TEXT,
+  sale_activation_changed_by_roll TEXT,
+  sale_activation_changed_at      TEXT
 );
-INSERT OR IGNORE INTO merch_release (id, activation_status) VALUES (1, 0);
+INSERT OR IGNORE INTO merch_release (id, activation_status, sale_activation) VALUES (1, 0, 0);
 
 -- ---------- webhook audit ----------
 -- Every verified webhook lands here before anything is mutated. When a payment is

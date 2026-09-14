@@ -61,24 +61,35 @@
 		// does that job without widening what the internet-facing Worker will answer.
 		// localhost belongs in .dev.vars, which overrides this under `wrangler dev`.
 		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app",
-		// No payment gateway configured: checkout skips Razorpay and POST /api/pay
-		// settles the order at the counter.
+		// Which Razorpay key set is in force. "test" or "live" — anything else reads as
+		// test. A var rather than a dashboard switch on purpose: moving to real money
+		// should cost a deploy, not a click. Flip to "live" ONLY once the LIVE secrets
+		// below are set and the live webhook is registered in the Razorpay dashboard.
+		"RAZORPAY_MODE": "test"
+		// The keys themselves are secrets, never vars — `wrangler secret put <NAME>`:
+		//   RAZORPAY_TEST_KEY_ID   RAZORPAY_TEST_KEY_SECRET   RAZORPAY_TEST_WEBHOOK_SECRET
+		//   RAZORPAY_LIVE_KEY_ID   RAZORPAY_LIVE_KEY_SECRET   RAZORPAY_LIVE_WEBHOOK_SECRET
+		// Both sets can be loaded at once; RAZORPAY_MODE picks which one is used. With
+		// the active set incomplete, nothing can be bought: the storefront's checkout
+		// stays off and POST /api/checkout answers 503 not_configured.
 		//
-		// DELETE THIS in the same deploy that sets the Razorpay secrets. Beside a live
-		// gateway it would let anyone mark any order paid without spending a rupee —
-		// and note that even alone it trusts the buyer's own browser to say it paid.
-		// See the security note in worker/README.md.
-		"DIRECT_PAY": "1"
+		// Whether sales are OPEN is not here at all — that is the admin panel's sales
+		// switch (merch_release.sale_activation). This block only decides whether there
+		// is a gateway behind it.
+		//
+		// DIRECT_PAY is deliberately absent. It was the interim counter path, which
+		// trusts the buyer's own browser to say it paid — see README.md. Never set it
+		// beside a live gateway: it would let anyone mark any order paid.
 	},
-	// Secrets are NOT set here — `wrangler secret put <NAME>`:
-	//   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET
+	// Secrets are NOT set here — see the RAZORPAY_MODE note above for the six names.
 	// For local dev put them in .dev.vars (git-ignored).
 	"env": {
 		"production": {
 			"vars": {
 				"ENVIRONMENT": "production",
 				"MAIL_FROM": "Anvesha '26 <orders@anvesha26.in>",
-				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app"
+				"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app",
+				"RAZORPAY_MODE": "test"
 				// DIRECT_PAY and RAZORPAY_STUB deliberately absent.
 			},
 			"ratelimits": [

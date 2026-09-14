@@ -7,9 +7,18 @@ export interface Env {
 	ENVIRONMENT: string;
 	RAZORPAY_STUB?: string;
 	DIRECT_PAY?: string;
-	RAZORPAY_KEY_ID?: string;
-	RAZORPAY_KEY_SECRET?: string;
-	RAZORPAY_WEBHOOK_SECRET?: string;
+	// Which Razorpay key set is in force: 'test' or 'live'. A plain var, not a
+	// database switch — flipping to real money should cost a deploy, not a click.
+	// Absent reads as 'test', which is the only safe default.
+	RAZORPAY_MODE?: string;
+	// Both sets live side by side so switching mode never means re-entering keys.
+	// Each is a Worker secret, never a var. razorpayKeys() picks the active set.
+	RAZORPAY_TEST_KEY_ID?: string;
+	RAZORPAY_TEST_KEY_SECRET?: string;
+	RAZORPAY_TEST_WEBHOOK_SECRET?: string;
+	RAZORPAY_LIVE_KEY_ID?: string;
+	RAZORPAY_LIVE_KEY_SECRET?: string;
+	RAZORPAY_LIVE_WEBHOOK_SECRET?: string;
 	// Confirmation email. Unset means no mail is sent — the order still completes.
 	RESEND_API_KEY?: string;
 	MAIL_FROM?: string;
@@ -174,6 +183,50 @@ export const clientIp = (req: Request) => req.headers.get('CF-Connecting-IP') ??
 export async function requireBudget(env: Env, req: Request, route: string): Promise<void> {
 	const { success } = await env.MONEY_RL.limit({ key: `${route}:${clientIp(req)}` });
 	if (!success) throw tooMany();
+}
+
+export type RazorpayMode = 'test' | 'live';
+
+/** The active Razorpay key set, or null if that set is incomplete. */
+export interface RazorpayKeys {
+	mode: RazorpayMode;
+	keyId: string;
+	keySecret: string;
+	webhookSecret?: string;
+}
+
+/** 'live' only when spelt out exactly; anything else is 'test'. */
+export function razorpayMode(env: Env): RazorpayMode {
+	return env.RAZORPAY_MODE === 'live' ? 'live' : 'test';
+}
+
+/**
+ * Picks the key set the current mode calls for.
+ *
+ * Null when that set is missing its id or secret, so every caller has one check to
+ * make and no caller can end up with a live id paired with a test secret. The webhook
+ * secret is optional here because order creation and the browser callback do not use
+ * it; verifyWebhookSignature insists on it separately.
+ */
+export function razorpayKeys(env: Env): RazorpayKeys | null {
+	const mode = razorpayMode(env);
+	const keyId = mode === 'live' ? env.RAZORPAY_LIVE_KEY_ID : env.RAZORPAY_TEST_KEY_ID;
+	const keySecret = mode === 'live' ? env.RAZORPAY_LIVE_KEY_SECRET : env.RAZORPAY_TEST_KEY_SECRET;
+	const webhookSecret = mode === 'live' ? env.RAZORPAY_LIVE_WEBHOOK_SECRET : env.RAZORPAY_TEST_WEBHOOK_SECRET;
+	if (!keyId || !keySecret) return null;
+	return { mode, keyId, keySecret, webhookSecret: webhookSecret || undefined };
+}
+
+/**
+ * Whether ANY way of taking money is configured: the interim counter flow
+ * (DIRECT_PAY) or a complete Razorpay key set for the active mode.
+ *
+ * This is configuration, not intent. The admin's sales switch in merch_release is the
+ * intent; sales are open to shoppers only when both hold. Kept apart so the panel can
+ * tell "you turned sales on but no gateway is set up" from "sales are off".
+ */
+export function paymentConfigured(env: Env): boolean {
+	return env.DIRECT_PAY === '1' || razorpayKeys(env) !== null;
 }
 
 /** Constant-time comparison — a plain `===` on a secret leaks its prefix via timing. */

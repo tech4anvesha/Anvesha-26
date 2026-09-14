@@ -22,8 +22,10 @@ import {
 	json,
 	looksLikeOrderId,
 	newMerchId,
+	paymentConfigured,
 	purgeCatalogue,
 	randomId,
+	razorpayMode,
 	readJson,
 	timingSafeEqual,
 	unauthorized,
@@ -603,38 +605,73 @@ export async function adminCreateMerch(
 // ============================================================
 // GET  (embedded in adminListMerch) / POST /api/admin/merch/release
 // ============================================================
-/** The switch, as the panel renders it. */
-export interface ReleaseState {
+/** One switch, as the panel renders it. */
+export interface SwitchState {
 	active: boolean;
 	by_name: string | null;
 	by_roll: string | null;
 	at: string | null;
 }
 
+/** Both switches plus what the panel needs to explain them. */
+export interface ReleaseState {
+	/** Is the catalogue visible to students. */
+	shop: SwitchState;
+	/** Is the checkout button on. Independent of `shop`. */
+	sales: SwitchState;
+	/** Whether there is anything behind the sales switch — so the panel can say "sales
+	 *  are on but no gateway is set up" rather than leave the admin guessing why the
+	 *  storefront's button is still off. */
+	gateway: { mode: 'test' | 'live'; configured: boolean; counter: boolean };
+}
+
 /**
- * Reads the shop-wide switch.
+ * Reads both switches off the one merch_release row.
  *
- * A missing row means the deployment predates the migration, and that reads as OPEN —
- * the same default the public route uses. A switch whose job is closing the shop must
- * not be able to close it by failing to exist.
+ * A missing row means the deployment predates the migration. The SHOP reads as open —
+ * a switch whose job is closing the shop must not close it by failing to exist. SALES
+ * read as closed, for the mirror-image reason: a switch whose job is taking money must
+ * not take it by failing to exist.
  */
 export async function readRelease(env: Env): Promise<ReleaseState> {
 	const row = await env.DB.prepare(
-		`SELECT activation_status, changed_by_name, changed_by_roll, changed_at
+		`SELECT activation_status, changed_by_name, changed_by_roll, changed_at,
+		        sale_activation, sale_activation_changed_by_name,
+		        sale_activation_changed_by_roll, sale_activation_changed_at
 		   FROM merch_release WHERE id = 1`,
 	).first<{
 		activation_status: number;
 		changed_by_name: string | null;
 		changed_by_roll: string | null;
 		changed_at: string | null;
+		sale_activation: number | null;
+		sale_activation_changed_by_name: string | null;
+		sale_activation_changed_by_roll: string | null;
+		sale_activation_changed_at: string | null;
 	}>();
 
-	if (!row) return { active: true, by_name: null, by_roll: null, at: null };
+	const gateway = {
+		mode: razorpayMode(env),
+		configured: paymentConfigured(env),
+		counter: env.DIRECT_PAY === '1',
+	};
+	const none: SwitchState = { active: false, by_name: null, by_roll: null, at: null };
+
+	if (!row) return { shop: { ...none, active: true }, sales: none, gateway };
 	return {
-		active: row.activation_status === 1,
-		by_name: row.changed_by_name,
-		by_roll: row.changed_by_roll,
-		at: row.changed_at,
+		shop: {
+			active: row.activation_status === 1,
+			by_name: row.changed_by_name,
+			by_roll: row.changed_by_roll,
+			at: row.changed_at,
+		},
+		sales: {
+			active: row.sale_activation === 1,
+			by_name: row.sale_activation_changed_by_name,
+			by_roll: row.sale_activation_changed_by_roll,
+			at: row.sale_activation_changed_at,
+		},
+		gateway,
 	};
 }
 
@@ -670,7 +707,7 @@ export async function adminSetRelease(env: Env, req: Request, cors: Cors): Promi
 
 	// The shared password means this log is the only attribution beyond the row itself.
 	console.log(
-		`admin: ${session.collegemail} (${session.roll_number}) ${active ? 'OPENED' : 'CLOSED'} the merch shop`,
+		`admin: ${session.collegemail} (${session.roll_number}) made the merch catalogue ${active ? 'VISIBLE' : 'HIDDEN'}`,
 	);
 
 	// After the write, never before. The purge is what makes the change visible: the
@@ -679,6 +716,62 @@ export async function adminSetRelease(env: Env, req: Request, cors: Cors): Promi
 	await Promise.all([
 		purgeCatalogue(env, req),
 		broadcastChange(env, 'catalogue', active ? 'shop opened' : 'shop closed'),
+	]);
+
+	return json({ ok: true, release: await readRelease(env) }, {}, cors);
+}
+
+// ============================================================
+// POST /api/admin/merch/sales
+// ============================================================
+/**
+ * Turns the checkout on or off. Independent of adminSetRelease above: the catalogue
+ * can be up for days before money is taken, and the two are flipped by different
+ * people at different times, which is why the row carries two attribution trios.
+ *
+ * Same discipline as the shop switch — the target state is sent, not "toggle", so a
+ * repeat is a no-op and two admins cannot flip past each other.
+ *
+ * Does NOT check that a gateway exists. Intent and configuration are kept apart on
+ * purpose: this records what the admin decided, and the storefront's button is only on
+ * when both hold. The panel shows the gateway state beside this switch so the admin
+ * can see the difference.
+ */
+export async function adminSetSales(env: Env, req: Request, cors: Cors): Promise<Response> {
+	const session = await requireAdmin(env, req);
+	const body = await readJson<{ active?: unknown }>(req);
+	if (typeof body.active !== 'boolean')
+		throw bad('bad_active', 'active must be true or false');
+
+	const active = body.active ? 1 : 0;
+
+	// Upsert on the same row the shop switch lives on. On a fresh database the row
+	// may not exist yet; on conflict only THIS switch's columns move — the shop switch
+	// and its attribution are left exactly as they were.
+	await env.DB.prepare(
+		`INSERT INTO merch_release
+		   (id, activation_status, sale_activation,
+		    sale_activation_changed_by_roll, sale_activation_changed_by_name, sale_activation_changed_at)
+		 VALUES (1, 0, ?, ?, ?, datetime('now'))
+		 ON CONFLICT (id) DO UPDATE SET
+		   sale_activation                 = excluded.sale_activation,
+		   sale_activation_changed_by_roll = excluded.sale_activation_changed_by_roll,
+		   sale_activation_changed_by_name = excluded.sale_activation_changed_by_name,
+		   sale_activation_changed_at      = excluded.sale_activation_changed_at`,
+	)
+		.bind(active, session.roll_number, session.name)
+		.run();
+
+	console.log(
+		`admin: ${session.collegemail} (${session.roll_number}) turned merch SALES ${active ? 'ON' : 'OFF'}`,
+	);
+
+	// sales_open rides inside the cached catalogue, so the purge is what makes this
+	// reach the storefront's button — and the broadcast is what makes it reach open
+	// tabs without a reload.
+	await Promise.all([
+		purgeCatalogue(env, req),
+		broadcastChange(env, 'catalogue', active ? 'sales opened' : 'sales closed'),
 	]);
 
 	return json({ ok: true, release: await readRelease(env) }, {}, cors);

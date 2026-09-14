@@ -418,3 +418,37 @@ Two ways to close it:
 
 Until one of those is done, treat any `payment_status = 'paid'` row whose payment
 method is `counter` as unverified.
+
+**Current state (14 September 2026):** `DIRECT_PAY` is NOT set, so `/api/pay` 404s
+and the hole above is closed. Whether students can buy is now two things together:
+
+1. the admin panel's **sales switch** (`merch_release.sale_activation`) — intent
+2. a configured payment path (`util.paymentConfigured`) — a complete Razorpay key set
+   for the active `RAZORPAY_MODE`, or `DIRECT_PAY` — capability
+
+The storefront's checkout is on only when both hold; `POST /api/checkout` answers
+`403 sales_closed` when the switch is off and `503 not_configured` when it is on with
+nothing behind it. The catalogue's own visibility (`activation_status`) is a separate
+switch and does not affect either.
+
+## Razorpay: test and live side by side
+
+Six secrets, one selector. `RAZORPAY_MODE` (a var in `wrangler.jsonc`, `test` or
+`live`) picks which set `util.razorpayKeys()` returns; every Razorpay call goes through
+it, so there is no path that could pair a live id with a test secret.
+
+```
+wrangler secret put RAZORPAY_TEST_KEY_ID          wrangler secret put RAZORPAY_LIVE_KEY_ID
+wrangler secret put RAZORPAY_TEST_KEY_SECRET      wrangler secret put RAZORPAY_LIVE_KEY_SECRET
+wrangler secret put RAZORPAY_TEST_WEBHOOK_SECRET  wrangler secret put RAZORPAY_LIVE_WEBHOOK_SECRET
+```
+
+Test and live webhooks are registered separately in the Razorpay dashboard (switch the
+dashboard's own Test/Live toggle first), both at
+`/api/webhooks/razorpay`, each with its own invented secret (`openssl rand -hex 32`).
+A live delivery arriving while the Worker is in test mode fails signature verification,
+which is correct — nothing in test mode should settle live orders.
+
+Going live is: load the LIVE set, register the live webhook, set `RAZORPAY_MODE` to
+`live`, deploy. The mode is a var and not a dashboard switch on purpose: moving to real
+money should cost a deploy, not a click.

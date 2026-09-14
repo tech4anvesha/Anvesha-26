@@ -1,7 +1,17 @@
 # Copy to .dev.vars for local dev. Never commit .dev.vars.
-RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx
-RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-RAZORPAY_WEBHOOK_SECRET=some-long-random-string
+
+# --- Razorpay ---
+# Two key sets, one selector. Leave a set blank until you have it; with the ACTIVE set
+# incomplete the store is browse-only and /api/checkout answers 503 not_configured.
+# The webhook secrets are strings YOU invent (openssl rand -hex 32) and paste into the
+# matching test/live webhook in the Razorpay dashboard — Razorpay does not issue them.
+RAZORPAY_MODE=test
+RAZORPAY_TEST_KEY_ID=
+RAZORPAY_TEST_KEY_SECRET=
+RAZORPAY_TEST_WEBHOOK_SECRET=
+RAZORPAY_LIVE_KEY_ID=
+RAZORPAY_LIVE_KEY_SECRET=
+RAZORPAY_LIVE_WEBHOOK_SECRET=
 
 # Confirmation email. Leave RESEND_API_KEY unset to skip sending entirely —
 # orders still complete, the send is just logged and skipped.

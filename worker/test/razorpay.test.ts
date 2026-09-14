@@ -20,10 +20,16 @@ import type { Env } from '../src/util.ts';
 const KEY_SECRET = 'test_key_secret_do_not_use';
 const WEBHOOK_SECRET = 'test_webhook_secret_do_not_use';
 
+// Test-mode keys, with a DIFFERENT live set alongside so a test can prove the
+// resolver never reaches across into the wrong one.
 const env = {
-	RAZORPAY_KEY_ID: 'rzp_test_example',
-	RAZORPAY_KEY_SECRET: KEY_SECRET,
-	RAZORPAY_WEBHOOK_SECRET: WEBHOOK_SECRET,
+	RAZORPAY_MODE: 'test',
+	RAZORPAY_TEST_KEY_ID: 'rzp_test_example',
+	RAZORPAY_TEST_KEY_SECRET: KEY_SECRET,
+	RAZORPAY_TEST_WEBHOOK_SECRET: WEBHOOK_SECRET,
+	RAZORPAY_LIVE_KEY_ID: 'rzp_live_example',
+	RAZORPAY_LIVE_KEY_SECRET: 'live_key_secret_never_used_here',
+	RAZORPAY_LIVE_WEBHOOK_SECRET: 'live_webhook_secret_never_used_here',
 } as Env;
 
 /** The reference implementation, straight out of Razorpay's docs. */
@@ -71,6 +77,19 @@ describe('verifyCheckoutSignature', () => {
 			() => verifyCheckoutSignature({} as Env, ORDER, PAYMENT, 'anything'),
 			/not configured|not set/i,
 		);
+	});
+
+	it('signs with the TEST secret in test mode, never the live one beside it', async () => {
+		const liveSig = sign('live_key_secret_never_used_here', `${ORDER}|${PAYMENT}`);
+		assert.equal(await verifyCheckoutSignature(env, ORDER, PAYMENT, liveSig), false);
+	});
+
+	it('switches to the LIVE secret when the mode says so', async () => {
+		const live = { ...env, RAZORPAY_MODE: 'live' } as Env;
+		const liveSig = sign('live_key_secret_never_used_here', `${ORDER}|${PAYMENT}`);
+		assert.equal(await verifyCheckoutSignature(live, ORDER, PAYMENT, liveSig), true);
+		// And the test secret, which was valid a moment ago, no longer is.
+		assert.equal(await verifyCheckoutSignature(live, ORDER, PAYMENT, sign(KEY_SECRET, `${ORDER}|${PAYMENT}`)), false);
 	});
 });
 

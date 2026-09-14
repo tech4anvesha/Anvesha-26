@@ -23,10 +23,27 @@ import {
 	newTransactionId,
 	notFound,
 	readJson,
+	paymentConfigured,
+	razorpayKeys,
 	requireBudget,
 } from './util.ts';
 
 type Cors = Record<string, string>;
+
+/**
+ * Both switches off the one merch_release row.
+ *
+ * A missing row (a deployment that predates the migration) reads as VISIBLE and
+ * NOT SELLING — the same defaults the row is seeded with, except visibility, which
+ * defaults open so the switch can never take the shop down by failing to exist.
+ */
+async function readSwitches(env: Env): Promise<{ visible: boolean; selling: boolean }> {
+	const row = await env.DB.prepare(
+		`SELECT activation_status, sale_activation FROM merch_release WHERE id = 1`,
+	).first<{ activation_status: number; sale_activation: number | null }>();
+	if (!row) return { visible: true, selling: false };
+	return { visible: row.activation_status === 1, selling: row.sale_activation === 1 };
+}
 
 // ============================================================
 // 1. GET /api/merch — the catalogue
@@ -60,15 +77,17 @@ export async function listMerch(
 	// one thing a "coming soon" page is meant to prevent.
 	// Missing row (a deployment that predates the migration) reads as OPEN, so the
 	// switch can never take the shop down by failing to exist.
-	const release = await env.DB.prepare(
-		`SELECT activation_status FROM merch_release WHERE id = 1`,
-	).first<{ activation_status: number }>();
-	const released = release ? release.activation_status === 1 : true;
+	const release = await readSwitches(env);
+	const released = release.visible;
+	// Intent AND configuration: the admin's sales switch is on, and there is actually a
+	// way to take money. Either alone leaves the button off — a switch with no gateway
+	// behind it would only lead shoppers to an error.
+	const salesOpen = release.selling && paymentConfigured(env);
 
 	if (!released) {
 		// Cached and headered exactly like the open catalogue below, and purged by the
 		// same key, so flipping the switch reaches shoppers as fast as a price change.
-		const body = json({ released: false, merch: [] }, {}, cors);
+		const body = json({ released: false, sales_open: salesOpen, merch: [] }, {}, cors);
 		body.headers.set('Cache-Control', 'public, max-age=60');
 		if (cacheKey && ctx) ctx.waitUntil(cache.put(cacheKey, body.clone()));
 		return body;
@@ -96,6 +115,10 @@ export async function listMerch(
 	const body = json(
 		{
 			released: true,
+			// Browse-only when false: the page keeps the catalogue up but disables its
+			// checkout. Served here so the storefront learns it from the one request it
+			// already makes, rather than probing checkout to find out.
+			sales_open: salesOpen,
 			merch: results.map((m) => {
 				const labels = viewsFor.get(m.id) ?? [];
 				return {
@@ -210,15 +233,18 @@ export async function merchImage(
 export async function checkout(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireBudget(env, req, 'checkout');
 
-	// A closed shop takes no orders. Hiding the catalogue is a page-level change and
-	// this route never reads it, so without this a stale tab — or a replayed request —
-	// could still price and place an order against merch nobody is meant to see yet.
-	// Missing row reads as open, matching listMerch.
-	const release = await env.DB.prepare(
-		`SELECT activation_status FROM merch_release WHERE id = 1`,
-	).first<{ activation_status: number }>();
-	if (release && release.activation_status !== 1)
-		throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+	// Three gates, checked before anything is priced or written, each with its own
+	// answer so a stale tab learns WHY rather than seeing one generic refusal:
+	//   1. the catalogue is hidden          -> 403 shop_closed
+	//   2. visible, but sales are off       -> 403 sales_closed
+	//   3. sales are on, but nothing can take the money -> 503 not_configured
+	// Hiding the button is a page-level change this route never sees, so without these
+	// a replayed request could still place an order the store has no way to settle.
+	const release = await readSwitches(env);
+	if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+	if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
+	if (!paymentConfigured(env))
+		throw new ApiError(503, 'not_configured', 'Sales are switched on but no payment gateway is configured');
 
 	const body = await readJson<{ cart?: unknown }>(req);
 	const lines = parseCart(body);
@@ -265,9 +291,9 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 						order_id: rzp.id,
 						amount: rzp.amount,
 						currency: rzp.currency,
-						// Publishable id, safe in the browser — what Checkout.js needs.
-						// RAZORPAY_KEY_SECRET must never leave the worker.
-						key_id: env.RAZORPAY_KEY_ID ?? null,
+						// Publishable id, safe in the browser — what Checkout.js needs. The
+						// secret must never leave the worker. Test or live follows the mode.
+						key_id: razorpayKeys(env)?.keyId ?? null,
 					}
 				: null,
 		},
