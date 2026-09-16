@@ -458,12 +458,22 @@ login for this, which the panel password cannot substitute for.
 ## From the terminal: `npm run switch`
 
 ```
-npm run switch -- status            what the Worker currently sees
-npm run switch -- shop on|off       catalogue visible to students?
-npm run switch -- sales on|off      checkout button on?
-npm run switch -- mode test|live    which Razorpay key set is in force
-npm run switch -- refresh           purge the catalogue cache + poke open tabs
+npm run switch -- status                 what the Worker currently sees
+npm run switch -- shop on|off            catalogue visible to students?
+npm run switch -- sales on|off           checkout button on?
+npm run switch -- mode test|live         which Razorpay key set is in force
+npm run switch -- keys test|live         load that set's Razorpay credentials
+npm run switch -- keys clear test|live   remove that set
+npm run switch -- keys status            which slots are filled (names only)
+npm run switch -- refresh                purge the catalogue cache + poke open tabs
 ```
+
+`keys` prompts for the Key ID and Key Secret (hidden), refuses an id whose prefix does
+not match the slot (`rzp_test_` / `rzp_live_` — so a live key cannot land in the test
+slot), generates the webhook secret itself and prints it once for the Razorpay
+dashboard. It is `wrangler secret put` underneath, so your Cloudflare login is the
+credential; loading the live set asks you to type `live` to confirm. With `ANVESHA_API`
+pointed at a local Worker it writes the same six names into `.dev.vars` instead.
 
 `shop` and `sales` are clients of the same two admin endpoints the panel's buttons
 call, so a change made here is attributed to you, purges the edge cache and reaches
