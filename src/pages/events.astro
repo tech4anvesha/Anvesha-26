@@ -17,7 +17,40 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 	description="The full Anvesha '26 programme — talks, workshops and competitions across three days at IISER Thiruvananthapuram, with times, venues and registration links."
 >
 	<div class="page">
-		<!-- ============ HISTORY DIAL ============ -->
+		<!-- ============ VIEW SWITCH ============
+		     One view at a time. The two halves of an events page answer different
+		     questions — "what can I still go to" and "what did we do" — and stacking
+		     them made the second one a scroll nobody reached. -->
+		<div class="ev-switch-wrap" data-reveal>
+			<div class="ev-switch" id="evSwitch" data-view="next" role="tablist"
+			     aria-label="Which events to show">
+				{/* The ink block that slides. One element under both labels rather than a
+				    fill on each: sliding is what makes the two read as two states of one
+				    control instead of two separate buttons. */}
+				<span class="ev-thumb" aria-hidden="true"></span>
+				<button class="ev-tab" id="tabNext" type="button" role="tab"
+				        aria-selected="true" aria-controls="viewNext">
+					<span>Upcoming</span><b class="ev-tab-n" id="nNext">—</b>
+				</button>
+				<button class="ev-tab" id="tabPast" type="button" role="tab"
+				        aria-selected="false" aria-controls="viewPast" tabindex="-1">
+					<span>Past</span><b class="ev-tab-n" id="nPast">—</b>
+				</button>
+			</div>
+		</div>
+
+		<!-- ============ UPCOMING ============ -->
+		{/* One section per day, built at runtime from /api/events. Static markup here
+		    would freeze the schedule into whichever build shipped it — and the whole
+		    point of the events Worker is that a day moves itself into History the
+		    moment its last event ends. */}
+		<div class="ev-view" id="viewNext" role="tabpanel" aria-labelledby="tabNext">
+			<div id="tlDays" data-reveal></div>
+			<p class="ev-note" id="tlNote">Loading the schedule…</p>
+		</div>
+
+		<!-- ============ PAST ============ -->
+		<div class="ev-view" id="viewPast" role="tabpanel" aria-labelledby="tabPast" hidden>
 		<section class="section history" data-reveal>
 			<div class="sechead">
 				<span class="sechead-label">History</span>
@@ -65,19 +98,7 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 			    fetch fails. Hidden by default; the script decides. */}
 			<p class="ev-note" id="histNote" hidden></p>
 		</section>
-
-		<!-- separator between what happened and what is coming -->
-		<div class="band" data-reveal>
-			<span class="band-label">Upcoming</span>
 		</div>
-
-		<!-- ============ TIMELINE ============ -->
-		{/* One section per day, built at runtime from /api/events. Static markup here
-		    would freeze the schedule into whichever build shipped it — and the whole
-		    point of the events Worker is that a day moves itself into History the
-		    moment its last event ends. */}
-		<div id="tlDays" data-reveal></div>
-		<p class="ev-note" id="tlNote">Loading the schedule…</p>
 	</div>
 
 	<Fragment slot="overlays">
@@ -403,6 +424,46 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 		for (const b of document.querySelectorAll<HTMLElement>('[data-ev]'))
 			b.onclick = () => openFile(b.dataset.ev!);
 
+		// ---------- view switch ----------
+		// Wired here, not after the dial: the dial's empty-state branch returns early,
+		// and the switch has to work on a page with no past events at all.
+		const evSwitch = $('evSwitch');
+		const tabs = [
+			{ view: 'next', btn: $<HTMLButtonElement>('tabNext'), panel: $('viewNext') },
+			{ view: 'past', btn: $<HTMLButtonElement>('tabPast'), panel: $('viewPast') },
+		];
+		$('nNext').textContent = String(upcoming.length);
+		$('nPast').textContent = String(past.length);
+
+		function showView(view: string, focus = false) {
+			evSwitch.dataset.view = view;
+			for (const t of tabs) {
+				const on = t.view === view;
+				t.btn.setAttribute('aria-selected', String(on));
+				// Roving tabindex: one stop for the whole control, as a tablist should be.
+				t.btn.tabIndex = on ? 0 : -1;
+				t.panel.hidden = !on;
+				if (on && focus) t.btn.focus();
+			}
+		}
+
+		for (const [i, t] of tabs.entries()) {
+			t.btn.addEventListener('click', () => showView(t.view), { signal });
+			t.btn.addEventListener('keydown', (e) => {
+				// Left/right move between tabs, which is what a tablist is expected to do
+				// once it has taken a single tab stop.
+				const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+				if (!d) return;
+				e.preventDefault();
+				showView(tabs[(i + d + tabs.length) % tabs.length].view, true);
+			}, { signal });
+		}
+
+		// Land on whichever half has something in it. With the fest over, "Upcoming" is
+		// an empty page; opening on Past is the honest default rather than making the
+		// visitor find the switch to see anything at all.
+		showView(upcoming.length === 0 && past.length > 0 ? 'past' : 'next');
+
 		// ---------- history dial ----------
 		// ponytail: the RING rotates and a fixed pointer at 12 o'clock reads the selection —
 		// that is what makes it feel like a dial rather than a clock with a moving hand.
@@ -703,21 +764,54 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 	/* ============ UPCOMING BAND ============
 	   The label straddles the section separator rather than drawing rules of its own —
 	   one line doing two jobs. The section above drops its border so they don't double. */
-	.section:has(+ .band) { border-bottom: 0; }
-	.band {
-		position: relative;
-		border-top: var(--stroke) solid var(--secondary);
+	/* ============ VIEW SWITCH ============
+	   A segmented control in the site's own vocabulary: paper card, ink fill for the
+	   live half, one accent-offset shadow. The ink block SLIDES rather than each half
+	   filling and emptying — that is what makes the two read as two positions of one
+	   switch instead of two buttons that happen to sit together. */
+	.ev-switch-wrap {
+		display: grid; place-items: center;
+		padding: clamp(22px, 3.2vw, 36px) clamp(20px, 3.5vw, 52px);
+		border-bottom: var(--stroke) solid var(--secondary);
 	}
-	.band-label {
-		position: absolute; top: 0; left: 50%;
-		transform: translate(-50%, -50%);
-		padding: 0 clamp(14px, 2.5vw, 24px);
+	.ev-switch {
+		position: relative;
+		display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+		width: min(400px, 100%);
 		background: var(--primary);
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(11px, 1.3vw, 14px);
-		letter-spacing: .3em; text-transform: uppercase; color: var(--secondary);
-		text-indent: .3em; /* balance the trailing letter-space */
-		white-space: nowrap;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop);
+		overflow: hidden;
+	}
+	/* Half the width, parked over the left cell; translateX(100%) is exactly one cell,
+	   so the travel needs no measurement and survives any label length. */
+	.ev-thumb {
+		position: absolute; top: 0; bottom: 0; left: 0; width: 50%;
+		background: var(--secondary);
+		transition: transform .36s cubic-bezier(.65, .05, .2, 1);
+	}
+	.ev-switch[data-view='past'] .ev-thumb { transform: translateX(100%); }
+
+	.ev-tab {
+		/* Above the thumb, and transparent, so the ink slides UNDER the words. */
+		position: relative; z-index: 1;
+		appearance: none; -webkit-appearance: none;
+		background: none; border: 0; cursor: pointer;
+		display: flex; align-items: center; justify-content: center; gap: 9px;
+		padding: 14px 16px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+		color: var(--ink-40);
+		transition: color .28s ease;
+	}
+	.ev-tab:hover { color: var(--secondary); }
+	.ev-tab[aria-selected='true'], .ev-tab[aria-selected='true']:hover { color: var(--primary); }
+	.ev-tab:focus-visible { outline: var(--stroke) solid var(--accent); outline-offset: -4px; }
+	/* The count. Accent reads on paper and on ink alike, so one colour serves both
+	   halves and the number never has to restate the state the fill already shows. */
+	.ev-tab-n {
+		font-size: 10px; font-weight: 500; font-style: normal;
+		color: var(--accent);
 	}
 
 	/* ============ HISTORY DIAL ============
@@ -1008,6 +1102,12 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 		color: var(--accent); border: 2.5px solid var(--accent);
 		padding: 6px 13px; border-radius: 3px;
 		transform: rotate(-4deg); opacity: .85;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		/* The slide is the switch's only motion; without it the fill simply jumps,
+		   which still reads correctly. */
+		.ev-thumb, .ev-tab { transition: none; }
 	}
 
 	@media (max-width: 900px) {
