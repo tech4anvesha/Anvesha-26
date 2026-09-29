@@ -16,7 +16,15 @@
 	// a zone the account does not hold fails the whole deploy, so this cannot be left
 	// enabled while the DNS still lives at GoDaddy — uncomment it in the same sitting as
 	// the nameserver change, not before.
-	// "routes": [{ "pattern": "api.anvesha26.in", "custom_domain": true }],
+	// The custom domain is what the site calls. It exists because *.workers.dev is on
+	// several ad blocklists, and a blocked request looks exactly like the service being
+	// down — see worker/README.md.
+	"routes": [{ "pattern": "api.anvesha26.in", "custom_domain": true }],
+	// Kept alive alongside it. Adding a custom domain switches this OFF by default,
+	// which 404s the old hostname the moment the route lands — and any tab still
+	// running the previous build is calling exactly that. Leave it true until every
+	// deployed frontend has moved over; it costs nothing, because nothing points here.
+	"workers_dev": true,
 	"observability": {
 		"enabled": true
 	},

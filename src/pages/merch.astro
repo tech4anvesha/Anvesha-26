@@ -1640,11 +1640,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		stopLive?.();
 		stopLive = onCatalogueChange(refresh);
 
-		// Second way in, because the first one is not always available: this API is on
-		// *.workers.dev, which several ad blocklists flag outright, so a shopper running
-		// uBlock never receives the socket event at all — and the store opening would
-		// only reach them when the 60s cache lapsed and they happened to reload.
-		// Coming back to the tab is the moment they are most likely to be looking.
+		// Second way in, because the first one is not always available: a socket can be
+		// dropped by a proxy, a flaky network or an extension, and the store opening
+		// would then only reach the shopper when the 60s cache lapsed and they happened
+		// to reload. Coming back to the tab is the moment they are most likely looking.
 		document.addEventListener('visibilitychange', () => {
 			if (document.visibilityState === 'visible') void refresh();
 		}, { signal });

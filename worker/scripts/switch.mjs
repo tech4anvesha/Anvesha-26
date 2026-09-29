@@ -39,7 +39,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { stdin, stdout } from 'node:process';
 
-const PROD = 'https://anvesha-merch-api.tech4anvesha.workers.dev';
+const PROD = 'https://merch-api.anvesha26.in';
 
 // ---------- .dev.vars, for the identity fields only ----------
 let vars = {};

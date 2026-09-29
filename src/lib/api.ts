@@ -33,5 +33,5 @@ export const SITE = (import.meta.env.PUBLIC_SITE_URL ?? 'https://anvesha26.in').
  * build should still show a real schedule instead of an empty one.
  */
 export const EVENTS_API = (
-	import.meta.env.PUBLIC_EVENTS_API_URL ?? 'https://anvesha-events-api.tech4anvesha.workers.dev'
+	import.meta.env.PUBLIC_EVENTS_API_URL ?? 'https://api.anvesha26.in'
 ).replace(/\/$/, '');
