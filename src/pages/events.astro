@@ -752,18 +752,21 @@ const PAYLOAD = { icons: TYPE_ICONS, fallbackIcon: FALLBACK_ICON, api: EVENTS_AP
 	/* the venue is the first thing to give up room once a third chip appears */
 	.tl-item.next .tl-venue { flex: 0 1 auto; min-width: 0; }
 
-	/* the page's own dot matrix, painted into just this section so it reads as the
-	   background texture flowing in from behind the card and stopping dead at the
-	   separator below — every other section stays plain paper */
-	.section.history {
+	/* The page's own dot matrix. On the PANEL, not on the section inside it: a section
+	   is only as tall as its content, so on a short day the texture stopped halfway
+	   down and left a band of bare paper under it. The panel is a flex child of .page
+	   and grows into whatever height the card has spare, so the ground reaches the
+	   bottom edge however little is on the schedule.
+
+	   `1 0 auto`, not `1`: grow into the spare room, but never shrink below the
+	   content — a long timeline has to be allowed to overflow and scroll. */
+	.ev-view {
+		flex: 1 0 auto;
 		background: var(--sink);
 		background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.4px);
 		background-size: 22px 22px;
 	}
 
-	/* ============ UPCOMING BAND ============
-	   The label straddles the section separator rather than drawing rules of its own —
-	   one line doing two jobs. The section above drops its border so they don't double. */
 	/* ============ VIEW SWITCH ============
 	   A segmented control in the site's own vocabulary: paper card, ink fill for the
 	   live half, one accent-offset shadow. The ink block SLIDES rather than each half
