@@ -22,6 +22,7 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	description="Look up an Anvesha '26 merch order and collection pass with your roll number and mobile."
 >
 	<div class="page od-page">
+		<div class="od-split">
 		<header class="page-head od-head" data-reveal>
 			<p class="eyebrow">Merch &middot; Collection pass</p>
 			<h1 class="page-title">Your order</h1>
@@ -56,6 +57,9 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 			</form>
 		</header>
 
+		{/* The right half. One of these two is on screen at a time: the explainer until
+		    there is an answer, the answer after. */}
+		<div class="od-right">
 		{/* Answers the question almost everyone arrives with: why is there no pass yet.
 		    Hidden once results are on screen — by then it has done its job. */}
 		<section class="section od-how" id="odHow" data-reveal>
@@ -79,6 +83,8 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 			</div>
 			<div class="od-list" id="odList"></div>
 		</section>
+		</div>
+		</div>
 	</div>
 </SiteLayout>
 
@@ -286,13 +292,32 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	}
 	.od-page > * { position: relative; }
 
-	/* ---- the lookup ---- */
-	.od-head { display: flex; flex-direction: column; }
-	.od-head .lede { max-width: 56ch; }
+	/* ---- the split ----
+	   Lookup on the left, answer on the right. Same construction the storefront's .hero
+	   uses: a fixed-ish first column, a dividing rule carried by that column's own
+	   border, and a stacked fallback on narrow screens. `1 0 auto` so the split grows
+	   into the card's spare height but a long result list can still overflow and
+	   scroll. */
+	.od-split {
+		flex: 1 0 auto;
+		display: grid; grid-template-columns: clamp(300px, 34vw, 440px) minmax(0, 1fr);
+		align-items: start;
+	}
+	.od-head {
+		display: flex; flex-direction: column;
+		/* Stays put while a long list of orders scrolls past it — the form is the thing
+		   you come back to when the first roll number was the wrong one. */
+		position: sticky; top: 0;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	.od-head .lede { max-width: 46ch; }
+	/* The right half owns its own section borders, so the two columns do not double up
+	   on rules where they meet. */
+	.od-right > .section:last-child { border-bottom: 0; }
 	/* A card, because it is the only thing to do on this page — floating fields on bare
 	   paper read as part of the header rather than as the task. */
 	.od-form {
-		box-sizing: border-box; width: 100%; max-width: 520px;
+		box-sizing: border-box; width: 100%;
 		margin: clamp(22px, 3vw, 30px) 0 0; padding: clamp(16px, 2.4vw, 20px);
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
@@ -335,7 +360,7 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 
 	/* ---- how this works ---- */
 	.od-steps {
-		display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px;
+		display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
 		margin: 0; padding: 0; list-style: none; counter-reset: none;
 	}
 	.od-steps li {
@@ -358,10 +383,10 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	   attribute onto elements it compiles — which JS-created nodes never get. Scoped
 	   selectors would compile fine, match nothing, and the cards would render bare. */
 
-	/* Capped at 380 so a single order does not stretch into a banner, and auto-fit so
-	   two or three sit side by side on a desktop. */
+	/* Capped at 360 so a single order does not stretch into a banner, and auto-fit so
+	   two sit side by side once the right column is wide enough. */
 	.od-list {
-		display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 380px)); gap: 18px;
+		display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 360px)); gap: 18px;
 	}
 	:global(.od-card) { display: flex; flex-direction: column; gap: 0; }
 
@@ -428,6 +453,18 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	:global(.od-got) {
 		font-style: normal; font-size: 9px; letter-spacing: .08em;
 		text-transform: uppercase; color: var(--ink-40);
+	}
+
+	/* Below this the two columns have nothing left to give: the form's own fields would
+	   have to stack, which makes the left column as tall as the right one anyway. */
+	@media (max-width: 900px) {
+		.od-split { grid-template-columns: minmax(0, 1fr); }
+		.od-head {
+			position: static;
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		}
+		.od-head .lede { max-width: 56ch; }
+		.od-form { max-width: 520px; }
 	}
 
 	@media (max-width: 560px) {
