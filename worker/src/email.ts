@@ -34,6 +34,10 @@ const DEFAULT_FROM = "Anvesha '26 <onboarding@resend.dev>";
  * thing that was wanted; the envelope sender is a deliverability constraint, not a
  * preference.
  */
+/** Where a student looks their order up: the fallback when this mail goes astray, and
+ *  where a rejected one goes to try again. */
+const ORDER_PAGE = 'https://anvesha26.in/order';
+
 const DEFAULT_REPLY_TO = 'stc@iisertvm.ac.in';
 
 const INK = '#0b0b0f';
@@ -148,7 +152,9 @@ function html(o: OrderEmail): string {
 
 				<tr><td style="padding:22px 30px 30px;">
 					<p style="margin:0;font:12px ${SANS};line-height:1.6;color:#8a8a92;">
-						Paid at the counter. This email is your receipt — no reply needed.
+						Your UPI payment has been checked against our statement and confirmed.
+						This email is your receipt — no reply needed. Lost it? The same pass is at
+						<a href="${ORDER_PAGE}" style="color:#8a8a92;">anvesha26.in/order</a>.
 					</p>
 				</td></tr>
 			</table>
@@ -229,6 +235,159 @@ export async function sendOrderEmail(env: Env, o: OrderEmail): Promise<boolean> 
 		return true;
 	} catch (e) {
 		console.error('email: send failed for', o.orderId, e);
+		return false;
+	}
+}
+
+// ============================================================
+// Rejection
+// ============================================================
+export interface RejectionEmail {
+	to: string;
+	name: string;
+	orderId: string;
+	/** The reference the student submitted, echoed so they can see what we looked at. */
+	paymentRef: string;
+	/** The admin's note. May be empty — plenty of rejections need no essay. */
+	reason: string;
+}
+
+function rejectionHtml(o: RejectionEmail): string {
+	return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>We could not confirm your payment — Anvesha '26</title>
+</head>
+<body style="margin:0;padding:0;background:${SINK};">
+	<div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+		We could not confirm the payment for order ${esc(o.orderId)}. You can submit it again.
+	</div>
+
+	<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SINK};padding:28px 12px;">
+		<tr><td align="center">
+			<table role="presentation" width="600" cellpadding="0" cellspacing="0"
+			       style="width:100%;max-width:600px;background:${PAPER};border:2px solid ${INK};">
+
+				<tr><td style="padding:26px 30px 0;">
+					<div style="font:800 20px ${SANS};letter-spacing:.06em;color:${INK};">
+						ANVESHA<span style="color:${ACCENT};">'26</span>
+					</div>
+					<div style="height:4px;background:${ACCENT};width:56px;margin-top:12px;"></div>
+				</td></tr>
+
+				<tr><td style="padding:22px 30px 0;">
+					<h1 style="margin:0;font:800 26px ${SANS};letter-spacing:-.01em;color:${INK};">We couldn't confirm that payment</h1>
+					<p style="margin:12px 0 0;font:15px ${SANS};line-height:1.6;color:#4a4a52;">
+						Hi ${esc(o.name)}, we checked the payment you submitted for order
+						${esc(o.orderId)} against our UPI statement and couldn't match it.
+						Nothing has been charged by us, and your order is still waiting.
+					</p>
+				</td></tr>
+
+				<tr><td style="padding:24px 30px 0;">
+					<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+					       style="background:${SINK};border:2px solid ${INK};">
+						<tr><td style="padding:14px 16px;">
+							<div style="font:${MONO};font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8a8a92;">Reference you sent</div>
+							<div style="font:${MONO};font-size:13px;color:${INK};word-break:break-all;padding-top:4px;">${esc(o.paymentRef) || '—'}</div>
+							${
+								o.reason
+									? `<div style="font:${MONO};font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#8a8a92;padding-top:12px;">What we found</div>
+							<div style="font:14px ${SANS};line-height:1.55;color:${INK};padding-top:4px;">${esc(o.reason)}</div>`
+									: ''
+							}
+						</td></tr>
+					</table>
+				</td></tr>
+
+				<tr><td style="padding:24px 30px 0;">
+					<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+					       style="background:${PAPER};border:2px solid ${INK};">
+						<tr><td style="padding:14px 16px;font:14px ${SANS};line-height:1.6;color:${INK};">
+							<strong style="color:${ACCENT};">Try again.</strong> Open
+							<a href="${ORDER_PAGE}" style="color:${INK};">anvesha26.in/order</a>, look your
+							order up with your roll number and mobile, and submit the reference and
+							screenshot again. If you think this is our mistake, just reply to this email.
+						</td></tr>
+					</table>
+				</td></tr>
+
+				<tr><td style="padding:22px 30px 30px;">
+					<p style="margin:0;font:12px ${SANS};line-height:1.6;color:#8a8a92;">
+						Order ${esc(o.orderId)} — still unpaid, nothing lost.
+					</p>
+				</td></tr>
+			</table>
+
+			<div style="font:11px ${SANS};color:#9a9aa2;padding-top:14px;">
+				Anvesha '26 · IISER Thiruvananthapuram
+			</div>
+		</td></tr>
+	</table>
+</body>
+</html>`;
+}
+
+function rejectionText(o: RejectionEmail): string {
+	return [
+		`We couldn't confirm that payment`,
+		``,
+		`Hi ${o.name}, we checked the payment you submitted for order ${o.orderId}`,
+		`against our UPI statement and couldn't match it. Nothing has been charged by`,
+		`us, and your order is still waiting.`,
+		``,
+		`Reference you sent: ${o.paymentRef || '—'}`,
+		...(o.reason ? [`What we found: ${o.reason}`] : []),
+		``,
+		`Try again at ${ORDER_PAGE} — look your order up with your roll number and`,
+		`mobile, then submit the reference and screenshot again. If you think this is`,
+		`our mistake, reply to this email.`,
+		``,
+		`Anvesha '26 · IISER Thiruvananthapuram`,
+	].join('\n');
+}
+
+/**
+ * Tells a student their payment could not be matched, and how to resubmit.
+ *
+ * Same best-effort contract as sendOrderEmail: resolves either way, never throws into
+ * the admin's review action. An admin pressing REJECT must not see an error because a
+ * mail server was slow.
+ */
+export async function sendRejectionEmail(env: Env, o: RejectionEmail): Promise<boolean> {
+	if (!env.RESEND_API_KEY) {
+		console.warn('email: RESEND_API_KEY not set, skipping rejection notice for', o.orderId);
+		return false;
+	}
+
+	try {
+		const res = await fetch(RESEND_ENDPOINT, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${env.RESEND_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				from: env.MAIL_FROM || DEFAULT_FROM,
+				reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
+				to: [o.to],
+				subject: `Action needed on your Anvesha '26 order — ${o.orderId}`,
+				html: rejectionHtml(o),
+				text: rejectionText(o),
+				// No QR: there is nothing to collect yet, and attaching one would be the
+				// single worst thing this mail could do.
+			}),
+		});
+
+		if (!res.ok) {
+			console.error('email: resend rejected (rejection notice)', res.status, await res.text());
+			return false;
+		}
+		return true;
+	} catch (e) {
+		console.error('email: rejection notice failed for', o.orderId, e);
 		return false;
 	}
 }

@@ -1,0 +1,295 @@
+---
+/**
+ * ORDER STATUS — where a student finds their pass when the email did not arrive.
+ *
+ * Payment is reviewed by hand, so there is a gap between paying and being confirmed,
+ * and the collection pass only exists on the far side of it. This page is the window
+ * onto that gap: what was submitted, whether anyone has looked at it yet, and — once
+ * they have — the same ticket the confirmation email carries.
+ *
+ * Roll number AND phone. The QR is a bearer token, and roll numbers are trivially
+ * enumerable (IMS24001, IMS24002, …), so a roll-only lookup would let anyone walk the
+ * range and collect other people's merch. The phone is the second factor: known to the
+ * student, not derivable from the roll.
+ */
+import SiteLayout from '../layouts/SiteLayout.astro';
+import '../styles/ticket.css';
+---
+
+<SiteLayout
+	title="Your order · Anvesha '26"
+	description="Look up an Anvesha '26 merch order and collection pass with your roll number and mobile."
+>
+	<div class="page or-page">
+		<header class="page-head od-head" data-reveal>
+			<p class="eyebrow">Merch &middot; Collection pass</p>
+			<h1 class="page-title">Your order</h1>
+			<p class="lede">
+				Payments are checked by hand against our statement, so a pass appears here once
+				someone has confirmed yours. The same thing arrives by email &mdash; this is for
+				when that goes astray.
+			</p>
+
+			<form class="od-form" id="odForm">
+				<div class="od-fields">
+					<label class="field">
+						<span class="field-label">Roll number</span>
+						<input class="field-input roll-input" id="oRoll" name="roll_number" type="text"
+						       autocomplete="off" spellcheck="false" maxlength="8" placeholder="IMS24101"
+						       pattern="[Ii][Mm][Ss][0-9]{5}"
+						       title="IMS followed by 5 digits, e.g. IMS24101" required />
+					</label>
+					<label class="field">
+						<span class="field-label">Mobile you ordered with</span>
+						<input class="field-input" id="oPhone" name="phone" type="tel"
+						       inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required />
+					</label>
+				</div>
+				<p class="pay-err" id="odErr" hidden></p>
+				<button class="btn od-go" id="odGo" type="submit">FIND MY ORDER</button>
+			</form>
+		</header>
+
+		<section class="section od-results" id="odResults" hidden data-reveal>
+			<div class="sechead">
+				<span class="sechead-label">Found</span>
+				<span class="sechead-rule"></span>
+				<span class="sechead-meta" id="odMeta"></span>
+			</div>
+			<div class="od-list" id="odList"></div>
+		</section>
+	</div>
+</SiteLayout>
+
+<script>
+	import { API } from '../lib/api';
+	import { type ReceiptData, drawQR, saveReceipt } from '../lib/ticket';
+
+	type Line = { name: string; size: string | null; quantity: number; line_total_paise: number; collected: 0 | 1 };
+	type Order = {
+		order_id: string;
+		items: Line[];
+		total_price_paise: number;
+		payment_status: string;
+		review_status: 'none' | 'pending' | 'confirmed' | 'rejected';
+		payment_ref: string | null;
+		review_note: string | null;
+		collection_status: 'pending' | 'partial' | 'collected';
+		created_at: string;
+		name: string;
+		/** The order id, and only once an admin has confirmed. Null otherwise. */
+		qr_payload: string | null;
+	};
+
+	// Astro module scripts run once per browser session; with the client router a second
+	// visit swaps in fresh nodes that nothing would have wired. Everything re-runs on
+	// astro:page-load, same as every other page here.
+	let inited: HTMLElement | null = null;
+
+	function initOrder() {
+		const form = document.getElementById('odForm') as HTMLFormElement | null;
+		if (!form || form === inited) return;
+		inited = form;
+
+		const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+		const rollEl = $<HTMLInputElement>('oRoll'), phoneEl = $<HTMLInputElement>('oPhone');
+		const errEl = $('odErr'), goBtn = $<HTMLButtonElement>('odGo');
+		const resultsEl = $('odResults'), listEl = $('odList'), metaEl = $('odMeta');
+
+		// Uppercased as it is typed, so what the student sees matches what is stored.
+		// The caret is restored because assigning .value sends it to the end, which makes
+		// correcting the middle of a roll number impossible.
+		rollEl.addEventListener('input', () => {
+			const at = rollEl.selectionStart;
+			rollEl.value = rollEl.value.toUpperCase();
+			rollEl.setSelectionRange(at, at);
+		});
+
+		const rupees = (paise: number) =>
+			'₹' + (paise % 100 === 0 ? String(paise / 100) : (paise / 100).toFixed(2));
+		const esc = (s: string) =>
+			s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+		/** What the student is waiting on, in their words rather than the schema's. */
+		function statusOf(o: Order): { pill: string; cls: string; line: string } {
+			if (o.payment_status === 'paid')
+				return o.collection_status === 'collected'
+					? { pill: 'COLLECTED', cls: 'done', line: 'Collected — nothing left to pick up.' }
+					: { pill: 'CONFIRMED', cls: 'on', line: 'Confirmed. Show the QR below at the merch desk.' };
+			if (o.review_status === 'pending')
+				return { pill: 'CHECKING', cls: '', line: 'We have your payment details and are checking them against our statement.' };
+			if (o.review_status === 'rejected')
+				return {
+					pill: 'NOT CONFIRMED', cls: 'bad',
+					line: o.review_note
+						? `We could not match that payment: ${o.review_note}`
+						: 'We could not match that payment. Place the order again, or ask at the merch desk.',
+				};
+			return { pill: 'UNPAID', cls: '', line: 'No payment has been submitted for this order yet.' };
+		}
+
+		function render(orders: Order[]) {
+			listEl.innerHTML = '';
+			metaEl.innerHTML = `<b>${orders.length}</b> ${orders.length === 1 ? 'order' : 'orders'}`;
+
+			for (const o of orders) {
+				const st = statusOf(o);
+				const paid = Boolean(o.qr_payload);
+
+				const card = document.createElement('article');
+				card.className = 'od-card';
+				card.innerHTML =
+					`<div class="ticket">` +
+						`<div class="tk-head">` +
+							`<span class="tk-brand">ANVESHA<sup>'26</sup></span>` +
+							`<span class="tk-kind">${paid ? 'COLLECTION PASS' : 'ORDER'}</span>` +
+						`</div>` +
+						`<div class="tk-body">` +
+							`<p class="tk-eyebrow">Order no.</p>` +
+							`<p class="tk-id">${esc(o.order_id)}</p>` +
+							`<ul class="order-items">` +
+								o.items.map((l) =>
+									`<li><span>${esc(l.name)}${l.size ? ' · ' + esc(l.size) : ''} × ${l.quantity}` +
+									(l.collected ? ' <i class="od-got">collected</i>' : '') +
+									`</span><b>${rupees(l.line_total_paise)}</b></li>`).join('') +
+							`</ul>` +
+							`<div class="tk-meta">` +
+								`<div class="tk-cell"><span>Bearer</span><b>${esc(o.name)}</b></div>` +
+								`<div class="tk-cell tk-cell-paid"><span>Total</span><b>${rupees(o.total_price_paise)}</b></div>` +
+							`</div>` +
+						`</div>` +
+						`<div class="tk-rip" aria-hidden="true"></div>` +
+						`<div class="tk-stub">` +
+							(paid
+								// 220 is a pre-layout placeholder; drawQR resizes the canvas.
+								? `<canvas class="qr" width="220" height="220" aria-label="Collection QR code"></canvas>`
+								: `<span class="od-wait" aria-hidden="true"></span>`) +
+							`<div class="tk-stub-side">` +
+								`<p class="tk-eyebrow"><span class="od-pill ${st.cls}">${st.pill}</span></p>` +
+								`<p class="tk-txn">${esc(st.line)}</p>` +
+								(o.payment_ref ? `<p class="tk-serial">REF ${esc(o.payment_ref)}</p>` : '') +
+							`</div>` +
+						`</div>` +
+					`</div>` +
+					(paid ? `<button class="btn qrdl" type="button">DOWNLOAD PASS</button>` : '');
+
+				// The QR is drawn, not templated — the canvas has to exist first.
+				if (paid) {
+					const canvas = card.querySelector('canvas') as HTMLCanvasElement;
+					drawQR(canvas, o.qr_payload!);
+
+					const receipt: ReceiptData = {
+						order_id: o.order_id,
+						transaction_id: o.payment_ref ?? '',
+						total_price_paise: o.total_price_paise,
+						items: o.items,
+						name: o.name,
+						roll_number: rollEl.value.toUpperCase(),
+					};
+					(card.querySelector('.qrdl') as HTMLButtonElement).onclick = () => {
+						void saveReceipt(receipt).catch((e) => console.warn('pass download failed', e));
+					};
+				}
+
+				listEl.appendChild(card);
+			}
+
+			resultsEl.hidden = false;
+		}
+
+		form.onsubmit = async (e) => {
+			e.preventDefault();
+			goBtn.disabled = true;
+			errEl.hidden = true;
+
+			try {
+				const res = await fetch(`${API}/api/orders/lookup`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ roll_number: rollEl.value, phone: phoneEl.value }),
+				});
+				const data = await res.json();
+				// A wrong phone and an unknown roll come back identically, on purpose — the
+				// server will not say which, and neither does this.
+				if (!res.ok) throw new Error(data.message || data.error || 'Could not find that order');
+				render(data.orders as Order[]);
+			} catch (err) {
+				resultsEl.hidden = true;
+				errEl.textContent = (err as Error).message;
+				errEl.hidden = false;
+			} finally {
+				goBtn.disabled = false;
+			}
+		};
+	}
+
+	document.addEventListener('astro:page-load', initOrder);
+</script>
+
+<style>
+	.od-head { display: flex; flex-direction: column; }
+	.od-form { width: 100%; max-width: 560px; margin: clamp(22px, 3vw, 30px) 0 0; }
+	.od-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+	.field { display: flex; flex-direction: column; gap: 6px; }
+	.field-label {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.field-input {
+		appearance: none; -webkit-appearance: none;
+		/* border-box because this project has no global reset: without it `width: 100%`
+		   plus padding and border overflows its container. */
+		box-sizing: border-box; width: 100%;
+		padding: 12px 13px; margin: 0;
+		font-family: 'Archivo', sans-serif; font-size: 13.5px;
+		color: var(--secondary); background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.field-input::placeholder { color: var(--ink-40); }
+	.field-input:focus { outline: none; transform: translate(-2px, -2px); box-shadow: var(--pop); }
+	.roll-input { font-family: 'DM Mono', ui-monospace, monospace; letter-spacing: .08em; }
+
+	.pay-err { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--accent); }
+	.od-go {
+		box-sizing: border-box; width: 100%; margin-top: 12px; padding: 14px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+		color: var(--primary); background: var(--secondary);
+		box-shadow: var(--pop);
+	}
+	.od-go:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+	.od-go:disabled { opacity: .45; cursor: wait; }
+
+	/* One column per order. Capped, so a single order does not stretch into a banner. */
+	.od-list {
+		display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 380px)); gap: 16px;
+	}
+	.od-card { display: flex; flex-direction: column; gap: 10px; }
+	.od-card .qrdl {
+		width: 100%; padding: 13px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+		color: var(--primary); background: var(--accent); border-color: var(--accent);
+	}
+
+	/* Stands in for the QR before there is one, so the stub keeps its shape and the
+	   card does not resize when an order is confirmed. */
+	.od-wait {
+		display: block; width: 124px; height: 124px;
+		background:
+			repeating-linear-gradient(45deg, var(--hair) 0 6px, transparent 6px 12px);
+		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+	}
+
+	.od-pill {
+		display: inline-block; padding: 2px 7px;
+		font-size: 8.5px; letter-spacing: .14em;
+		color: var(--primary); background: var(--ink-40); border-radius: var(--r);
+	}
+	.od-pill.on { background: var(--accent); }
+	.od-pill.done { background: var(--secondary); }
+	.od-pill.bad { background: var(--accent); }
+	.od-got { font-style: normal; font-size: 9px; letter-spacing: .1em; color: var(--ink-40); }
+
+	@media (max-width: 560px) {
+		.od-fields { grid-template-columns: minmax(0, 1fr); }
+	}
+</style>

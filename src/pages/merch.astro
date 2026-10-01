@@ -2,6 +2,8 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 // The catalogue rail, shared with the admin panel so both browse the same component.
 import '../styles/catalogue-tree.css';
+// .tk-eyebrow / .tk-id are borrowed by the pay and received faces.
+import '../styles/ticket.css';
 import chevronLeft from 'lucide-static/icons/chevron-left.svg?raw';
 import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
 import shoppingCart from 'lucide-static/icons/shopping-cart.svg?raw';
@@ -10,6 +12,11 @@ import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 // Placeholder for the processing state — swap for real artwork when there is some.
 import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
+
+// Where the money goes. Printed under the QR so a student whose camera will not focus
+// can still pay by typing it — and so the amount and the payee are checkable against
+// what their UPI app shows before they confirm.
+const UPI_ID = 'anvesha@upi';
 ---
 
 <SiteLayout
@@ -147,6 +154,9 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		<p class="order-err" id="orderErr" hidden></p>
 		<!-- Shown while the shop is browse-only. Above the button, not in place of it:
 		     a disabled CHECKOUT with no reason next to it reads as broken. -->
+		<p class="bag-lookup mono">
+			Already ordered? <a href="/order">Check its status</a>
+		</p>
 		<p class="sales-soon mono" id="salesSoon" hidden>
 			<span class="sales-soon-dot" aria-hidden="true"></span>Merch sales going live soon
 		</p>
@@ -222,58 +232,94 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			</label>
 
 			<p class="pay-err" id="payErr" hidden></p>
+			<!-- NEXT, not PAY: this step charges nothing. It only puts a name to the
+			     order before the student goes to their UPI app. -->
 			<button class="btn paybtn" id="payBtn" type="submit">
-				<span>PAY</span><span class="buy-dot" aria-hidden="true"></span><b id="payAmount">₹0</b>
+				<span>NEXT</span><span class="buy-dot" aria-hidden="true"></span><b id="payAmount">₹0</b>
 			</button>
+		</form>
+
+		<!-- FACE 2: pay — the QR to scan, then the evidence that it worked. No money
+		     moves through this site; the student pays in their own banking app and
+		     comes back with a reference and a screenshot. -->
+		<form id="payStepForm" class="pay-step" hidden>
+			<div class="upi">
+				<div class="upi-qr">
+					<img src="/img/pay/upi-qr.png" alt="UPI payment QR code for Anvesha '26"
+					     width="200" height="200" />
+				</div>
+				<div class="upi-side">
+					<p class="tk-eyebrow">Pay exactly</p>
+					<b class="upi-amount" id="upiAmount">₹0</b>
+					<p class="tk-eyebrow upi-vpa-label">Or send to</p>
+					<p class="upi-vpa mono" id="upiVpa">{UPI_ID}</p>
+				</div>
+			</div>
+
+			<label class="field">
+				<span class="field-label">Transaction / UTR reference</span>
+				<input class="field-input mono" id="fTxn" name="payment_ref" type="text"
+				       autocomplete="off" spellcheck="false" minlength="4" maxlength="64"
+				       placeholder="from your UPI app" required />
+			</label>
+
+			<label class="field">
+				<span class="field-label">Payment screenshot</span>
+				<!-- The input is the whole box: a label wrapping a hidden file input is
+				     the one way to restyle a file picker without a click shim. -->
+				<span class="proof" id="proofBox">
+					<input id="fProof" name="proof" type="file"
+					       accept="image/jpeg,image/png,image/webp" required />
+					<img class="proof-img" id="proofImg" alt="" />
+					<span class="proof-hint">
+						<b>Tap to attach</b>
+						<span>a screenshot showing the payment succeeded</span>
+					</span>
+					<span class="proof-name mono" id="proofName"></span>
+				</span>
+			</label>
+
+			<p class="pay-err" id="payErr2" hidden></p>
+			<button class="btn paybtn" id="submitBtn" type="submit">
+				<span>SUBMIT PAYMENT</span>
+			</button>
+			<button class="btn orderback" id="payBack" type="button">BACK</button>
 		</form>
 
 		<!-- FACE 2: settling — replaces the form so the details cannot be edited mid-flight -->
 		<div id="processing" class="processing" hidden>
 			<span class="proc-icon" set:html={iProcessing} />
-			<p class="proc-label">Processing payment</p>
+			<p class="proc-label">Sending your payment details</p>
 			<div id="payProgress" class="pay-progress" role="progressbar"
 			     aria-label="Payment progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
 				{Array.from({ length: 14 }).map(() => <span class="seg" />)}
 			</div>
 		</div>
 
-		<!-- FACE 3: paid — a torn-off admission ticket. Counterfoil on top (what was
-		     bought), stub below the perforation (the QR the distributor scans). -->
-		<div id="receipt" class="receipt" hidden>
-			<div class="ticket">
-				<div class="tk-head">
-					<span class="tk-brand">ANVESHA<sup>'26</sup></span>
-					<span class="tk-kind">COLLECTION PASS</span>
-				</div>
+		<!-- FACE 4: received — deliberately NOT a pass. Nobody has checked this
+		     payment yet, and handing over a collection QR now would make the whole
+		     review pointless. -->
+		<div id="received" class="pay-step" hidden>
+			<div class="recv">
+				<span class="recv-mark" aria-hidden="true"></span>
+				<h3 class="recv-title">Order received</h3>
+				<p class="recv-text">
+					Thanks<span id="recvName"></span> — we've got your payment details. Someone
+					checks them against our statement, usually within a day, and your collection
+					pass lands in your inbox the moment it's confirmed.
+				</p>
+			</div>
 
-				<div class="tk-body">
-					<p class="tk-eyebrow">Order no.</p>
-					<p class="tk-id" id="orderId">ORD_</p>
-					<ul class="order-items" id="receiptItems"></ul>
-					<div class="tk-meta">
-						<div class="tk-cell"><span>Bearer</span><b id="receiptName"></b></div>
-						<div class="tk-cell tk-cell-paid"><span>Paid</span><b id="paidTotal">₹0</b></div>
-					</div>
-				</div>
-
-				<!-- perforation; the notches are drawn in paper-white over the side rules -->
-				<div class="tk-rip" aria-hidden="true"></div>
-
-				<div class="tk-stub">
-					<canvas id="qrCanvas" class="qr" width="220" height="220" aria-label="Order QR code"></canvas>
-					<div class="tk-stub-side">
-						<p class="tk-eyebrow">Present at counter</p>
-						<p class="tk-txn" id="txnId">TXN_</p>
-						<p class="tk-serial" aria-hidden="true">▚▚ ANVESHA MERCH ▚▚</p>
-					</div>
-				</div>
+			<div class="recv-id">
+				<p class="tk-eyebrow">Order no.</p>
+				<p class="tk-id" id="recvId">ORD_</p>
 			</div>
 
 			<p class="order-note">
-				Screenshot this ticket, or download it — the QR is what gets scanned at pickup.
+				Lost the email? Look it up at <a href="/order">anvesha26.in/order</a> with your
+				roll number and mobile.
 			</p>
-			<button class="btn qrdl" id="qrDownload">DOWNLOAD</button>
-			<button class="btn orderback" id="receiptDone">DONE</button>
+			<button class="btn orderback" id="recvDone">DONE</button>
 		</div>
 	</div>
 </div>
@@ -328,8 +374,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 
 <script>
 	import { gsap } from 'gsap';
-	import qrcode from 'qrcode-generator';
-	// Shared with the admin panel: one socket helper, one reconnect policy.
+		// Shared with the admin panel: one socket helper, one reconnect policy.
 	import { API } from '../lib/api';
 	import { onCatalogueChange } from '../lib/admin';
 
@@ -943,14 +988,20 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			else if (cartOpen) openCart(false);
 		}, { signal });
 
-		// ---- checkout: cart -> details -> paid ----
-		// The drawer has three faces; `stage` decides which one shows. Keeping it on one
-		// attribute means the CSS owns the switching and no two faces can be open at once.
-		const payForm = $<HTMLFormElement>('payForm'), receiptEl = $('receipt');
+		// ---- checkout: cart -> details -> pay -> received ----
+		const payForm = $<HTMLFormElement>('payForm');
+		const payStepForm = $<HTMLFormElement>('payStepForm'), receivedEl = $('received');
 		const orderItems = $('orderItems'), orderTotal = $('orderTotal'), payAmount = $('payAmount');
-		const orderIdEl = $('orderId'), txnIdEl = $('txnId'), paidTotal = $('paidTotal');
-		const receiptItemsEl = $('receiptItems'), receiptNameEl = $('receiptName');
+		const upiAmount = $('upiAmount'), recvId = $('recvId'), recvName = $('recvName');
 		const payErr = $('payErr'), payBtn = $<HTMLButtonElement>('payBtn');
+		const payErr2 = $('payErr2'), submitBtn = $<HTMLButtonElement>('submitBtn');
+		const fTxn = $<HTMLInputElement>('fTxn'), fProof = $<HTMLInputElement>('fProof');
+		const proofBox = $('proofBox'), proofImg = $<HTMLImageElement>('proofImg'), proofName = $('proofName');
+		// The same two rules the worker enforces, mirrored so a bad file fails before
+		// a 5MB upload rather than after one.
+		const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+		const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+		let buyerName = '';
 		const processingEl = $('processing'), payProgress = $('payProgress');
 		const segs = [...payProgress.querySelectorAll<HTMLElement>('.seg')];
 		const fName = $<HTMLInputElement>('fName'), fPhone = $<HTMLInputElement>('fPhone');
@@ -964,8 +1015,6 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			fRoll.value = fRoll.value.toUpperCase();
 			fRoll.setSelectionRange(at, at);
 		});
-		const qrCanvas = $<HTMLCanvasElement>('qrCanvas');
-
 		let segTimer = 0;
 		function setSegs(n: number) {
 			segs.forEach((s, i) => s.classList.toggle('on', i < n));
@@ -986,18 +1035,8 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		resetProgress();
 
 		let currentOrder: string | null = null;
-		// Which path this order takes, decided by the server at checkout — the browser
-		// never picks. `direct` is the counter flow; `razorpay` opens the gateway.
-		let payMode: 'direct' | 'razorpay' = 'direct';
-		let rzpOrder: { order_id: string; amount: number; currency: string; key_id: string | null } | null = null;
-		type ReceiptData = {
-			order_id: string; transaction_id: string; total_price_paise: number;
-			items: { name: string; size: string | null; quantity: number; line_total_paise: number }[];
-			name: string; roll_number: string;
-		};
-		let lastReceipt: ReceiptData | null = null;
 
-		// The popup has three faces; `face` decides which one shows. Driving all three from
+		// The popup has four faces; `face` decides which one shows. Driving them all from
 		// one call means two can never be on screen together.
 		const payModal = $('payModal'), payPanel = payModal.querySelector('.modal') as HTMLElement;
 		const payTitle = $('payTitle'), payClose = $<HTMLButtonElement>('payClose');
@@ -1005,14 +1044,16 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		gsap.set(payModal, { autoAlpha: 0 });
 		gsap.set(payPanel, { scale: 0.96 });
 
-		const TITLES = { details: 'CHECKOUT', processing: 'PROCESSING', paid: 'PAID' };
-		function setFace(face: 'details' | 'processing' | 'paid') {
+		const TITLES = { details: 'CHECKOUT', pay: 'PAY', processing: 'SENDING', received: 'RECEIVED' };
+		type Face = 'details' | 'pay' | 'processing' | 'received';
+		function setFace(face: Face) {
 			payForm.hidden = face !== 'details';
+			payStepForm.hidden = face !== 'pay';
 			processingEl.hidden = face !== 'processing';
-			receiptEl.hidden = face !== 'paid';
+			receivedEl.hidden = face !== 'received';
 			payTitle.textContent = TITLES[face];
-			// No bailing out mid-payment: the money is already moving and closing here
-			// would strand the shopper with no order id and no receipt.
+			// No bailing out mid-upload: closing here would leave the student unsure
+			// whether their screenshot ever arrived.
 			payClose.disabled = face === 'processing';
 		}
 		setFace('details');
@@ -1051,8 +1092,6 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				if (!res.ok) throw new Error(data.message || data.error || 'Checkout failed');
 
 				currentOrder = data.order_id;
-				payMode = data.mode === 'razorpay' ? 'razorpay' : 'direct';
-				rzpOrder = data.razorpay ?? null;
 				orderItems.innerHTML = data.items
 					.map((l: any) =>
 						`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
@@ -1062,6 +1101,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 				// the shopper sees the number they will actually be charged.
 				orderTotal.textContent = rupees(data.total_price_paise);
 				payAmount.textContent = rupees(data.total_price_paise);
+				upiAmount.textContent = rupees(data.total_price_paise);
 				setFace('details');
 				openPay(true);
 				fName.focus();
@@ -1074,143 +1114,10 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			}
 		};
 
-		/** Paints the paid face from a settled order and hands the student their pass. */
-		function showReceipt(data: any) {
-			orderIdEl.textContent = data.order_id;
-			txnIdEl.textContent = data.transaction_id ?? data.razorpay_transaction_id ?? '';
-			paidTotal.textContent = rupees(data.total_price_paise);
-			receiptNameEl.textContent = data.customer?.name ?? '';
-			receiptItemsEl.innerHTML = data.items
-				.map((l: any) =>
-					`<li><span>${l.name}${l.size ? ' · ' + l.size : ''} × ${l.quantity}</span>` +
-					`<b>${rupees(l.line_total_paise)}</b></li>`)
-				.join('');
-			lastReceipt = { order_id: data.order_id,
-				transaction_id: data.transaction_id ?? data.razorpay_transaction_id ?? '',
-				total_price_paise: data.total_price_paise, items: data.items,
-				name: data.customer?.name ?? '', roll_number: data.customer?.rollNumber ?? '' };
-			drawQR(qrCanvas, data.order_id);
-
-			// The order is settled server-side; clear the bag so a refresh cannot
-			// re-checkout the same items.
-			cart = {}; saveCart(); renderCart();
-			payForm.reset();
-			setFace('paid');
-
-			// Save the pass to the student's device without waiting to be asked — the
-			// QR is the only proof of purchase, and a closed tab loses it. Deliberately
-			// not awaited: a failed or blocked download must not surface as a payment
-			// error on an order that already succeeded. The DOWNLOAD button stays as
-			// the retry, and on iOS Safari (which ignores `download`) it is the real
-			// path — there the image opens in a tab to be long-pressed instead.
-			saveReceipt().catch((e) => console.warn('receipt auto-save failed', e));
-		}
-
-		// ---- Razorpay Checkout ----
-		// Loaded on demand, not in <head>: most visits to this page never reach a
-		// payment, and until the gateway is switched on none of them do. A third-party
-		// script that only the last step needs should not be on the critical path of
-		// every catalogue browse.
-		let rzpScript: Promise<void> | null = null;
-		function loadCheckout(): Promise<void> {
-			rzpScript ??= new Promise<void>((resolve, reject) => {
-				const el = document.createElement('script');
-				el.src = 'https://checkout.razorpay.com/v1/checkout.js';
-				el.onload = () => resolve();
-				// Null the cache on failure so a retry re-requests rather than replaying
-				// the rejection for the rest of the session.
-				el.onerror = () => { rzpScript = null; reject(new Error('Could not reach Razorpay. Check your connection and try again.')); };
-				document.head.appendChild(el);
-			});
-			return rzpScript;
-		}
-
-		/**
-		 * Waits for the webhook to settle an order the browser could not.
-		 *
-		 * Reached when a payment is authorised but not yet captured — real money, just
-		 * not taken yet. Razorpay's own server-to-server call finishes the job a moment
-		 * later, so this polls the order the shopper already owns rather than showing a
-		 * failure for a payment that actually went through.
-		 */
-		async function awaitSettlement(orderId: string, tries = 10): Promise<any> {
-			for (let i = 0; i < tries; i++) {
-				await new Promise((r) => setTimeout(r, 1500));
-				const res = await fetch(`${API}/api/orders/${encodeURIComponent(orderId)}`);
-				if (!res.ok) continue;
-				const o = await res.json();
-				if (o.payment_status === 'paid') return o;
-			}
-			throw new Error(
-				'Your payment went through but is still being confirmed. ' +
-				'Your order id is ' + orderId + ' — show it at the counter, or check your email in a few minutes.',
-			);
-		}
-
-		/** Opens the gateway and resolves once the order is settled. */
-		function payWithRazorpay(orderId: string, name: string, email: string, phone: string): Promise<any> {
-			return new Promise((resolve, reject) => {
-				const rzp = new (window as any).Razorpay({
-					key: rzpOrder!.key_id,
-					order_id: rzpOrder!.order_id,
-					amount: rzpOrder!.amount,
-					currency: rzpOrder!.currency,
-					name: "Anvesha '26",
-					description: 'Merch order ' + orderId,
-					// `method: 'upi'` opens Checkout on the UPI tab rather than on cards.
-					// Nearly everyone buying this is a student paying by UPI, so landing
-					// anywhere else costs them a tap for no reason.
-					prefill: { name, email, contact: phone, method: 'upi' },
-					theme: { color: '#7C3AED' },
-					// Promotes UPI to the top of the method list. `show_default_blocks: true`
-					// is load-bearing: without it this becomes an allow-list and every other
-					// way to pay disappears, which on a phone with no UPI app is a dead end.
-					//
-					// The `intent` flow is what draws the GPay / PhonePe / Paytm buttons that
-					// hand off to the app with the amount already filled in. It renders on
-					// MOBILE ONLY — a desktop browser has no app to open, so Razorpay falls
-					// back to a QR code and a VPA box there no matter what this says.
-					config: {
-						display: {
-							blocks: {
-								upi: { name: 'Pay by UPI', instruments: [{ method: 'upi', flows: ['intent', 'qr', 'collect'] }] },
-							},
-							sequence: ['block.upi'],
-							preferences: { show_default_blocks: true },
-						},
-					},
-					// Razorpay hands these three to the browser; the worker re-derives the
-					// signature and reads the payment back from Razorpay before it believes
-					// any of them. Nothing here is trusted on the client's word.
-					handler: async (r: any) => {
-						try {
-							const res = await fetch(API + '/api/verify-payment', {
-								method: 'POST',
-								headers: { 'Content-Type': 'application/json' },
-								body: JSON.stringify({
-									razorpay_order_id: r.razorpay_order_id,
-									razorpay_payment_id: r.razorpay_payment_id,
-									razorpay_signature: r.razorpay_signature,
-								}),
-							});
-							const data = await res.json();
-							if (!res.ok) throw new Error(data.message || data.error || 'Payment could not be verified');
-							resolve(data.settled ? data : await awaitSettlement(orderId));
-						} catch (err) { reject(err); }
-					},
-					modal: {
-						// Dismissed without paying. Not an error — the order is still there,
-						// unpaid, and the same details can be resubmitted against it.
-						ondismiss: () => reject(new Error('Payment cancelled. Your order is still waiting — press PAY to try again.')),
-					},
-				});
-				rzp.on('payment.failed', (e: any) =>
-					reject(new Error(e?.error?.description || 'The payment failed. No money has been taken — please try again.')));
-				rzp.open();
-			});
-		}
-
-		// ---- 2. details -> paid ----
+		// ---- 2. details -> pay ----
+		// NEXT, not PAY: nothing is charged here. The details are attached to the order
+		// so that whatever happens next — payment, abandonment, a rejected screenshot —
+		// the order already knows whose it is.
 		payForm.onsubmit = async (e) => {
 			e.preventDefault();
 			if (!currentOrder) return;
@@ -1218,56 +1125,11 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 			payBtn.disabled = true;
 			payErr.hidden = true;
 
-			// The gateway path leaves the form up while Checkout is open: the popup sits
-			// over it, and dismissing it has to come back to editable details, not to a
-			// progress bar for a payment that never started.
-			if (payMode === 'razorpay') {
-				try {
-					if (!rzpOrder?.key_id) throw new Error('The payment gateway is not configured. Please tell the merch team.');
-					await loadCheckout();
-
-					// Who is buying, stored against the order BEFORE the money moves.
-					// Razorpay never learns a roll number, so if this is not on the order
-					// when the webhook lands, the counter cannot find it later.
-					const cust = { name: fName.value, roll_number: fRoll.value, phone: fPhone.value, email: fEmail.value };
-					const attach = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/customer`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(cust),
-					});
-					const attached = await attach.json();
-					// The server owns the rules for name, roll, phone and email, so its
-					// message is the one shown — the browser keeps no second copy of them.
-					if (!attach.ok) throw new Error(attached.message || attached.error || 'Please check your details');
-
-					const paid = await payWithRazorpay(currentOrder, cust.name, cust.email, cust.phone);
-					setFace('processing');
-					startProgress();
-					finishProgress();
-					await new Promise((r) => setTimeout(r, 420));
-					showReceipt(paid);
-				} catch (err) {
-					setFace('details');
-					payErr.textContent = (err as Error).message;
-					payErr.hidden = false;
-				} finally {
-					payBtn.disabled = false;
-					resetProgress();
-				}
-				return;
-			}
-
-			// The form is replaced, not merely disabled — the details behind a payment in
-			// flight must not be editable, and there is nothing to do here but wait.
-			setFace('processing');
-			startProgress();
-
 			try {
-				const res = await fetch(API + '/api/pay', {
+				const res = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/customer`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
-						order_id: currentOrder,
 						name: fName.value,
 						roll_number: fRoll.value,
 						phone: fPhone.value,
@@ -1275,237 +1137,110 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 					}),
 				});
 				const data = await res.json();
-				// The server validates name/phone/email; its message is the one shown,
-				// so the browser never has to keep a second copy of those rules.
-				if (!res.ok) throw new Error(data.message || data.error || 'Payment failed');
+				// The server owns the rules for name, roll, phone and email, so its message
+				// is the one shown — the browser keeps no second copy of them.
+				if (!res.ok) throw new Error(data.message || data.error || 'Please check your details');
 
-				// Light the last tile and hold a beat, so the bar is seen completing rather
-				// than the face snapping away the instant the response lands.
-				finishProgress();
-				await new Promise((r) => setTimeout(r, 420));
-
-				showReceipt(data);
+				buyerName = fName.value.trim();
+				setFace('pay');
+				fTxn.focus();
 			} catch (err) {
-				// Back to the form with the details intact, so a rejected phone or email can
-				// be corrected and resubmitted against the same order.
-				setFace('details');
 				payErr.textContent = (err as Error).message;
 				payErr.hidden = false;
 			} finally {
 				payBtn.disabled = false;
+			}
+		};
+
+		// ---- 3. pay -> received ----
+		// The screenshot, previewed before it is sent. An object URL rather than a
+		// FileReader: no decode pass, and revoking it is the only cleanup needed.
+		let proofUrl: string | null = null;
+		function showProof(file: File | null) {
+			if (proofUrl) { URL.revokeObjectURL(proofUrl); proofUrl = null; }
+			proofBox.classList.toggle('has-file', Boolean(file));
+			proofName.textContent = file ? file.name : '';
+			if (!file) { proofImg.removeAttribute('src'); return; }
+			proofUrl = URL.createObjectURL(file);
+			proofImg.src = proofUrl;
+		}
+
+		fProof.onchange = () => {
+			const file = fProof.files?.[0] ?? null;
+			payErr2.hidden = true;
+			// The same two rules the worker applies, so a bad file fails instantly
+			// instead of after a 5MB upload.
+			if (file && !PROOF_TYPES.includes(file.type)) {
+				payErr2.textContent = 'That file type will not work — use a JPG, PNG or WebP screenshot.';
+				payErr2.hidden = false;
+				fProof.value = '';
+				return showProof(null);
+			}
+			if (file && file.size > MAX_PROOF_BYTES) {
+				payErr2.textContent = 'That screenshot is over 5MB. A normal phone screenshot is well under it.';
+				payErr2.hidden = false;
+				fProof.value = '';
+				return showProof(null);
+			}
+			showProof(file);
+		};
+
+		payStepForm.onsubmit = async (e) => {
+			e.preventDefault();
+			if (!currentOrder) return;
+
+			const file = fProof.files?.[0] ?? null;
+			if (!file) {
+				payErr2.textContent = 'Attach a screenshot of the successful payment.';
+				payErr2.hidden = false;
+				return;
+			}
+
+			submitBtn.disabled = true;
+			payErr2.hidden = true;
+			setFace('processing');
+			startProgress();
+
+			try {
+				// multipart, so the browser sets its own boundary. A base64 screenshot in
+				// JSON would be 80x over the worker's body cap.
+				const body = new FormData();
+				body.append('payment_ref', fTxn.value.trim());
+				body.append('proof', file);
+
+				const res = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/payment`, {
+					method: 'POST',
+					body,
+				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.message || data.error || 'Could not submit that payment');
+
+				finishProgress();
+				await new Promise((r) => setTimeout(r, 420));
+
+				// No QR and no ticket: nobody has checked this payment yet, and handing
+				// over a collection pass now would make the review pointless.
+				recvId.textContent = data.order_id;
+				recvName.textContent = buyerName;
+				cart = {}; saveCart(); renderCart();
+				payForm.reset();
+				payStepForm.reset();
+				showProof(null);
+				setFace('received');
+			} catch (err) {
+				// Back to the pay step with the reference intact — a rejected file or a
+				// dropped connection should not cost the student their typing.
+				setFace('pay');
+				payErr2.textContent = (err as Error).message;
+				payErr2.hidden = false;
+			} finally {
+				submitBtn.disabled = false;
 				resetProgress();
 			}
 		};
 
-		$('receiptDone').onclick = () => { openPay(false); openCart(false); };
-
-		// ---- QR ----
-		// Drawn by hand into a canvas rather than using the library's own image output:
-		// it keeps the modules on the site's palette and gives a real PNG to download.
-		function drawQR(canvas: HTMLCanvasElement, text: string, targetPx = 328) {
-			const qr = qrcode(0, 'M');
-			qr.addData(text);
-			qr.make();
-
-			const count = qr.getModuleCount();
-			const quiet = 4;                       // required silent margin, in modules
-			// Whole device pixels per module, always: a fractional scale lands module edges
-			// mid-pixel and the antialiasing is what makes a QR hard to read.
-			const scale = Math.max(2, Math.floor(targetPx / (count + quiet * 2)));
-			const size = (count + quiet * 2) * scale;
-			canvas.width = size;
-			canvas.height = size;
-
-			const ctx = canvas.getContext('2d')!;
-			ctx.fillStyle = '#ffffff';
-			ctx.fillRect(0, 0, size, size);
-			ctx.fillStyle = '#0b0b0f';
-			for (let r = 0; r < count; r++)
-				for (let c = 0; c < count; c++)
-					if (qr.isDark(r, c))
-						ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
-		}
-
-		/** Redraws the on-screen ticket as a flat PNG — same inked header, perforation and
-		 *  stub, so what gets saved to the camera roll is what was on screen. */
-		function buildReceiptCard(receipt: ReceiptData): HTMLCanvasElement {
-			const S = 2;                       // drawn at 2x so it stays sharp zoomed in
-			const TW = 420, PAGE = 18;         // ticket width, white margin around it
-			const W = TW + PAGE * 2;
-
-			const INK = '#0b0b0f', PAPER = '#ffffff', SINK = '#f5f5f6';
-			const INK40 = '#9a9a9e', INK60 = '#6b6b70', ACCENT = '#9333ea'; // keep in sync with --accent
-			const mono = (px: number, w = 400) => `${w} ${px}px 'DM Mono', ui-monospace, monospace`;
-			const disp = (px: number) => `800 ${px}px 'Archivo Expanded', 'Archivo', sans-serif`;
-
-			// Its own QR, sized for print rather than reusing the 124px on-screen one.
-			const stubQR = document.createElement('canvas');
-			drawQR(stubQR, receipt.order_id, 132 * S);
-			const qrW = stubQR.width / S;
-
-			// Heights are fixed per block, so the canvas can be sized before anything is
-			// drawn — the one place this layout has to agree with itself twice.
-			const HEAD = 46;
-			// ...+ 52 + ... is the bearer block: label at +10, name at +28, roll at +42.
-			// It was 38 before the roll number was added; the perforation is drawn at
-			// T + HEAD + BODY, so under-counting here tears straight through the roll.
-			const BODY = 16 + 13 + 26 + 8 + receipt.items.length * 18 + 16 + 52 + 16;
-			const STUB = 16 + Math.max(qrW, 96) + 16;
-			const TH = HEAD + BODY + STUB;
-			const H = PAGE + TH + PAGE + 26;
-
-			const canvas = document.createElement('canvas');
-			canvas.width = W * S; canvas.height = H * S;
-			const ctx = canvas.getContext('2d')!;
-			ctx.scale(S, S);
-			ctx.textBaseline = 'alphabetic';
-
-			ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
-
-			/* Canvas text neither wraps nor clips, so a long item or a long name would
-			   simply be painted over the price beside it. Trim to fit instead. */
-			const fit = (text: string, maxW: number) => {
-				if (ctx.measureText(text).width <= maxW) return text;
-				let t = text;
-				while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
-				return t + '…';
-			};
-
-			// ---- ticket body ----
-			const L = PAGE, R = PAGE + TW, T = PAGE;
-			ctx.fillStyle = SINK; ctx.fillRect(L, T, TW, TH);
-			ctx.strokeStyle = INK; ctx.lineWidth = 2;
-			ctx.strokeRect(L + 1, T + 1, TW - 2, TH - 2);
-
-			// ---- inked header ----
-			ctx.fillStyle = INK; ctx.fillRect(L, T, TW, HEAD);
-			ctx.textAlign = 'left';
-			ctx.fillStyle = PAPER; ctx.font = disp(15);
-			ctx.fillText('ANVESHA', L + 16, T + 29);
-			const bw = ctx.measureText('ANVESHA').width;
-			ctx.fillStyle = ACCENT; ctx.font = disp(9);
-			ctx.fillText("'26", L + 18 + bw, T + 22);
-			ctx.textAlign = 'right';
-			ctx.fillStyle = '#b9b9bd'; ctx.font = mono(9);
-			ctx.fillText('COLLECTION PASS', R - 16, T + 29);
-
-			// ---- counterfoil ----
-			let y = T + HEAD + 16;
-			ctx.textAlign = 'left';
-			ctx.fillStyle = INK40; ctx.font = mono(9);
-			ctx.fillText('ORDER NO.', L + 16, y + 9);
-			y += 13;
-			ctx.fillStyle = INK; ctx.font = mono(19, 500);
-			ctx.fillText(receipt.order_id, L + 16, y + 19);
-			y += 26 + 8;
-
-			for (const it of receipt.items) {
-				ctx.font = mono(11);
-				const price = rupees(it.line_total_paise);
-				const room = TW - 32 - ctx.measureText(price).width - 12;
-				ctx.textAlign = 'left';
-				ctx.fillStyle = INK60;
-				ctx.fillText(
-					fit(`${it.name}${it.size ? ' · ' + it.size : ''} × ${it.quantity}`, room),
-					L + 16, y + 12);
-				ctx.textAlign = 'right';
-				ctx.fillStyle = INK;
-				ctx.fillText(price, R - 16, y + 12);
-				y += 18;
-			}
-
-			y += 10;
-			ctx.strokeStyle = '#dcdcde'; ctx.lineWidth = 1.5;
-			ctx.beginPath(); ctx.moveTo(L + 16, y); ctx.lineTo(R - 16, y); ctx.stroke();
-			y += 6;
-
-			ctx.textAlign = 'left';
-			ctx.fillStyle = INK40; ctx.font = mono(9);
-			ctx.fillText('BEARER', L + 16, y + 10);
-			ctx.fillStyle = INK; ctx.font = disp(17);
-			const totalW = ctx.measureText(rupees(receipt.total_price_paise)).width;
-			ctx.font = mono(12);
-			ctx.fillText(fit(receipt.name, TW - 32 - totalW - 16), L + 16, y + 28);
-			// The roll sits under the name: it is what the counter types in when a student
-			// turns up with no QR, so the pass has to show it back to them.
-			ctx.fillStyle = INK40; ctx.font = mono(10);
-			ctx.fillText(receipt.roll_number, L + 16, y + 42);
-			ctx.fillStyle = INK;
-			ctx.textAlign = 'right';
-			ctx.fillStyle = INK40; ctx.font = mono(9);
-			ctx.fillText('PAID', R - 16, y + 10);
-			ctx.fillStyle = INK; ctx.font = disp(17);
-			ctx.fillText(rupees(receipt.total_price_paise), R - 16, y + 29);
-
-			// ---- perforation: dashed rule, then two paper-white discs punched over the
-			//      side rules so the tear reads as a real notch ----
-			const ripY = T + HEAD + BODY;
-			ctx.strokeStyle = INK; ctx.lineWidth = 2;
-			ctx.setLineDash([6, 5]);
-			ctx.beginPath(); ctx.moveTo(L, ripY); ctx.lineTo(R, ripY); ctx.stroke();
-			ctx.setLineDash([]);
-			ctx.fillStyle = PAPER;
-			for (const x of [L, R]) {
-				ctx.beginPath(); ctx.arc(x, ripY, 8, 0, Math.PI * 2); ctx.fill();
-			}
-
-			// ---- stub ----
-			const sy = ripY + 16;
-			ctx.imageSmoothingEnabled = false; // integer module scale; never resample it
-			ctx.drawImage(stubQR, L + 16, sy, qrW, qrW);
-			ctx.strokeStyle = INK; ctx.lineWidth = 2;
-			ctx.strokeRect(L + 15, sy - 1, qrW + 2, qrW + 2);
-
-			const sx = L + 16 + qrW + 14;
-			ctx.textAlign = 'left';
-			ctx.fillStyle = INK40; ctx.font = mono(9);
-			ctx.fillText('PRESENT AT COUNTER', sx, sy + 22);
-			ctx.fillStyle = INK60; ctx.font = mono(11);
-			ctx.fillText(receipt.transaction_id, sx, sy + 42);
-			ctx.fillStyle = INK40; ctx.font = mono(9);
-			ctx.fillText('▚▚ ANVESHA MERCH ▚▚', sx, sy + qrW - 4);
-
-			ctx.fillStyle = INK40; ctx.font = "italic 10px 'Archivo', sans-serif";
-			ctx.fillText('Show this at pickup — the QR is scanned once and marked collected.',
-				PAGE, H - 12);
-
-			return canvas;
-		}
-
-		/** `anvesha_order_20260818_024312.png` — local time, since the only person who
-		 *  reads this filename is the student whose phone it lands on. Colons and spaces
-		 *  are out: they are illegal in filenames on Windows and get mangled on Android. */
-		function receiptFilename(): string {
-			const d = new Date();
-			const p = (n: number) => String(n).padStart(2, '0');
-			const stamp =
-				`${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
-				`_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-			return `anvesha_order_${stamp}.png`;
-		}
-
-		/** Renders the pass and hands it to the browser as a download.
-		 *
-		 *  A Blob URL rather than a data: URL — Safari refuses to download a data: URL
-		 *  above a few hundred KB, and this card is a full-bleed PNG. */
-		async function saveReceipt(): Promise<void> {
-			if (!lastReceipt) return;
-			await document.fonts.ready; // canvas text only renders correctly once webfonts are loaded
-			const card = buildReceiptCard(lastReceipt);
-			const blob = await new Promise<Blob | null>((res) => card.toBlob(res, 'image/png'));
-			if (!blob) return;
-
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = receiptFilename();
-			a.click();
-			// Revoked on the next tick, not immediately: Safari reads the href
-			// asynchronously and a URL revoked in the same frame downloads nothing.
-			setTimeout(() => URL.revokeObjectURL(url), 10_000);
-		}
-
-		$('qrDownload').onclick = saveReceipt;
+		$('payBack').onclick = () => { payErr2.hidden = true; setFace('details'); };
+		$('recvDone').onclick = () => { openPay(false); openCart(false); };
 
 		// ---- mobile shop ----
 		function renderMCats() {
@@ -2047,6 +1782,12 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 		display: flex; justify-content: space-between; align-items: baseline;
 		font-weight: 700; font-size: 17px; margin-bottom: 6px;
 	}
+	.bag-lookup {
+		margin: 0 0 10px;
+		font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.bag-lookup a { color: var(--secondary); }
+
 	.sales-soon {
 		display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
 		font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
@@ -2191,7 +1932,7 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	   short laptop screen can never push the PAY button off-screen. */
 	.paymodal { display: flex; flex-direction: column; max-height: min(86vh, 760px); }
 
-	.pay-form, .receipt {
+	.pay-form, .receipt, .pay-step {
 		min-height: 0; overflow-y: auto; overflow-x: hidden;
 		display: flex; flex-direction: column; gap: 14px;
 		/* Setting only overflow-y leaves overflow-x computed as 'auto' per spec, not
@@ -2206,7 +1947,98 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 	/* An author `display` rule outranks the UA sheet's [hidden]{display:none} at equal
 	   specificity, so without this the face marked hidden stays on screen — which is
 	   exactly how all three faces ended up stacked at once. */
-	.pay-form[hidden], .receipt[hidden] { display: none; }
+	/* Explicit, because the author `display` above outranks the UA's [hidden] rule. */
+	.pay-form[hidden], .receipt[hidden], .pay-step[hidden] { display: none; }
+
+	/* ---- pay step: the QR, then the evidence ---- */
+	.upi {
+		display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+		padding: 14px;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	/* Paper-white behind the code whatever the card sits on — a QR on a tinted ground
+	   is the classic reason a camera will not lock on. */
+	.upi-qr {
+		display: grid; place-items: center;
+		padding: 7px;
+		background: #fff;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.upi-qr img { display: block; width: 124px; height: 124px; image-rendering: pixelated; }
+	.upi-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+	.upi-amount {
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-size: 24px; line-height: 1.1; letter-spacing: -.01em;
+	}
+	.upi-vpa-label { margin-top: 8px; }
+	.upi-vpa { margin: 0; font-size: 12px; overflow-wrap: anywhere; color: var(--ink-60); }
+
+	/* ---- the upload box ---- */
+	/* The <label> IS the dropzone: a hidden input inside a label is the one way to
+	   restyle a file picker without a JS click shim. */
+	.proof {
+		position: relative; display: grid; place-items: center;
+		min-height: 120px; padding: 16px; overflow: hidden;
+		text-align: center; cursor: pointer;
+		background: var(--sink);
+		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+		transition: border-color .16s ease, background .16s ease;
+	}
+	.proof:hover { border-color: var(--accent); }
+	/* Covers the box so the whole thing is the hit target, and keeps the input
+	   reachable by keyboard — it is invisible, not display:none. */
+	.proof input {
+		position: absolute; inset: 0; width: 100%; height: 100%;
+		opacity: 0; cursor: pointer;
+	}
+	.proof:focus-within { border-color: var(--accent); box-shadow: var(--pop); }
+	/* contain, not cover: a cropped payment screenshot is useless to whoever checks it. */
+	.proof-img { display: none; max-width: 100%; max-height: 190px; border-radius: var(--r); }
+	.proof.has-file .proof-img { display: block; }
+	.proof.has-file { border-style: solid; background: var(--primary); padding: 10px 10px 22px; }
+	.proof.has-file .proof-hint { display: none; }
+	.proof-hint { display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+	.proof-hint b { font-size: 13px; }
+	.proof-hint span { font-size: 11.5px; color: var(--ink-60); }
+	.proof-name {
+		position: absolute; left: 0; right: 0; bottom: 0;
+		padding: 4px 8px; font-size: 9.5px;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		color: var(--primary); background: var(--secondary);
+	}
+	.proof:not(.has-file) .proof-name { display: none; }
+
+	/* ---- received ---- */
+	.recv {
+		display: flex; flex-direction: column; align-items: center; gap: 10px;
+		padding: 22px 16px 20px; text-align: center;
+		background: var(--sink);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	/* A tick drawn from two borders — no icon file for one mark. */
+	.recv-mark {
+		width: 44px; height: 44px; flex: none;
+		display: grid; place-items: center;
+		background: var(--accent); border-radius: 999px;
+	}
+	.recv-mark::after {
+		content: ''; width: 13px; height: 23px;
+		border: solid var(--primary); border-width: 0 3px 3px 0;
+		transform: rotate(45deg) translate(-2px, -2px);
+	}
+	.recv-title {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 21px; letter-spacing: -.01em; text-transform: uppercase;
+	}
+	.recv-text { margin: 0; max-width: 34ch; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.recv-id {
+		display: flex; flex-direction: column; gap: 2px;
+		padding: 12px 14px;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.order-note a { color: var(--secondary); }
 
 	.order-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 	.order-items li {
@@ -2307,96 +2139,6 @@ import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
 
 	.order-note { margin: 0; font-size: 12px; line-height: 1.6; font-style: italic; color: var(--ink-40); }
 	.pay-err { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--accent); }
-
-	/* ---- the ticket ---- */
-	/* An admission ticket, not a receipt: inked header, counterfoil listing what was
-	   bought, then a perforation and the stub the counter actually scans. */
-	.ticket {
-		background: var(--sink);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.tk-head {
-		display: flex; align-items: center; justify-content: space-between; gap: 10px;
-		padding: 11px 14px;
-		background: var(--secondary); color: var(--primary);
-	}
-	.tk-brand {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 13px; letter-spacing: .06em;
-	}
-	.tk-brand sup { color: var(--accent); font-size: 8px; margin-left: 2px; vertical-align: super; }
-	.tk-kind {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 8.5px; letter-spacing: .18em; text-align: right;
-		color: color-mix(in srgb, var(--primary) 66%, var(--secondary));
-	}
-
-	.tk-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
-	.tk-eyebrow {
-		margin: 0;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.tk-id {
-		margin: -6px 0 0; overflow-wrap: anywhere;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 17px; font-weight: 500; letter-spacing: .02em; color: var(--secondary);
-	}
-	.tk-meta {
-		display: flex; gap: 12px;
-		padding-top: 11px; border-top: 1.5px solid var(--hair);
-	}
-	.tk-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-	.tk-cell span {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.tk-cell b { font-size: 13px; overflow-wrap: anywhere; }
-	.tk-cell-paid { flex: none; text-align: right; }
-	.tk-cell-paid b { font-family: 'Archivo Expanded', sans-serif; font-size: 18px; }
-
-	/* The tear. Zero height: it is a border plus two paper-white discs sitting over the
-	   ticket's own side rules, which is what makes them read as punched-out notches
-	   rather than as circles drawn beside the edge. */
-	.tk-rip {
-		position: relative; height: 0;
-		border-top: var(--stroke) dashed var(--secondary);
-	}
-	.tk-rip::before, .tk-rip::after {
-		content: ''; position: absolute; top: 0;
-		width: 16px; height: 16px; border-radius: 999px;
-		background: var(--primary);
-		transform: translateY(-50%);
-	}
-	.tk-rip::before { left: calc(-8px - var(--stroke)); }
-	.tk-rip::after { right: calc(-8px - var(--stroke)); }
-
-	.tk-stub {
-		display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
-		padding: 14px;
-	}
-	.tk-stub-side { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-	.tk-txn {
-		margin: 0; overflow-wrap: anywhere;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 11px; line-height: 1.4; color: var(--ink-60);
-	}
-	.tk-serial {
-		margin: auto 0 0; overflow: hidden; white-space: nowrap;
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9px; letter-spacing: .1em; color: var(--ink-40);
-	}
-	.qr {
-		display: block; width: 124px; height: 124px;
-		image-rendering: pixelated; /* keep module edges hard when the canvas is scaled */
-		background: var(--primary);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.qrdl, .orderback {
-		width: 100%; padding: 14px;
-		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
-	}
-	.qrdl { background: var(--accent); color: var(--primary); border-color: var(--accent); }
 
 	/* ============ MOBILE SHOP ============
 	   Desktop and mobile are two presentations of one state; exactly one is displayed,

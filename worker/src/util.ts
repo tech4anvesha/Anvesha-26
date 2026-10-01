@@ -230,6 +230,57 @@ export function paymentConfigured(env: Env): boolean {
 	return env.DIRECT_PAY === '1' || razorpayKeys(env) !== null;
 }
 
+// ---------- uploaded images ----------
+// Shared by the admin catalogue upload and the public payment-proof upload, so the two
+// cannot drift into accepting different things.
+
+/** Only formats every browser and R2 will serve back without transcoding. */
+export const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export const EXT: Record<string, string> = {
+	'image/jpeg': 'jpg',
+	'image/png': 'png',
+	'image/webp': 'webp',
+	'image/avif': 'avif',
+	'image/gif': 'gif',
+};
+
+/** The first bytes of each format we accept, as [offset, bytes] pairs. */
+const MAGIC: Record<string, [number, number[]][]> = {
+	'image/jpeg': [[0, [0xff, 0xd8, 0xff]]],
+	'image/png': [[0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]]],
+	// RIFF....WEBP — the size field sits between the two markers.
+	'image/webp': [
+		[0, [0x52, 0x49, 0x46, 0x46]],
+		[8, [0x57, 0x45, 0x42, 0x50]],
+	],
+	// ISO-BMFF: `ftyp` at offset 4, then an AVIF brand.
+	'image/avif': [
+		[4, [0x66, 0x74, 0x79, 0x70]],
+		[8, [0x61, 0x76, 0x69]],
+	],
+	'image/gif': [[0, [0x47, 0x49, 0x46, 0x38]]],
+};
+
+/**
+ * Checks the file's first bytes actually match the type it claims.
+ *
+ * `File.type` is the browser-declared part header and is entirely client-controlled. On
+ * an admin-only route that is an accepted risk; on a public one it is not, because the
+ * bytes are later streamed back out with that same declared content-type — so a file
+ * labelled image/png and containing HTML would be served as a PNG that a browser might
+ * still sniff and render.
+ */
+export async function looksLikeImage(file: File, declaredType: string): Promise<boolean> {
+	const sigs = MAGIC[declaredType];
+	if (!sigs) return false;
+	// 16 bytes covers every signature above; reading the whole file to check a header
+	// would defeat the point of streaming it to R2.
+	const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+	return sigs.every(([at, bytes]) => bytes.every((b, i) => head[at + i] === b));
+}
+
 /** Constant-time comparison — a plain `===` on a secret leaks its prefix via timing. */
 export function timingSafeEqual(a: string, b: string): boolean {
 	if (a.length !== b.length) return false;

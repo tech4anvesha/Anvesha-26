@@ -268,6 +268,8 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 									<th>Transaction id</th>
 									<th class="num">Amount</th>
 									<th>Order time</th>
+									<th>Proof</th>
+									<th>Confirmation</th>
 									<th>Collection</th>
 									<th aria-label="Actions"></th>
 								</tr>
@@ -396,6 +398,52 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		</div>
 	</div>
 
+	<!-- ============ PAYMENT SCREENSHOT ============ -->
+	<div class="ov" id="shotModal" hidden>
+		<div class="ov-panel ov-shot" role="dialog" aria-modal="true" aria-labelledby="shotTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="shotTitle">PAYMENT SCREENSHOT</span>
+				<button class="btn x" id="shotClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body">
+				<p class="ov-id" id="shotId">ORD_</p>
+				<p class="shot-ref mono">REF <b id="shotRef">—</b></p>
+				<!-- Scrolls rather than scales: a screenshot shrunk to fit is a screenshot
+				     whose transaction id cannot be read, which is the only reason it is here. -->
+				<div class="shot-frame"><img id="shotImg" alt="Payment screenshot submitted by the student" /></div>
+				<p class="a-err" id="shotErr" hidden></p>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============ REJECT PAYMENT ============ -->
+	<div class="ov" id="rejModal" hidden>
+		<div class="ov-panel ov-narrow" role="dialog" aria-modal="true" aria-labelledby="rejTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="rejTitle">REJECT PAYMENT</span>
+				<button class="btn x" id="rejClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+			<div class="ov-body">
+				<p class="ov-warn">
+					The student is emailed and can submit a new reference and screenshot against
+					this same order. Nothing is deleted.
+				</p>
+				<p class="ov-id" id="rejId">ORD_</p>
+				<p class="shot-ref mono">REF <b id="rejRef">—</b></p>
+				<label class="field">
+					<span class="field-label">Why (the student reads this)</span>
+					<textarea class="field-input" id="rejNote" rows="3" maxlength="300"
+					          placeholder="e.g. No payment of this amount on our statement for that reference."></textarea>
+				</label>
+				<p class="a-err" id="rejErr" hidden></p>
+			</div>
+			<div class="ov-foot">
+				<button class="btn a-btn-danger armed" id="rejGo" type="button">REJECT &amp; EMAIL</button>
+				<button class="btn a-btn-secondary" id="rejCancel" type="button">CANCEL</button>
+			</div>
+		</div>
+	</div>
+
 	<!-- ============ DELETE CONFIRM ============ -->
 	<div class="ov" id="delModal" hidden>
 		<div class="ov-panel ov-narrow" role="dialog" aria-modal="true" aria-labelledby="delTitle">
@@ -496,9 +544,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 </AdminLayout>
 
 <script>
-	import { API, SITE, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
+	import { API, SITE, adminBlob, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 	import iTrash from 'lucide-static/icons/trash-2.svg?raw';
+	import iCheck from 'lucide-static/icons/check.svg?raw';
+	import iNo from 'lucide-static/icons/x.svg?raw';
 	// Same fallbacks the storefront uses, so the preview degrades identically.
 	import icApparel from 'lucide-static/icons/shirt.svg?raw';
 	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
@@ -684,6 +734,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			quantity: number; line_total_paise: number; collected: 0 | 1;
 		}[];
 		transaction_id: string | null; total_price_paise: number; payment_status: string;
+		review_status: 'none' | 'pending' | 'confirmed' | 'rejected';
+		payment_ref: string | null; has_proof: boolean; payment_submitted_at: string | null;
+		reviewed_by_name: string | null; reviewed_at: string | null; review_note: string | null;
 		collection_status: 'pending' | 'partial' | 'collected'; collected_at: string | null; created_at: string;
 	};
 
@@ -702,8 +755,120 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	const summarise = (o: Order) =>
 		o.items.map((l) => `${l.name}${l.size ? ` · ${l.size}` : ''} × ${l.quantity}`).join(', ');
 
+	// ---- payment review ----
+
+	/** The confirmation cell: where this order stands, and what can be done about it. */
+	function reviewCell(o: Order): string {
+		if (o.payment_status === 'paid') {
+			const by = o.reviewed_by_name ? ` by ${escape(o.reviewed_by_name)}` : '';
+			return `<span class="ord-pill on">CONFIRMED</span><span class="ord-by">${by}</span>`;
+		}
+		if (o.review_status === 'rejected')
+			return (
+				`<span class="ord-pill bad">REJECTED</span>` +
+				(o.review_note ? `<span class="ord-by" title="${escape(o.review_note)}">${escape(o.review_note)}</span>` : '')
+			);
+		if (o.review_status !== 'pending') return `<span class="ord-none">—</span>`;
+
+		// The only state with anything to decide.
+		return (
+			`<span class="ord-review">` +
+			`<button type="button" class="btn ord-ok" data-ok aria-label="Confirm payment">${iCheck}</button>` +
+			`<button type="button" class="btn ord-no" data-no aria-label="Reject payment">${iNo}</button>` +
+			`</span>`
+		);
+	}
+
+	// Object URLs are revoked when the table is rebuilt; without that, every live
+	// refresh would leak one blob per row for as long as the panel stays open.
+	let proofUrls: string[] = [];
+	function dropProofUrls() {
+		for (const u of proofUrls) URL.revokeObjectURL(u);
+		proofUrls = [];
+	}
+
+	/** Fetches a screenshot with the admin's token and shows it in the cell. */
+	async function loadProof(orderId: string, img: HTMLImageElement) {
+		try {
+			const blob = await adminBlob(`/api/admin/orders/${orderId}/proof`);
+			const url = URL.createObjectURL(blob);
+			proofUrls.push(url);
+			img.src = url;
+		} catch {
+			// The fallback glyph beside it already reads as "nothing to show"; a failed
+			// thumbnail is not worth an error banner over the whole table.
+		}
+	}
+
+	let shotUrl: string | null = null;
+	async function openShot(o: Order) {
+		$('shotId').textContent = o.order_id;
+		$('shotRef').textContent = o.payment_ref || '—';
+		const img = $<HTMLImageElement>('shotImg');
+		img.removeAttribute('src');
+		openModal('shotModal', true);
+		try {
+			const blob = await adminBlob(`/api/admin/orders/${o.order_id}/proof`);
+			if (shotUrl) URL.revokeObjectURL(shotUrl);
+			shotUrl = URL.createObjectURL(blob);
+			img.src = shotUrl;
+		} catch (e) {
+			$('shotErr').textContent = (e as Error).message;
+			$('shotErr').hidden = false;
+		}
+	}
+
+	async function confirmPayment(o: Order) {
+		if (!confirm(`Confirm payment for ${o.order_id}?\n\nThis marks the order paid and emails the student their collection QR.`)) return;
+		try {
+			const res = await adminFetch<{ duplicate_reference?: boolean }>(
+				`/api/admin/orders/${o.order_id}/review`,
+				{ method: 'POST', body: JSON.stringify({ action: 'confirm' }) },
+			);
+			// The UNIQUE index on the transaction reference means a duplicate silently
+			// writes no payment row. Surfaced, because only a human can untangle it.
+			if (res.duplicate_reference)
+				alert(`Confirmed — but reference ${o.payment_ref} is already recorded against another order. Check both before handing anything over.`);
+			await loadOrders();
+		} catch (e) {
+			$('ordErr').textContent = (e as Error).message;
+			$('ordErr').hidden = false;
+		}
+	}
+
+	let pendingReject: Order | null = null;
+	function openReject(o: Order) {
+		pendingReject = o;
+		$('rejId').textContent = o.order_id;
+		$('rejRef').textContent = o.payment_ref || '—';
+		$<HTMLTextAreaElement>('rejNote').value = '';
+		$('rejErr').hidden = true;
+		openModal('rejModal', true);
+	}
+
+	async function confirmReject() {
+		if (!pendingReject) return;
+		const btn = $<HTMLButtonElement>('rejGo');
+		btn.disabled = true;
+		try {
+			await adminFetch(`/api/admin/orders/${pendingReject.order_id}/review`, {
+				method: 'POST',
+				body: JSON.stringify({ action: 'reject', note: $<HTMLTextAreaElement>('rejNote').value }),
+			});
+			openModal('rejModal', false);
+			pendingReject = null;
+			await loadOrders();
+		} catch (e) {
+			$('rejErr').textContent = (e as Error).message;
+			$('rejErr').hidden = false;
+		} finally {
+			btn.disabled = false;
+		}
+	}
+
 	function renderOrders() {
 		const body = $('ordBody');
+		dropProofUrls();
 		body.innerHTML = '';
 		$('ordCount').textContent = String(orders.length);
 		$('ordEmpty').hidden = orders.length > 0;
@@ -726,6 +891,15 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				(paid ? '' : `<span class="ord-tag">${escape(o.payment_status)}</span>`) +
 				`</td>` +
 				`<td class="mono">${escape(stamp(o.created_at))}</td>` +
+				// The thumbnail is filled in after render: the bytes need an auth header,
+				// so an <img src> cannot fetch them on its own.
+				`<td>${
+					o.has_proof
+						? `<button type="button" class="col-art ord-shot" data-shot aria-label="View payment screenshot">` +
+							`<img alt="" /><span class="col-art-fallback">…</span></button>`
+						: `<span class="ord-none">—</span>`
+				}</td>` +
+				`<td>${reviewCell(o)}</td>` +
 				`<td>${
 					o.collection_status === 'collected'
 						? `<span class="ord-pill on">COLLECTED</span>`
@@ -738,6 +912,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 			tr.querySelector('[data-info]')!.addEventListener('click', () => openSlip(o));
 			tr.querySelector('[data-del]')!.addEventListener('click', () => openDelete(o));
+			tr.querySelector('[data-ok]')?.addEventListener('click', () => confirmPayment(o));
+			tr.querySelector('[data-no]')?.addEventListener('click', () => openReject(o));
+			const shot = tr.querySelector<HTMLButtonElement>('[data-shot]');
+			if (shot) {
+				void loadProof(o.order_id, shot.querySelector('img')!);
+				shot.addEventListener('click', () => openShot(o));
+			}
 			body.appendChild(tr);
 		}
 	}
@@ -1860,6 +2041,10 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		$('delClose').onclick = () => openModal('delModal', false);
 		$('delCancel').onclick = () => { pendingDelete = null; openModal('delModal', false); };
 		$('delGo').onclick = confirmDelete;
+		$('shotClose').onclick = () => openModal('shotModal', false);
+		$('rejClose').onclick = () => openModal('rejModal', false);
+		$('rejCancel').onclick = () => { pendingReject = null; openModal('rejModal', false); };
+		$('rejGo').onclick = confirmReject;
 		// Clicking the backdrop dismisses, but only the backdrop — a click that started
 		// inside the panel and drifted out must not close it.
 		// The distribution dialog runs a clock, so it always closes through its own
@@ -1867,12 +2052,12 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		const closeOverlay = (id: string) =>
 			id === 'distModal' ? openDistribution(false) : openModal(id, false);
 
-		for (const id of ['ordModal', 'delModal', 'colModal', 'distModal'])
+		for (const id of ['ordModal', 'delModal', 'colModal', 'distModal', 'shotModal', 'rejModal'])
 			$(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); });
 		// Topmost first: the confirm can open over the others.
 		addEventListener('keydown', (e) => {
 			if (e.key !== 'Escape') return;
-			for (const id of ['delModal', 'ordModal', 'colModal', 'distModal']) {
+			for (const id of ['rejModal', 'shotModal', 'delModal', 'ordModal', 'colModal', 'distModal']) {
 				if (!$(id).hidden) { closeOverlay(id); return; }
 			}
 		});
@@ -2064,6 +2249,36 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		text-transform: uppercase; color: var(--primary); background: var(--accent);
 		border-radius: var(--r);
 	}
+	/* ---- payment review ---- */
+	/* Sized like .ord-del so the three row controls read as one family. */
+	.ord-review { display: flex; gap: 6px; }
+	.ord-ok, .ord-no { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+	.ord-ok svg, .ord-no svg { width: 14px; height: 14px; stroke-width: 2.4; }
+	.ord-ok:hover { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
+	.ord-no:hover { color: var(--accent); border-color: var(--accent); }
+	.ord-by {
+		display: block; max-width: 180px; margin-top: 3px;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		font-size: 9.5px; color: var(--ink-40);
+	}
+	/* A button, not a span: it opens the full-size view, so it has to be reachable by
+	   keyboard and announce itself as something that does anything at all. */
+	.ord-shot { padding: 0; cursor: pointer; }
+	.ord-shot:hover { border-color: var(--accent); }
+	.ord-pill.bad { color: var(--primary); background: var(--accent); }
+
+	.ov-shot { width: min(560px, 100%); }
+	.shot-ref { margin: 0; font-size: 11px; color: var(--ink-40); }
+	.shot-ref b { color: var(--secondary); }
+	/* Scrolls rather than scales: a screenshot shrunk to fit is one whose transaction
+	   id cannot be read, which is the only reason an admin opened it. */
+	.shot-frame {
+		max-height: 60vh; overflow: auto;
+		background: var(--sink);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+	}
+	.shot-frame img { display: block; width: 100%; }
+
 	.ord-del { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
 	.ord-del svg { width: 13px; height: 13px; stroke-width: 2.2; }
 	.ord-del:hover { color: var(--accent); border-color: var(--accent); }

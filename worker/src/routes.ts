@@ -4,7 +4,6 @@ import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, 
 import { normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import {
-	createRazorpayOrder,
 	fetchPayment,
 	type PaymentEntity,
 	paymentFromEvent,
@@ -14,6 +13,10 @@ import {
 } from './razorpay.ts';
 import {
 	ApiError,
+	EXT,
+	broadcastChange,
+	IMAGE_TYPES,
+	MAX_IMAGE_BYTES,
 	bad,
 	type Env,
 	json,
@@ -21,10 +24,9 @@ import {
 	newOrderId,
 	newPaymentId,
 	newTransactionId,
+	looksLikeImage,
 	notFound,
 	readJson,
-	paymentConfigured,
-	razorpayKeys,
 	requireBudget,
 } from './util.ts';
 
@@ -79,10 +81,11 @@ export async function listMerch(
 	// switch can never take the shop down by failing to exist.
 	const release = await readSwitches(env);
 	const released = release.visible;
-	// Intent AND configuration: the admin's sales switch is on, and there is actually a
-	// way to take money. Either alone leaves the button off — a switch with no gateway
-	// behind it would only lead shoppers to an error.
-	const salesOpen = release.selling && paymentConfigured(env);
+	// The admin's switch alone. There used to be a second condition — "is a gateway
+	// configured" — but payment is manual now: the student pays in their own app and
+	// submits evidence, so the capability is always there and intent is all that is left
+	// to ask about.
+	const salesOpen = release.selling;
 
 	if (!released) {
 		// Cached and headered exactly like the open catalogue below, and purged by the
@@ -233,18 +236,17 @@ export async function merchImage(
 export async function checkout(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireBudget(env, req, 'checkout');
 
-	// Three gates, checked before anything is priced or written, each with its own
-	// answer so a stale tab learns WHY rather than seeing one generic refusal:
-	//   1. the catalogue is hidden          -> 403 shop_closed
-	//   2. visible, but sales are off       -> 403 sales_closed
-	//   3. sales are on, but nothing can take the money -> 503 not_configured
+	// Two gates, checked before anything is priced or written, each with its own answer
+	// so a stale tab learns WHY rather than seeing one generic refusal:
+	//   1. the catalogue is hidden    -> 403 shop_closed
+	//   2. visible, but sales are off -> 403 sales_closed
 	// Hiding the button is a page-level change this route never sees, so without these
 	// a replayed request could still place an order the store has no way to settle.
+	// There is no third "is a gateway configured" gate any more: payment is manual, so
+	// the capability is always there and sales_open is the admin's switch alone.
 	const release = await readSwitches(env);
 	if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
 	if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
-	if (!paymentConfigured(env))
-		throw new ApiError(503, 'not_configured', 'Sales are switched on but no payment gateway is configured');
 
 	const body = await readJson<{ cart?: unknown }>(req);
 	const lines = parseCart(body);
@@ -264,18 +266,15 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 
 	const orderId = newOrderId();
 
-	// While DIRECT_PAY is on there is no gateway, so no Razorpay order is created and
-	// razorpay_order_id stays NULL. Creating a throwaway stub id instead would put rows
-	// in the table that look like real gateway orders and confuse later reconciliation.
-	const direct = env.DIRECT_PAY === '1';
-	const rzp = direct ? null : await createRazorpayOrder(env, orderId, priced.total_price_paise);
-
+	// razorpay_order_id stays NULL: there is no gateway. Minting a stub id instead would
+	// put rows in the table that look like real gateway orders and confuse later
+	// reconciliation.
 	await env.DB.prepare(
 		`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
 		                     collection_status, razorpay_order_id)
-		 VALUES (?, ?, ?, 'unpaid', 'pending', ?)`,
+		 VALUES (?, ?, ?, 'unpaid', 'pending', NULL)`,
 	)
-		.bind(orderId, JSON.stringify(priced.lines), priced.total_price_paise, rzp?.id ?? null)
+		.bind(orderId, JSON.stringify(priced.lines), priced.total_price_paise)
 		.run();
 
 	return json(
@@ -283,19 +282,11 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 			order_id: orderId,
 			total_price_paise: priced.total_price_paise,
 			items: priced.lines,
-			// Tells the browser which payment path to take. `direct` means collect the
-			// buyer's details and POST /api/pay; otherwise open Razorpay Checkout.
-			mode: direct ? 'direct' : 'razorpay',
-			razorpay: rzp
-				? {
-						order_id: rzp.id,
-						amount: rzp.amount,
-						currency: rzp.currency,
-						// Publishable id, safe in the browser — what Checkout.js needs. The
-						// secret must never leave the worker. Test or live follows the mode.
-						key_id: razorpayKeys(env)?.keyId ?? null,
-					}
-				: null,
+			// One path now: collect the buyer's details, show them the UPI QR, take a
+			// transaction reference and a screenshot. Kept as a field rather than dropped
+			// so a cached old build gets something it does not recognise and fails loudly
+			// instead of silently taking the gateway branch it no longer has.
+			mode: 'manual',
 		},
 		{ status: 201 },
 		cors,
@@ -992,4 +983,193 @@ async function receiptFor(env: Env, order: SettleableOrder, idempotent: boolean)
 		items: JSON.parse(order.order_info) as PricedLine[],
 		customer: order.customer_info ? JSON.parse(order.customer_info) : null,
 	};
+}
+
+// ============================================================
+// 11. POST /api/orders/:order_id/payment — the student's evidence
+// ============================================================
+/**
+ * Takes a UPI transaction reference and a screenshot, and parks the order in a queue
+ * for an admin to check against the real statement.
+ *
+ * This route does NOT settle anything. `payment_status` stays 'unpaid' and no QR is
+ * minted — that is the whole point of manual review, and it is why the response
+ * deliberately carries no `qr_payload` for a caller to latch onto.
+ *
+ * multipart, not JSON: readJson caps bodies at 32 KiB and a 2 MB screenshot is ~2.7 MB
+ * once base64'd, eighty times over.
+ */
+export async function submitPayment(
+	env: Env,
+	req: Request,
+	orderId: string,
+	cors: Cors,
+	ctx?: ExecutionContext,
+): Promise<Response> {
+	// Before formData(), which buffers the whole body. adminCreateMerch can skip this
+	// because it sits behind requireAdmin; this route is open to the internet.
+	await requireBudget(env, req, 'submit');
+	const declaredLength = Number(req.headers.get('Content-Length') ?? 0);
+	if (declaredLength > MAX_IMAGE_BYTES + 64 * 1024)
+		throw new ApiError(413, 'payload_too_large', 'That screenshot is too large — 5MB is the limit');
+
+	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+
+	const order = await env.DB.prepare(
+		`SELECT payment_status, review_status, payment_proof_path FROM orders WHERE order_id = ?`,
+	)
+		.bind(orderId)
+		.first<{ payment_status: string; review_status: string | null; payment_proof_path: string | null }>();
+	if (!order) throw notFound('No such order');
+	if (order.payment_status !== 'unpaid')
+		throw new ApiError(409, 'order_settled', 'This order has already been settled');
+	// 'pending' is excluded on purpose: a second submission while one is already in the
+	// queue would quietly replace the evidence an admin may be looking at right now.
+	if (order.review_status === 'pending')
+		throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
+
+	const form = await req.formData().catch(() => null);
+	if (!form) throw bad('bad_body', 'Expected multipart form data');
+
+	const ref = String(form.get('payment_ref') ?? '').trim();
+	if (ref.length < 4 || ref.length > 64)
+		throw bad('bad_payment_ref', 'Enter the transaction reference from your UPI app');
+
+	const shot = form.get('proof');
+	if (!(shot instanceof File) || shot.size === 0)
+		throw bad('no_proof', 'Attach a screenshot of the successful payment');
+	if (!IMAGE_TYPES.has(shot.type))
+		throw bad('bad_image_type', `Unsupported image type ${shot.type || 'unknown'}`);
+	if (shot.size > MAX_IMAGE_BYTES) throw bad('image_too_large', 'The screenshot must be 5MB or smaller');
+	// The declared type decides the key, the stored content-type and therefore what the
+	// admin's browser is told this is — so it has to be checked against the actual bytes.
+	if (!(await looksLikeImage(shot, shot.type)))
+		throw bad('bad_image', 'That file is not the image type it claims to be');
+
+	const key = `orders/${orderId}.${EXT[shot.type]}`;
+
+	// Object first, row second. A row pointing at a missing object would show the admin
+	// a broken thumbnail and no way to tell "not uploaded" from "lost"; an unreferenced
+	// object is only wasted bytes.
+	await env.MEDIA.put(key, shot.stream(), {
+		httpMetadata: { contentType: shot.type, cacheControl: 'private, no-store' },
+	});
+	// A resubmission in a different format leaves the old object behind under its own
+	// extension, and nothing would ever point at it again.
+	if (order.payment_proof_path && order.payment_proof_path !== key)
+		await env.MEDIA.delete(order.payment_proof_path).catch((e) =>
+			console.error('proof: could not delete superseded object', order.payment_proof_path, e),
+		);
+
+	const res = await env.DB.prepare(
+		`UPDATE orders
+		    SET review_status = 'pending', payment_ref = ?, payment_proof_path = ?,
+		        payment_submitted_at = datetime('now'), review_note = NULL,
+		        updated_at = datetime('now')
+		  WHERE order_id = ? AND payment_status = 'unpaid'`,
+	)
+		.bind(ref, key, orderId)
+		.run();
+	if (!res.meta.changes) throw new ApiError(409, 'order_settled', 'This order has already been settled');
+
+	const live = broadcastChange(env, 'orders', `payment submitted ${orderId}`);
+	if (ctx) ctx.waitUntil(live);
+
+	return json({ ok: true, order_id: orderId, review_status: 'pending' }, { status: 201 }, cors);
+}
+
+// ============================================================
+// 12. POST /api/orders/lookup — the student's own order, by roll + phone
+// ============================================================
+/**
+ * The fallback for a confirmation email that never arrived.
+ *
+ * Roll number ALONE would not do. The QR is a bearer token — whoever holds it collects
+ * — and roll numbers are trivially enumerable (IMS24001, IMS24002, …), so a roll-only
+ * lookup would let anyone walk the range and pull up other students' passes. The phone
+ * number they ordered with is the second factor: known to them, not derivable from the
+ * roll.
+ *
+ * A wrong phone and an unknown roll return the same 404, so this cannot be used to
+ * discover which rolls have orders.
+ */
+export async function orderLookup(env: Env, req: Request, cors: Cors): Promise<Response> {
+	await requireBudget(env, req, 'lookup');
+	const body = await readJson<{ roll_number?: unknown; phone?: unknown }>(req);
+
+	const rollNumber = normaliseRoll(body.roll_number);
+	// The same normalisation parseCustomer applies on the way in, so "+91 98765 43210"
+	// and "9876543210" match the stored value either way.
+	const raw = String(body.phone ?? '').replace(/[\s-]/g, '');
+	const phone = raw.replace(/^(\+91|0091|91(?=\d{10}$)|0)/, '');
+	if (!/^[6-9]\d{9}$/.test(phone)) throw bad('bad_phone', 'Enter the 10-digit mobile you ordered with');
+
+	const { results } = await env.DB.prepare(
+		`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
+		        review_status, payment_ref, review_note, collected_at, created_at, customer_info
+		   FROM orders
+		  WHERE roll_number = ? COLLATE NOCASE
+		  ORDER BY created_at DESC, order_id DESC`,
+	)
+		.bind(rollNumber)
+		.all<{
+			order_id: string;
+			order_info: string;
+			total_price_paise: number;
+			payment_status: string;
+			collection_status: CollectionStatus;
+			review_status: string | null;
+			payment_ref: string | null;
+			review_note: string | null;
+			collected_at: string | null;
+			created_at: string;
+			customer_info: string | null;
+		}>();
+
+	// The phone is matched here rather than in SQL: it lives inside the customer_info
+	// JSON blob, and a LIKE over that would match a number appearing in any field.
+	const mine = results.filter((o) => {
+		try {
+			return o.customer_info ? (JSON.parse(o.customer_info) as { phone?: string }).phone === phone : false;
+		} catch {
+			return false;
+		}
+	});
+
+	// One dead end for both "no such roll" and "wrong phone" — see the docblock.
+	if (mine.length === 0) throw notFound('No order found for those details');
+
+	return json(
+		{
+			roll_number: rollNumber,
+			orders: mine.map((o) => ({
+				order_id: o.order_id,
+				items: JSON.parse(o.order_info) as PricedLine[],
+				total_price_paise: o.total_price_paise,
+				payment_status: o.payment_status,
+				review_status: o.review_status ?? 'none',
+				payment_ref: o.payment_ref,
+				review_note: o.review_note,
+				collection_status: o.collection_status,
+				collected_at: o.collected_at,
+				created_at: o.created_at,
+				name: safeName(o.customer_info),
+				// The collection capability, and only once an admin has confirmed. Same
+				// rule getOrder applies.
+				qr_payload: o.payment_status === 'paid' ? o.order_id : null,
+			})),
+		},
+		{},
+		cors,
+	);
+}
+
+/** The buyer's name out of customer_info, or '' if the blob is unreadable. */
+function safeName(customerInfo: string | null): string {
+	if (!customerInfo) return '';
+	try {
+		return String((JSON.parse(customerInfo) as { name?: string }).name ?? '');
+	} catch {
+		return '';
+	}
 }

@@ -1,0 +1,100 @@
+/* ============================================================
+   The collection pass.
+
+   Shared, because two pages draw it: the storefront used to print it in the checkout
+   popup, and /order prints it now that a pass only exists once an admin has confirmed
+   the payment. One stylesheet so the ticket a student sees on screen and the one they
+   downloaded last week cannot drift apart.
+
+   Depends only on the theme tokens in styles/theme.css.
+   ============================================================ */
+
+/* ---- the ticket ---- */
+/* An admission ticket, not a receipt: inked header, counterfoil listing what was
+   bought, then a perforation and the stub the counter actually scans. */
+.ticket {
+	background: var(--sink);
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+}
+.tk-head {
+	display: flex; align-items: center; justify-content: space-between; gap: 10px;
+	padding: 11px 14px;
+	background: var(--secondary); color: var(--primary);
+}
+.tk-brand {
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-weight: 800; font-size: 13px; letter-spacing: .06em;
+}
+.tk-brand sup { color: var(--accent); font-size: 8px; margin-left: 2px; vertical-align: super; }
+.tk-kind {
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 8.5px; letter-spacing: .18em; text-align: right;
+	color: color-mix(in srgb, var(--primary) 66%, var(--secondary));
+}
+
+.tk-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.tk-eyebrow {
+	margin: 0;
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
+}
+.tk-id {
+	margin: -6px 0 0; overflow-wrap: anywhere;
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 17px; font-weight: 500; letter-spacing: .02em; color: var(--secondary);
+}
+.tk-meta {
+	display: flex; gap: 12px;
+	padding-top: 11px; border-top: 1.5px solid var(--hair);
+}
+.tk-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.tk-cell span {
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
+}
+.tk-cell b { font-size: 13px; overflow-wrap: anywhere; }
+.tk-cell-paid { flex: none; text-align: right; }
+.tk-cell-paid b { font-family: 'Archivo Expanded', sans-serif; font-size: 18px; }
+
+/* The tear. Zero height: it is a border plus two paper-white discs sitting over the
+   ticket's own side rules, which is what makes them read as punched-out notches
+   rather than as circles drawn beside the edge. */
+.tk-rip {
+	position: relative; height: 0;
+	border-top: var(--stroke) dashed var(--secondary);
+}
+.tk-rip::before, .tk-rip::after {
+	content: ''; position: absolute; top: 0;
+	width: 16px; height: 16px; border-radius: 999px;
+	background: var(--primary);
+	transform: translateY(-50%);
+}
+.tk-rip::before { left: calc(-8px - var(--stroke)); }
+.tk-rip::after { right: calc(-8px - var(--stroke)); }
+
+.tk-stub {
+	display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+	padding: 14px;
+}
+.tk-stub-side { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.tk-txn {
+	margin: 0; overflow-wrap: anywhere;
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 11px; line-height: 1.4; color: var(--ink-60);
+}
+.tk-serial {
+	margin: auto 0 0; overflow: hidden; white-space: nowrap;
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 9px; letter-spacing: .1em; color: var(--ink-40);
+}
+.qr {
+	display: block; width: 124px; height: 124px;
+	image-rendering: pixelated; /* keep module edges hard when the canvas is scaled */
+	background: var(--primary);
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+}
+.qrdl, .orderback {
+	width: 100%; padding: 14px;
+	font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+}
+.qrdl { background: var(--accent); color: var(--primary); border-color: var(--accent); }

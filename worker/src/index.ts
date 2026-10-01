@@ -18,7 +18,9 @@ import {
 	adminDeleteMerch,
 	adminDeleteOrder,
 	adminListMerch,
+	adminOrderProof,
 	adminRefreshCatalogue,
+	adminReviewOrder,
 	adminSetRelease,
 	adminSetSales,
 	adminListOrders,
@@ -43,7 +45,9 @@ import {
 	getOrder,
 	listMerch,
 	merchImage,
+	orderLookup,
 	razorpayWebhook,
+	submitPayment,
 	verifyPayment,
 } from './routes.ts';
 import { ApiError, bad, corsHeaders, type Env, json, notFound, requireBudget } from './util.ts';
@@ -81,14 +85,24 @@ export default {
 			if (method === 'POST' && pathname === '/api/verify-payment')
 				return await verifyPayment(env, req, cors, ctx);
 
+			// Before the /:order_id patterns below, or "lookup" is read as an order id.
+			if (method === 'POST' && pathname === '/api/orders/lookup')
+				return await orderLookup(env, req, cors);
+
 			const order = pathname.match(/^\/api\/orders\/([^/]+)$/);
 			if (method === 'GET' && order) return await getOrder(env, decodeURIComponent(order[1]), cors);
 
-			// Buyer details, attached before Checkout opens — Razorpay never learns them,
-			// so they must be on the order before the money moves.
+			// Buyer details, attached before payment, so the order knows who placed it
+			// whatever happens next.
 			const cust = pathname.match(/^\/api\/orders\/([^/]+)\/customer$/);
 			if (method === 'POST' && cust)
 				return await attachCustomer(env, req, decodeURIComponent(cust[1]), cors);
+
+			// The student's evidence: a UPI reference and a screenshot. Settles nothing —
+			// it only puts the order in the admin's review queue.
+			const proof = pathname.match(/^\/api\/orders\/([^/]+)\/payment$/);
+			if (method === 'POST' && proof)
+				return await submitPayment(env, req, decodeURIComponent(proof[1]), cors, ctx);
 
 
 			// ---- distribution sessions ----
@@ -147,6 +161,17 @@ export default {
 			const adminOrder = pathname.match(/^\/api\/admin\/orders\/([^/]+)$/);
 			if (method === 'DELETE' && adminOrder)
 				return await adminDeleteOrder(env, req, decodeURIComponent(adminOrder[1]), cors, ctx);
+
+			// The payment screenshot. Behind requireAdmin and never edge-cached — it
+			// shows a UPI handle, a real name and bank-app chrome.
+			const adminProof = pathname.match(/^\/api\/admin\/orders\/([^/]+)\/proof$/);
+			if (method === 'GET' && adminProof)
+				return await adminOrderProof(env, req, decodeURIComponent(adminProof[1]), cors);
+
+			// Confirm or reject the evidence. The only thing that can mark an order paid.
+			const adminReview = pathname.match(/^\/api\/admin\/orders\/([^/]+)\/review$/);
+			if (method === 'POST' && adminReview)
+				return await adminReviewOrder(env, req, decodeURIComponent(adminReview[1]), cors, ctx);
 
 			// ---- live catalogue updates ----
 			// Unauthenticated on purpose: the payload is only "something changed", never

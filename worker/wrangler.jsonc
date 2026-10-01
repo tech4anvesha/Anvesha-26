@@ -64,11 +64,16 @@
 		// not env.production below, so anything listed here is reachable from the open
 		// internet.
 		//
-		// localhost is NOT on this list. It was, briefly, so the Astro dev server could
-		// drive the deployed API; `npm run dev:testpay` against a local `wrangler dev`
-		// does that job without widening what the internet-facing Worker will answer.
-		// localhost belongs in .dev.vars, which overrides this under `wrangler dev`.
-		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app"
+		// localhost is here so the Astro dev server can drive the DEPLOYED API — the one
+		// check `npm run dev:testpay` cannot do, because that points at a local worker
+		// with a local database. It is what lets a frontend change be tried against a
+		// worker that is already live, before pushing the site.
+		//
+		// Safe only because this API sets no Access-Control-Allow-Credentials and admin
+		// auth is a bearer token, not a cookie: a hostile page on a visitor's own
+		// localhost can reach the public routes but cannot ride or read a session. Take
+		// it back out if either of those ever changes.
+		"ALLOWED_ORIGINS": "https://anvesha26.in,https://www.anvesha26.in,https://anvesha-26.vercel.app,http://localhost:4321,http://127.0.0.1:4321"
 		// RAZORPAY_MODE is NOT a var here. It is loaded as a secret — not because it is
 		// secret, but because secrets take effect the moment they are put, with no
 		// deploy, and a var does not:

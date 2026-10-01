@@ -71,6 +71,23 @@ CREATE TABLE IF NOT EXISTS orders (
   -- orders, where POST /api/pay carries the same details and stores them alongside the
   -- payment instead.
   customer_info      TEXT,
+  -- ---- manual payment review ----
+  -- There is no gateway: the student pays by UPI in their own app and submits evidence,
+  -- which an admin checks before the order counts as paid. This column is that review's
+  -- lifecycle, kept separate from payment_status because payment_status' CHECK cannot be
+  -- altered in place and `orders` cannot be rebuilt (payments.order_id FKs to it).
+  -- Rejection leaves payment_status at 'unpaid', not 'failed' — a rejected order is one
+  -- the student may fix and resubmit, so it has to stay payable.
+  review_status      TEXT    NOT NULL DEFAULT 'none'
+                       CHECK (review_status IN ('none', 'pending', 'confirmed', 'rejected')),
+  payment_ref        TEXT,                      -- the student's UPI reference, free text
+  payment_proof_path TEXT,                      -- R2 key; private, admin-only
+  payment_submitted_at TEXT,
+  -- Copied off the admin's session, not joined: the panel password is shared.
+  reviewed_by_name   TEXT,
+  reviewed_by_roll   TEXT,
+  reviewed_at        TEXT,
+  review_note        TEXT,                      -- why it was rejected; shown to the student
   collected_at       TEXT,                      -- set only once collection_status reaches 'collected'
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
@@ -110,6 +127,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (created_at DESC);
 -- this is belt-and-braces against anything inserted by hand — but without the matching
 -- collation here, `WHERE roll_number = ? COLLATE NOCASE` would fall back to a scan.
 CREATE INDEX IF NOT EXISTS idx_orders_roll ON orders (roll_number COLLATE NOCASE);
+
+-- The admin's review queue is "everything pending, newest first", which is this exactly.
+CREATE INDEX IF NOT EXISTS idx_orders_review ON orders (review_status, created_at DESC);
 
 -- ---------- merch release ----------
 -- The shop-wide on/off switch. One row, forced by CHECK (id = 1) — a table that can

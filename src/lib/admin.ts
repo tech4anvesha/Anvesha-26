@@ -81,6 +81,30 @@ export async function adminFetch<T = unknown>(
 }
 
 /**
+ * Same auth, but the response is bytes rather than JSON.
+ *
+ * For images that sit behind requireAdmin — a payment screenshot is private, so it
+ * cannot be a plain `<img src>`: an img tag sends no Authorization header. The caller
+ * turns the Blob into an object URL and must revoke it when the element goes away.
+ */
+export async function adminBlob(path: string, base: string = API): Promise<Blob> {
+	const session = getSession();
+	if (!session) toLogin();
+
+	const res = await fetch(base + path, {
+		headers: { Authorization: `Bearer ${session.token}` },
+	});
+
+	if (res.status === 401 || res.status === 403) toLogin();
+	if (!res.ok) {
+		// The error body is JSON even though the success body is not.
+		const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+		throw new Error(data.message || data.error || `Request failed (${res.status})`);
+	}
+	return await res.blob();
+}
+
+/**
  * Subscribes to live catalogue changes. Calls `onChange` whenever anyone edits or adds
  * an item, anywhere.
  *

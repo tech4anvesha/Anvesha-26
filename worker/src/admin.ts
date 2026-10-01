@@ -13,15 +13,22 @@
  */
 
 import { type PricedLine } from './cart.ts';
+import { sendOrderEmail, sendRejectionEmail } from './email.ts';
 import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
 import {
 	ApiError,
+	EXT,
+	IMAGE_TYPES,
+	MAX_IMAGE_BYTES,
 	type Env,
 	bad,
 	broadcastChange,
 	json,
 	looksLikeOrderId,
 	newMerchId,
+	newPaymentId,
+	newTransactionId,
+	notFound,
 	paymentConfigured,
 	purgeCatalogue,
 	randomId,
@@ -299,6 +306,8 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 	const { results } = await env.DB.prepare(
 		`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status,
 		        o.collection_status, o.roll_number, o.collected_at, o.created_at,
+		        o.customer_info, o.review_status, o.payment_ref, o.payment_proof_path,
+		        o.payment_submitted_at, o.reviewed_by_name, o.reviewed_at, o.review_note,
 		        p.razorpay_transaction_id, p.transaction_info
 		   FROM orders o
 		   LEFT JOIN payments p ON p.order_id = o.order_id
@@ -312,6 +321,14 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 		roll_number: string | null;
 		collected_at: string | null;
 		created_at: string;
+		customer_info: string | null;
+		review_status: string | null;
+		payment_ref: string | null;
+		payment_proof_path: string | null;
+		payment_submitted_at: string | null;
+		reviewed_by_name: string | null;
+		reviewed_at: string | null;
+		review_note: string | null;
 		razorpay_transaction_id: string | null;
 		transaction_info: string | null;
 	}>();
@@ -336,6 +353,23 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 					console.warn('orders: unreadable transaction_info on', o.order_id);
 				}
 
+				// The payments row is only written when an admin confirms, so an order
+				// waiting in the review queue has none — and the panel would show the
+				// person whose screenshot you are about to judge as a row of blanks.
+				// customer_info is written before payment and fills exactly that gap.
+				if (!name || !email || !phone) {
+					try {
+						const c = o.customer_info ? (JSON.parse(o.customer_info) as Record<string, unknown>) : null;
+						if (c) {
+							name = name || String(c.name ?? '');
+							email = email || String(c.email ?? '');
+							phone = phone || String(c.phone ?? '');
+						}
+					} catch {
+						console.warn('orders: unreadable customer_info on', o.order_id);
+					}
+				}
+
 				return {
 					order_id: o.order_id,
 					name,
@@ -343,9 +377,20 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 					phone,
 					roll_number: o.roll_number,
 					items: JSON.parse(o.order_info) as PricedLine[],
-					transaction_id: o.razorpay_transaction_id,
+					// Before confirmation the only reference we have is the one the student
+					// typed in; after it, the payments row carries the same value.
+					transaction_id: o.razorpay_transaction_id ?? o.payment_ref,
 					total_price_paise: o.total_price_paise,
 					payment_status: o.payment_status,
+					review_status: o.review_status ?? 'none',
+					payment_ref: o.payment_ref,
+					// The key itself never leaves the worker — the panel asks for the bytes
+					// by order id, so a leaked list of rows is not a list of object paths.
+					has_proof: Boolean(o.payment_proof_path),
+					payment_submitted_at: o.payment_submitted_at,
+					reviewed_by_name: o.reviewed_by_name,
+					reviewed_at: o.reviewed_at,
+					review_note: o.review_note,
 					collection_status: o.collection_status,
 					collected_at: o.collected_at,
 					created_at: o.created_at,
@@ -408,9 +453,11 @@ export async function adminDeleteOrder(
 	const session = await requireAdmin(env, req);
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
-	const row = await env.DB.prepare(`SELECT order_id FROM orders WHERE order_id = ?`)
+	const row = await env.DB.prepare(
+		`SELECT order_id, payment_proof_path FROM orders WHERE order_id = ?`,
+	)
 		.bind(orderId)
-		.first();
+		.first<{ order_id: string; payment_proof_path: string | null }>();
 	if (!row) throw new ApiError(404, 'not_found', 'No such order');
 
 	// Payments first: the row references the order, and one batch means a half-deleted
@@ -419,6 +466,13 @@ export async function adminDeleteOrder(
 		env.DB.prepare(`DELETE FROM payments WHERE order_id = ?`).bind(orderId),
 		env.DB.prepare(`DELETE FROM orders WHERE order_id = ?`).bind(orderId),
 	]);
+
+	// Rows first, object second — same order as adminDeleteMerch. Without this the
+	// screenshot would outlive every reference to it and sit in the bucket forever.
+	if (row.payment_proof_path)
+		await env.MEDIA.delete(row.payment_proof_path).catch((e) =>
+			console.error('orders: could not delete proof', row.payment_proof_path, e),
+		);
 
 	// Money left the student's hands; this log is the only trace left of the record.
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) DELETED ORDER ${orderId}`);
@@ -482,18 +536,6 @@ export async function adminDeleteMerch(
 // ============================================================
 // POST /api/admin/merch — create an item, with its image
 // ============================================================
-/** Only formats every browser and R2 will serve back without transcoding. */
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']);
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-const EXT: Record<string, string> = {
-	'image/jpeg': 'jpg',
-	'image/png': 'png',
-	'image/webp': 'webp',
-	'image/avif': 'avif',
-	'image/gif': 'gif',
-};
-
 /**
  * multipart/form-data rather than JSON: the image rides along in the same request, so
  * an item can never end up in the catalogue pointing at an image that failed to upload.
@@ -793,4 +835,212 @@ export async function adminRefreshCatalogue(env: Env, req: Request, cors: Cors):
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) refreshed the catalogue`);
 	await Promise.all([purgeCatalogue(env, req), broadcastChange(env, 'catalogue', 'refreshed')]);
 	return json({ ok: true, release: await readRelease(env) }, {}, cors);
+}
+
+// ============================================================
+// GET /api/admin/orders/:order_id/proof — the payment screenshot
+// ============================================================
+/**
+ * Streams the student's screenshot back to a signed-in admin.
+ *
+ * Deliberately NOT a copy of merchImage's caching half. `caches.default` is keyed on
+ * URL alone and is shared across everyone the colo serves, so putting a private image
+ * through it would hand the next caller a payment screenshot without ever consulting
+ * requireAdmin. The MEDIA.get / writeHttpMetadata / stream part is the only bit worth
+ * borrowing.
+ */
+export async function adminOrderProof(
+	env: Env,
+	req: Request,
+	orderId: string,
+	cors: Cors,
+): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+
+	const row = await env.DB.prepare(`SELECT payment_proof_path FROM orders WHERE order_id = ?`)
+		.bind(orderId)
+		.first<{ payment_proof_path: string | null }>();
+	if (!row?.payment_proof_path) throw new ApiError(404, 'no_proof', 'No screenshot on this order');
+
+	const object = await env.MEDIA.get(row.payment_proof_path);
+	if (!object) throw new ApiError(404, 'no_proof', 'Screenshot missing from storage');
+
+	const headers = new Headers(cors);
+	object.writeHttpMetadata(headers); // the content-type it was stored with
+	headers.set('etag', object.httpEtag);
+	// Private and uncacheable, everywhere: browser, proxy and edge alike.
+	headers.set('Cache-Control', 'private, no-store');
+
+	return new Response(object.body, { headers });
+}
+
+// ============================================================
+// POST /api/admin/orders/:order_id/review — confirm or reject
+// ============================================================
+/**
+ * The decision that turns evidence into a paid order, or sends it back.
+ *
+ * Confirm follows settleOrder's discipline exactly, and for the same reason: the UPDATE
+ * is guarded on `payment_status = 'unpaid'` and the mail is sent only when that UPDATE
+ * actually changed a row. An admin double-clicking CONFIRM — or two admins working the
+ * queue at once — is precisely the double-delivery case that guard exists for.
+ *
+ * Reject leaves payment_status at 'unpaid' rather than setting 'failed', so the student
+ * can correct a mistyped reference and resubmit against the same order.
+ */
+export async function adminReviewOrder(
+	env: Env,
+	req: Request,
+	orderId: string,
+	cors: Cors,
+	ctx?: ExecutionContext,
+): Promise<Response> {
+	const session = await requireAdmin(env, req);
+	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+
+	const body = await readJson<{ action?: unknown; note?: unknown }>(req);
+	const action = String(body.action ?? '');
+	if (action !== 'confirm' && action !== 'reject')
+		throw bad('bad_action', 'action must be "confirm" or "reject"');
+	const note = String(body.note ?? '').trim().slice(0, 300);
+
+	const order = await env.DB.prepare(
+		`SELECT order_id, order_info, total_price_paise, payment_status, review_status,
+		        payment_ref, customer_info
+		   FROM orders WHERE order_id = ?`,
+	)
+		.bind(orderId)
+		.first<{
+			order_id: string;
+			order_info: string;
+			total_price_paise: number;
+			payment_status: string;
+			review_status: string | null;
+			payment_ref: string | null;
+			customer_info: string | null;
+		}>();
+	if (!order) throw notFound('No such order');
+	if (order.payment_status === 'paid')
+		return json({ ok: true, idempotent: true, order_id: orderId, review_status: 'confirmed' }, {}, cors);
+	if (order.review_status !== 'pending')
+		throw new ApiError(409, 'nothing_to_review', 'This order has no payment waiting to be reviewed');
+
+	const customer = readCustomer(order.customer_info);
+
+	if (action === 'reject') {
+		await env.DB.prepare(
+			`UPDATE orders
+			    SET review_status = 'rejected', review_note = ?,
+			        reviewed_by_name = ?, reviewed_by_roll = ?, reviewed_at = datetime('now'),
+			        updated_at = datetime('now')
+			  WHERE order_id = ? AND payment_status = 'unpaid'`,
+		)
+			.bind(note || null, session.name, session.roll_number, orderId)
+			.run();
+
+		console.log(`admin: ${session.collegemail} (${session.roll_number}) REJECTED ${orderId}`);
+
+		const after = Promise.all([
+			customer.email
+				? sendRejectionEmail(env, {
+						to: customer.email,
+						name: customer.name,
+						orderId,
+						paymentRef: order.payment_ref ?? '',
+						reason: note,
+					})
+				: Promise.resolve(false),
+			broadcastChange(env, 'orders', `rejected ${orderId}`),
+		]);
+		if (ctx) ctx.waitUntil(after);
+		else await after;
+
+		return json({ ok: true, order_id: orderId, review_status: 'rejected' }, {}, cors);
+	}
+
+	// ---- confirm ----
+	const txnId = order.payment_ref ?? newTransactionId();
+	const info = {
+		id: txnId,
+		method: 'upi-manual',
+		amount: order.total_price_paise,
+		status: 'captured',
+		name: customer.name,
+		contact: customer.phone,
+		email: customer.email,
+		created_at: Math.floor(Date.now() / 1000),
+		note: `Verified by ${session.name} (${session.roll_number}) against the UPI statement`,
+	};
+
+	// One transaction: the order flips and the payment is recorded together, or neither.
+	const [flip, pay] = await env.DB.batch([
+		env.DB.prepare(
+			`UPDATE orders
+			    SET payment_status = 'paid', review_status = 'confirmed', review_note = NULL,
+			        reviewed_by_name = ?, reviewed_by_roll = ?, reviewed_at = datetime('now'),
+			        updated_at = datetime('now')
+			  WHERE order_id = ? AND payment_status = 'unpaid'`,
+		).bind(session.name, session.roll_number, orderId),
+		env.DB.prepare(
+			`INSERT OR IGNORE INTO payments (payment_id, order_id, razorpay_transaction_id, transaction_info)
+			 VALUES (?, ?, ?, ?)`,
+		).bind(newPaymentId(), orderId, txnId, JSON.stringify(info)),
+	]);
+
+	console.log(`admin: ${session.collegemail} (${session.roll_number}) CONFIRMED ${orderId} (${txnId})`);
+
+	// razorpay_transaction_id is UNIQUE across the whole table, so two students who
+	// mistype the same reference collide here — and INSERT OR IGNORE would swallow it,
+	// leaving a paid order with no payment row and a receipt with a blank transaction.
+	// Surfaced rather than hidden: the admin is the only one who can sort it out.
+	const collided = flip.meta.changes === 1 && pay.meta.changes === 0;
+	if (collided)
+		console.error(`orders: transaction reference ${txnId} is already recorded against another order`);
+
+	// Mail on `changes`, not on reaching this line: the check above and this write are
+	// not atomic together, so two admins can both read 'pending' and both arrive.
+	if (flip.meta.changes && customer.email) {
+		const mail = sendOrderEmail(env, {
+			to: customer.email,
+			name: customer.name,
+			orderId,
+			transactionId: txnId,
+			items: JSON.parse(order.order_info) as PricedLine[],
+			totalPaise: order.total_price_paise,
+		});
+		if (ctx) ctx.waitUntil(mail);
+		else await mail;
+	}
+
+	const live = broadcastChange(env, 'orders', `confirmed ${orderId}`);
+	if (ctx) ctx.waitUntil(live);
+
+	return json(
+		{
+			ok: true,
+			order_id: orderId,
+			review_status: 'confirmed',
+			payment_status: 'paid',
+			transaction_id: txnId,
+			// The panel warns the admin rather than pretending everything landed.
+			duplicate_reference: collided,
+		},
+		{},
+		cors,
+	);
+}
+
+/** name / email / phone out of customer_info, blank where the blob is unreadable. */
+function readCustomer(customerInfo: string | null): { name: string; email: string; phone: string } {
+	try {
+		const c = customerInfo ? (JSON.parse(customerInfo) as Record<string, unknown>) : null;
+		return {
+			name: String(c?.name ?? ''),
+			email: String(c?.email ?? ''),
+			phone: String(c?.phone ?? ''),
+		};
+	} catch {
+		return { name: '', email: '', phone: '' };
+	}
 }
