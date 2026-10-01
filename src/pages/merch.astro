@@ -12,6 +12,8 @@ import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iBagEmpty from 'lucide-static/icons/shopping-basket.svg?raw';
 // Placeholder for the processing state — swap for real artwork when there is some.
 import iProcessing from 'lucide-static/icons/circle-help.svg?raw';
+import iDownload from 'lucide-static/icons/download.svg?raw';
+import iCopy from 'lucide-static/icons/copy.svg?raw';
 
 // Where the money goes. Printed under the QR so a student whose camera will not focus
 // can still pay by typing it — and so the amount and the payee are checkable against
@@ -244,17 +246,39 @@ const UPI_ID = 'anvesha@upi';
 		     comes back with a reference and a screenshot. -->
 		<form id="payStepForm" class="pay-step" hidden>
 			<div class="upi">
-				<div class="upi-qr">
-					<img src="/img/pay/upi-qr.png" alt="UPI payment QR code for Anvesha '26"
-					     width="200" height="200" />
+				<p class="upi-step mono"><b>1</b> Pay in your UPI app</p>
+
+				<div class="upi-main">
+					<div class="upi-qr">
+						<img src="/img/pay/upi-qr.png" alt="UPI payment QR code for Anvesha '26"
+						     width="200" height="200" />
+					</div>
+					<div class="upi-side">
+						<p class="tk-eyebrow">Amount</p>
+						<b class="upi-amount" id="upiAmount">₹0</b>
+						<p class="tk-eyebrow upi-vpa-label">UPI ID</p>
+						<button class="upi-vpa mono" id="upiVpa" type="button"
+						        title="Copy this UPI ID">
+							<span>{UPI_ID}</span>
+							<i class="upi-copy" aria-hidden="true" set:html={iCopy} />
+						</button>
+					</div>
 				</div>
-				<div class="upi-side">
-					<p class="tk-eyebrow">Pay exactly</p>
-					<b class="upi-amount" id="upiAmount">₹0</b>
-					<p class="tk-eyebrow upi-vpa-label">Or send to</p>
-					<p class="upi-vpa mono" id="upiVpa">{UPI_ID}</p>
-				</div>
+
+				{/* A plain anchor, not a fetch-and-blob: the file is same-origin, so
+				    `download` is all it takes. iOS Safari ignores the attribute and opens
+				    the image in a tab instead — which still works, the student just
+				    long-presses to save. */}
+				<a class="btn upi-dl" href="/img/pay/upi-qr.png" download="anvesha-upi-qr.png">
+					<span set:html={iDownload} />SAVE QR
+				</a>
+				<p class="upi-hint">
+					Paying from this phone? Save the QR, then open your UPI app and pick it
+					from your gallery &mdash; a phone cannot scan a code on its own screen.
+				</p>
 			</div>
+
+			<p class="upi-step mono"><b>2</b> Then tell us about it</p>
 
 			<label class="field">
 				<span class="field-label">Transaction / UTR reference</span>
@@ -993,6 +1017,7 @@ const UPI_ID = 'anvesha@upi';
 		const payStepForm = $<HTMLFormElement>('payStepForm'), receivedEl = $('received');
 		const orderItems = $('orderItems'), orderTotal = $('orderTotal'), payAmount = $('payAmount');
 		const upiAmount = $('upiAmount'), recvId = $('recvId'), recvName = $('recvName');
+		const upiVpa = $<HTMLButtonElement>('upiVpa');
 		const payErr = $('payErr'), payBtn = $<HTMLButtonElement>('payBtn');
 		const payErr2 = $('payErr2'), submitBtn = $<HTMLButtonElement>('submitBtn');
 		const fTxn = $<HTMLInputElement>('fTxn'), fProof = $<HTMLInputElement>('fProof');
@@ -1164,6 +1189,24 @@ const UPI_ID = 'anvesha@upi';
 			proofUrl = URL.createObjectURL(file);
 			proofImg.src = proofUrl;
 		}
+
+		// Copy, with the clipboard API's two failure modes covered: an insecure origin
+		// (where it is simply absent) and a denied permission. Falls back to selecting
+		// the text so the student can copy it by hand rather than being stuck.
+		upiVpa.onclick = async () => {
+			const vpa = upiVpa.querySelector('span')!.textContent ?? '';
+			try {
+				await navigator.clipboard.writeText(vpa);
+				upiVpa.classList.add('copied');
+				setTimeout(() => upiVpa.classList.remove('copied'), 1400);
+			} catch {
+				const r = document.createRange();
+				r.selectNodeContents(upiVpa.querySelector('span')!);
+				const sel = getSelection();
+				sel?.removeAllRanges();
+				sel?.addRange(r);
+			}
+		};
 
 		fProof.onchange = () => {
 			const file = fProof.files?.[0] ?? null;
@@ -1950,29 +1993,71 @@ const UPI_ID = 'anvesha@upi';
 	/* Explicit, because the author `display` above outranks the UA's [hidden] rule. */
 	.pay-form[hidden], .receipt[hidden], .pay-step[hidden] { display: none; }
 
-	/* ---- pay step: the QR, then the evidence ---- */
+	/* ---- pay step ----
+	   Numbered, because this is the one screen where the student has to leave the site,
+	   do something in another app, and come back. Without the two markers it reads as
+	   one form with a picture stuck on top of it. */
+	.upi-step {
+		display: flex; align-items: center; gap: 9px; margin: 0;
+		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.upi-step b {
+		display: grid; place-items: center; flex: none;
+		width: 17px; height: 17px;
+		font-size: 9.5px; color: var(--primary); background: var(--secondary);
+		border-radius: 999px;
+	}
+
 	.upi {
-		display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+		display: flex; flex-direction: column; gap: 12px;
 		padding: 14px;
 		background: var(--sink);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
+	.upi-main { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
 	/* Paper-white behind the code whatever the card sits on — a QR on a tinted ground
 	   is the classic reason a camera will not lock on. */
 	.upi-qr {
 		display: grid; place-items: center;
-		padding: 7px;
+		padding: 8px;
 		background: #fff;
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
-	.upi-qr img { display: block; width: 124px; height: 124px; image-rendering: pixelated; }
+	.upi-qr img { display: block; width: 148px; height: 148px; image-rendering: pixelated; }
 	.upi-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 	.upi-amount {
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-size: 24px; line-height: 1.1; letter-spacing: -.01em;
+		font-size: 26px; line-height: 1.1; letter-spacing: -.01em;
 	}
-	.upi-vpa-label { margin-top: 8px; }
-	.upi-vpa { margin: 0; font-size: 12px; overflow-wrap: anywhere; color: var(--ink-60); }
+	.upi-vpa-label { margin-top: 10px; }
+	/* A button, because it copies — the one-handed way to pay when the QR is on the
+	   same screen you are holding. */
+	.upi-vpa {
+		display: flex; align-items: center; gap: 7px;
+		box-sizing: border-box; width: 100%; padding: 7px 9px; margin: 0;
+		text-align: left; cursor: pointer;
+		font-size: 12px; overflow-wrap: anywhere; color: var(--secondary);
+		background: var(--primary);
+		border: 1.5px solid var(--hair); border-radius: var(--r);
+		transition: border-color .16s ease;
+	}
+	.upi-vpa:hover { border-color: var(--accent); }
+	.upi-vpa span { min-width: 0; overflow-wrap: anywhere; }
+	.upi-copy { display: grid; place-items: center; flex: none; margin-left: auto; color: var(--ink-40); }
+	.upi-copy svg { width: 13px; height: 13px; stroke-width: 2; }
+	.upi-vpa.copied { border-color: var(--accent); }
+	.upi-vpa.copied .upi-copy { color: var(--accent); }
+
+	.upi-dl {
+		display: flex; align-items: center; justify-content: center; gap: 9px;
+		box-sizing: border-box; width: 100%; padding: 12px;
+		text-decoration: none;
+		font-size: 11px; font-weight: 800; letter-spacing: .14em;
+		color: var(--primary); background: var(--secondary); border-color: var(--secondary);
+	}
+	.upi-dl:hover { background: var(--accent); border-color: var(--accent); }
+	.upi-dl svg { width: 15px; height: 15px; stroke-width: 2.2; }
+	.upi-hint { margin: 0; font-size: 11px; line-height: 1.55; color: var(--ink-40); }
 
 	/* ---- the upload box ---- */
 	/* The <label> IS the dropzone: a hidden input inside a label is the one way to
