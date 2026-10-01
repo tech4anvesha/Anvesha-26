@@ -312,20 +312,30 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	.od-head { display: flex; flex-direction: column; }
 	.od-head .lede { max-width: 56ch; }
 
-	/* The split state. Same construction the storefront's .hero uses: a fixed-ish first
-	   column and a dividing rule carried by that column's own border, not an element. */
+	/* The split state.
+	   The left column is deliberately wide enough to hold the lede at its full 56ch and
+	   the form at its full 520px, so NOTHING on the left reflows when a result arrives —
+	   it keeps the exact width it already occupied, and the answer simply fills the
+	   empty space that was always beside it. A narrower column would re-wrap the lede
+	   and shrink the form, which looks like the page rearranged itself.
+
+	   The dividing rule is the left column's own border, not an element — same
+	   construction the storefront's .hero uses. */
 	.od-split.is-split {
-		grid-template-columns: clamp(300px, 34vw, 440px) minmax(0, 1fr);
+		/* The floor is the form's 520px plus the section's widest padding (52px a side),
+		   so the column can never be too narrow to hold it at any viewport. */
+		grid-template-columns: clamp(630px, 44vw, 740px) minmax(0, 1fr);
 		align-items: start;
 	}
 	.od-split.is-split .od-head {
 		/* Stays put while a long list of orders scrolls past it — the form is what you
 		   come back to when the first roll number was the wrong one. */
 		position: sticky; top: 0;
+		/* The vertical rule now does the dividing; a bottom border too would stop dead
+		   halfway across the page. */
 		border-right: var(--stroke) solid var(--secondary);
+		border-bottom: 0;
 	}
-	.od-split.is-split .od-head .lede { max-width: 46ch; }
-	.od-split.is-split .od-form { max-width: none; }
 	/* The right half owns its own section borders, so the two columns do not double up
 	   on rules where they meet. */
 	.od-right > .section:last-child { border-bottom: 0; }
@@ -472,14 +482,14 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 
 	/* Below this the two columns have nothing left to give: the form's own fields are
 	   about to stack, which makes the left column as tall as the right one anyway. */
-	@media (max-width: 900px) {
+	/* Below this there is no empty space left to put anything in — the left column alone
+	   is already the whole width — so the answer goes back under the form. */
+	@media (max-width: 1100px) {
 		.od-split.is-split { grid-template-columns: minmax(0, 1fr); }
 		.od-split.is-split .od-head {
 			position: static;
 			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
 		}
-		.od-split.is-split .od-head .lede { max-width: 56ch; }
-		.od-split.is-split .od-form { max-width: 520px; }
 	}
 
 	@media (max-width: 560px) {
