@@ -22,7 +22,7 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	description="Look up an Anvesha '26 merch order and collection pass with your roll number and mobile."
 >
 	<div class="page od-page">
-		<div class="od-split">
+		<div class="od-split" id="odSplit">
 		<header class="page-head od-head" data-reveal>
 			<p class="eyebrow">Merch &middot; Collection pass</p>
 			<h1 class="page-title">Your order</h1>
@@ -122,7 +122,7 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 		const rollEl = $<HTMLInputElement>('oRoll'), phoneEl = $<HTMLInputElement>('oPhone');
 		const errEl = $('odErr'), goBtn = $<HTMLButtonElement>('odGo');
 		const resultsEl = $('odResults'), listEl = $('odList'), metaEl = $('odMeta');
-		const howEl = $('odHow'), goLabel = $('odGoLabel');
+		const howEl = $('odHow'), goLabel = $('odGoLabel'), splitEl = $('odSplit');
 
 		// Uppercased as it is typed, so what the student sees matches what is stored.
 		// The caret is restored because assigning .value sends it to the end, which makes
@@ -241,9 +241,11 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 				listEl.appendChild(card);
 			}
 
-			// The explainer has done its job once there is a real answer on screen.
+			// The explainer has done its job once there is a real answer on screen, and
+			// the page gives up a column to put that answer beside the form.
 			howEl.hidden = true;
 			resultsEl.hidden = false;
+			splitEl.classList.add('is-split');
 		}
 
 		form.onsubmit = async (e) => {
@@ -264,8 +266,11 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 				if (!res.ok) throw new Error(data.message || data.error || 'Could not find that order');
 				render(data.orders as Order[]);
 			} catch (err) {
+				// Back to one column: with nothing to show, a narrow header beside an
+				// empty half is worse than the plain stack it started as.
 				resultsEl.hidden = true;
 				howEl.hidden = false;
+				splitEl.classList.remove('is-split');
 				errEl.textContent = (err as Error).message;
 				errEl.hidden = false;
 			} finally {
@@ -292,32 +297,42 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	}
 	.od-page > * { position: relative; }
 
-	/* ---- the split ----
-	   Lookup on the left, answer on the right. Same construction the storefront's .hero
-	   uses: a fixed-ish first column, a dividing rule carried by that column's own
-	   border, and a stacked fallback on narrow screens. `1 0 auto` so the split grows
-	   into the card's spare height but a long result list can still overflow and
-	   scroll. */
+	/* ---- the layout ----
+	   One column until there is something to show. The page opens as a plain stack —
+	   header, form, then the explainer underneath — and only splits in two once a
+	   lookup has actually returned an order, at which point the header gives up its
+	   width and the result sits beside it.
+
+	   `1 0 auto` so the split grows into the card's spare height but a long list of
+	   orders can still overflow and scroll. */
 	.od-split {
 		flex: 1 0 auto;
-		display: grid; grid-template-columns: clamp(300px, 34vw, 440px) minmax(0, 1fr);
+		display: grid; grid-template-columns: minmax(0, 1fr);
+	}
+	.od-head { display: flex; flex-direction: column; }
+	.od-head .lede { max-width: 56ch; }
+
+	/* The split state. Same construction the storefront's .hero uses: a fixed-ish first
+	   column and a dividing rule carried by that column's own border, not an element. */
+	.od-split.is-split {
+		grid-template-columns: clamp(300px, 34vw, 440px) minmax(0, 1fr);
 		align-items: start;
 	}
-	.od-head {
-		display: flex; flex-direction: column;
-		/* Stays put while a long list of orders scrolls past it — the form is the thing
-		   you come back to when the first roll number was the wrong one. */
+	.od-split.is-split .od-head {
+		/* Stays put while a long list of orders scrolls past it — the form is what you
+		   come back to when the first roll number was the wrong one. */
 		position: sticky; top: 0;
 		border-right: var(--stroke) solid var(--secondary);
 	}
-	.od-head .lede { max-width: 46ch; }
+	.od-split.is-split .od-head .lede { max-width: 46ch; }
+	.od-split.is-split .od-form { max-width: none; }
 	/* The right half owns its own section borders, so the two columns do not double up
 	   on rules where they meet. */
 	.od-right > .section:last-child { border-bottom: 0; }
 	/* A card, because it is the only thing to do on this page — floating fields on bare
 	   paper read as part of the header rather than as the task. */
 	.od-form {
-		box-sizing: border-box; width: 100%;
+		box-sizing: border-box; width: 100%; max-width: 520px;
 		margin: clamp(22px, 3vw, 30px) 0 0; padding: clamp(16px, 2.4vw, 20px);
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
@@ -455,16 +470,16 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 		text-transform: uppercase; color: var(--ink-40);
 	}
 
-	/* Below this the two columns have nothing left to give: the form's own fields would
-	   have to stack, which makes the left column as tall as the right one anyway. */
+	/* Below this the two columns have nothing left to give: the form's own fields are
+	   about to stack, which makes the left column as tall as the right one anyway. */
 	@media (max-width: 900px) {
-		.od-split { grid-template-columns: minmax(0, 1fr); }
-		.od-head {
+		.od-split.is-split { grid-template-columns: minmax(0, 1fr); }
+		.od-split.is-split .od-head {
 			position: static;
 			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
 		}
-		.od-head .lede { max-width: 56ch; }
-		.od-form { max-width: 520px; }
+		.od-split.is-split .od-head .lede { max-width: 56ch; }
+		.od-split.is-split .od-form { max-width: 520px; }
 	}
 
 	@media (max-width: 560px) {
