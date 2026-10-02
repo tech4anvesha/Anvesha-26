@@ -8,7 +8,11 @@
 
 import { bad, looksLikeMerchId } from './util.ts';
 
-export const SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
+// 2XL/3XL rather than XXL/XXXL: the chips sit in a narrow product column, and the
+// shorter labels are what let all seven fit on one line. This is the ONE spelling —
+// the storefront, the admin preview and the size chart all read it, so there is no
+// display name to drift away from the stored value.
+export const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const;
 export type Size = (typeof SIZES)[number];
 
 export const MAX_LINES = 20;

@@ -18,7 +18,7 @@ import iCopy from 'lucide-static/icons/copy.svg?raw';
 // Where the money goes. Printed under the QR so a student whose camera will not focus
 // can still pay by typing it — and so the amount and the payee are checkable against
 // what their UPI app shows before they confirm.
-const UPI_ID = 'anvesha@upi';
+const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 ---
 
 <SiteLayout
@@ -56,7 +56,12 @@ const UPI_ID = 'anvesha@upi';
 						</div>
 
 						<div id="opt" class="opt">
-							<button id="sizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
+							<p class="opt-head">
+								<span class="opt-word">Sizes:</span>
+								<button id="sizeBtn" class="opt-label" type="button" aria-haspopup="dialog">
+									Click here to view size chart
+								</button>
+							</p>
 							<div id="sizes" class="sizes"></div>
 						</div>
 
@@ -174,19 +179,24 @@ const UPI_ID = 'anvesha@upi';
 			<span id="sizeTitle" class="modal-title">SIZE CHART</span>
 			<button id="sizeClose" class="btn x" aria-label="Close size chart" set:html={iX}></button>
 		</div>
+		{/* Half-chest is the measurement that is actually taken — the garment laid flat,
+		    seam to seam. Chest is twice it, listed because that is the number people know
+		    their own body by. */}
 		<table class="sizetable">
 			<thead>
-				<tr><th>Size</th><th>Chest</th><th>Length</th><th>Sleeve</th></tr>
+				<tr><th>Size</th><th>Half-chest</th><th>Chest</th><th>Length</th></tr>
 			</thead>
 			<tbody>
-				<tr data-size="XS"><td>XS</td><td>34</td><td>26</td><td>7.5</td></tr>
-				<tr data-size="S"><td>S</td><td>36</td><td>27</td><td>8</td></tr>
-				<tr data-size="M"><td>M</td><td>38</td><td>28</td><td>8.5</td></tr>
-				<tr data-size="L"><td>L</td><td>40</td><td>29</td><td>9</td></tr>
-				<tr data-size="XL"><td>XL</td><td>42</td><td>30</td><td>9.5</td></tr>
+				<tr data-size="XS"><td>XS</td><td>17&Prime;</td><td>34&Prime;</td><td>25&Prime;</td></tr>
+				<tr data-size="S"><td>S</td><td>18&Prime;</td><td>36&Prime;</td><td>26&Prime;</td></tr>
+				<tr data-size="M"><td>M</td><td>19&Prime;</td><td>38&Prime;</td><td>27&Prime;</td></tr>
+				<tr data-size="L"><td>L</td><td>20&Prime;</td><td>40&Prime;</td><td>28&Prime;</td></tr>
+				<tr data-size="XL"><td>XL</td><td>21&Prime;</td><td>42&Prime;</td><td>29&Prime;</td></tr>
+				<tr data-size="2XL"><td>2XL</td><td>22&Prime;</td><td>44&Prime;</td><td>30&Prime;</td></tr>
+				<tr data-size="3XL"><td>3XL</td><td>23&Prime;</td><td>46&Prime;</td><td>31&Prime;</td></tr>
 			</tbody>
 		</table>
-		<p class="modal-note">Inches, garment laid flat. Allow &plusmn;0.5in. Between sizes? Take the larger.</p>
+		<p class="modal-note">All measurements in inches, garment laid flat. Sizes may vary by &plusmn;0.5&Prime;. Between sizes? Take the larger.</p>
 	</div>
 </div>
 <!-- ============ CHECKOUT POPUP ============ -->
@@ -249,9 +259,16 @@ const UPI_ID = 'anvesha@upi';
 				<p class="upi-step mono"><b>1</b> Pay in your UPI app</p>
 
 				<div class="upi-main">
-					<div class="upi-qr">
+					{/* Drawn per order, so scanning it fills in the amount and a note
+					    naming the order — the student confirms rather than types, and the
+					    transaction lands on our statement already labelled.
+					    The static image underneath is the fallback: it carries no amount,
+					    but a QR that still works beats none if the canvas draw fails. */}
+					<div class="upi-qr" id="upiQrBox">
 						<img src="/img/pay/upi-qr.png" alt="UPI payment QR code for Anvesha '26"
 						     width="200" height="200" />
+						<canvas id="upiQr" class="upi-qr-live" width="220" height="220"
+						        aria-label="UPI payment QR code with the amount filled in"></canvas>
 					</div>
 					<div class="upi-side">
 						<p class="tk-eyebrow">Amount</p>
@@ -265,11 +282,12 @@ const UPI_ID = 'anvesha@upi';
 					</div>
 				</div>
 
-				{/* A plain anchor, not a fetch-and-blob: the file is same-origin, so
-				    `download` is all it takes. iOS Safari ignores the attribute and opens
-				    the image in a tab instead — which still works, the student just
-				    long-presses to save. */}
-				<a class="btn upi-dl" href="/img/pay/upi-qr.png" download="anvesha-upi-qr.png">
+				{/* An anchor, whose href the script swaps for a blob of the live canvas —
+				    so what gets saved is the QR carrying this order's amount, not the
+				    generic one. iOS Safari ignores `download` and opens the image in a tab
+				    instead, which still works: the student long-presses to save. */}
+				<a class="btn upi-dl" id="upiDl" href="/img/pay/upi-qr.png"
+				   download="anvesha-upi-qr.png">
 					<span set:html={iDownload} />SAVE QR
 				</a>
 				<p class="upi-hint">
@@ -380,7 +398,12 @@ const UPI_ID = 'anvesha@upi';
 		<p id="mDesigner" class="designer m-designer"></p>
 
 		<div id="mOpt" class="m-opt">
-			<button id="mSizeBtn" class="opt-label" aria-haspopup="dialog">Size</button>
+			<p class="opt-head">
+				<span class="opt-word">Sizes:</span>
+				<button id="mSizeBtn" class="opt-label" type="button" aria-haspopup="dialog">
+					Click here to view size chart
+				</button>
+			</p>
 			<div id="mSizes" class="sizes"></div>
 		</div>
 
@@ -401,6 +424,7 @@ const UPI_ID = 'anvesha@upi';
 		// Shared with the admin panel: one socket helper, one reconnect policy.
 	import { API } from '../lib/api';
 	import { onCatalogueChange } from '../lib/admin';
+	import { drawQR } from '../lib/ticket';
 
 	// lucide-static ships each icon as a standalone SVG; ?raw hands us the markup to inject.
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
@@ -430,7 +454,7 @@ const UPI_ID = 'anvesha@upi';
 		views?: { label: string; url: string }[];
 	};
 
-	const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+	const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 
 	const CATEGORY_ICON: Record<string, string> = {
 		apparel: icApparel, accessories: icAccessories, stationery: icStationery,
@@ -1018,6 +1042,13 @@ const UPI_ID = 'anvesha@upi';
 		const orderItems = $('orderItems'), orderTotal = $('orderTotal'), payAmount = $('payAmount');
 		const upiAmount = $('upiAmount'), recvId = $('recvId'), recvName = $('recvName');
 		const upiVpa = $<HTMLButtonElement>('upiVpa');
+		const upiQr = $<HTMLCanvasElement>('upiQr'), upiQrBox = $('upiQrBox');
+		// The frontmatter constant is build-time only; the rendered text is how it
+		// reaches the script, which also guarantees the QR and the copy button can never
+		// disagree about which VPA is being paid.
+		const UPI_ID = upiVpa.querySelector('span')!.textContent!.trim();
+		const upiDl = $<HTMLAnchorElement>('upiDl');
+		let upiDlUrl: string | null = null;
 		const payErr = $('payErr'), payBtn = $<HTMLButtonElement>('payBtn');
 		const payErr2 = $('payErr2'), submitBtn = $<HTMLButtonElement>('submitBtn');
 		const fTxn = $<HTMLInputElement>('fTxn'), fProof = $<HTMLInputElement>('fProof');
@@ -1127,6 +1158,7 @@ const UPI_ID = 'anvesha@upi';
 				orderTotal.textContent = rupees(data.total_price_paise);
 				payAmount.textContent = rupees(data.total_price_paise);
 				upiAmount.textContent = rupees(data.total_price_paise);
+				paintUpiQr(data.order_id, data.total_price_paise);
 				setFace('details');
 				openPay(true);
 				fName.focus();
@@ -1188,6 +1220,59 @@ const UPI_ID = 'anvesha@upi';
 			if (!file) { proofImg.removeAttribute('src'); return; }
 			proofUrl = URL.createObjectURL(file);
 			proofImg.src = proofUrl;
+		}
+
+		/**
+		 * Paints the UPI QR for THIS order.
+		 *
+		 * A UPI intent URI, which every Indian payment app understands:
+		 *
+		 *   upi://pay?pa=<vpa>&pn=<payee>&am=<amount>&cu=INR&tn=<note>
+		 *
+		 * `am` is why this is worth doing — the student confirms an amount rather than
+		 * typing one, which is the single likeliest place for a payment to go wrong by a
+		 * digit. `tn` puts the order id in the transaction narration, so the admin
+		 * checking the bank statement can see which order a credit belongs to without
+		 * cross-referencing anything.
+		 *
+		 * Only the five well-supported fields. `tr` (merchant reference) is deliberately
+		 * left out: its handling varies between PSPs, and a QR some apps refuse to parse
+		 * is far worse than one missing a field nobody reads.
+		 */
+		function paintUpiQr(orderId: string, paise: number) {
+			// Rupees with two decimals — `am` is a decimal amount, never paise.
+			const amount = (paise / 100).toFixed(2);
+			// Stripped to what bank narration systems reliably carry — but the underscore
+			// is kept, because it is the only punctuation an order id contains and the
+			// whole point of the note is that it matches the order id EXACTLY. A
+			// statement line reading ORD-4E3R… against a panel showing ORD_4E3R… is a
+			// reconciliation papercut on every single order.
+			const note = `Anvesha26 ${orderId}`.replace(/[^A-Za-z0-9 _-]/g, '-').slice(0, 50);
+
+			const uri =
+				`upi://pay?pa=${encodeURIComponent(UPI_ID)}` +
+				`&pn=${encodeURIComponent("Anvesha '26")}` +
+				`&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+
+			try {
+				drawQR(upiQr, uri);
+				// Only now is the static fallback hidden: if drawQR threw, the generic QR
+				// underneath is still on screen and the student can still pay.
+				upiQrBox.classList.add('live');
+			} catch (e) {
+				console.warn('[merch] could not draw the UPI QR, falling back to the static one', e);
+				return;
+			}
+
+			// Saving should hand over the QR that carries this order's amount, not the
+			// generic file the markup points at.
+			upiQr.toBlob((blob) => {
+				if (!blob) return;
+				if (upiDlUrl) URL.revokeObjectURL(upiDlUrl);
+				upiDlUrl = URL.createObjectURL(blob);
+				upiDl.href = upiDlUrl;
+				upiDl.download = `anvesha-upi-${orderId}.png`;
+			}, 'image/png');
 		}
 
 		// Copy, with the clipboard API's two failure modes covered: an insecure origin
@@ -1465,7 +1550,10 @@ const UPI_ID = 'anvesha@upi';
 	.hero {
 		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
 		display: grid;
-		grid-template-columns: clamp(280px, 27vw, 360px) minmax(0, 1fr);
+		/* Widened from 360px: seven size chips on one line need ~280px of usable width,
+		   and at the old max the column had 292px minus its own padding — so 3XL wrapped
+		   to a second row. */
+		grid-template-columns: clamp(300px, 30vw, 408px) minmax(0, 1fr);
 		min-height: 0;
 	}
 
@@ -1533,7 +1621,15 @@ const UPI_ID = 'anvesha@upi';
 		overflow-wrap: anywhere;
 	}
 
-	.opt { display: flex; align-items: center; gap: 20px; margin-top: 10px; }
+	/* A column now, not a row: seven chips plus a sentence do not fit on one line, and
+	   wrapping them into each other read as two broken rows rather than a label over a
+	   set of choices. */
+	.opt { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; margin-top: 10px; }
+	.opt-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0; }
+	.opt-word {
+		font-size: 11px; font-weight: 800; letter-spacing: .06em;
+		text-transform: uppercase; color: var(--secondary);
+	}
 	/* dotted underline is the affordance — conventional for "more info", and quiet
 	   enough that the label still reads as a label */
 	.opt-label {
@@ -1541,13 +1637,15 @@ const UPI_ID = 'anvesha@upi';
 		padding: 0 0 2px; background: transparent; border: 0;
 		border-bottom: 1.5px dotted var(--ink-40); cursor: pointer;
 		font-size: 11px; letter-spacing: .06em; color: var(--ink-60); text-transform: uppercase;
+		text-align: left;
 		transition: color .15s ease, border-color .15s ease;
 	}
 	.opt-label:hover { color: var(--accent); border-bottom-color: var(--accent); }
-	.sizes { display: flex; gap: 8px; }
+	/* Wraps, because seven sizes will not sit on one line in the product column. */
+	.sizes { display: flex; flex-wrap: wrap; gap: 8px; }
 	.size {
-		font-size: 11.5px; font-weight: 800; letter-spacing: .06em;
-		padding: 7px 9px; min-width: 36px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .04em;
+		padding: 7px 8px; min-width: 34px;
 	}
 	.size.active { background: var(--secondary); color: var(--primary); }
 
@@ -1903,6 +2001,10 @@ const UPI_ID = 'anvesha@upi';
 	.sizetable tbody tr:last-child td { border-bottom: 0; }
 	.sizetable tbody tr.on td { background: var(--secondary); color: var(--primary); }
 	.sizetable tbody tr.on td:first-child { font-weight: 500; }
+	/* The first column holds the longest label (3XL) and must not wrap it onto two
+	   lines; the measurement columns can share what is left. */
+	.sizetable th:first-child, .sizetable td:first-child { width: 22%; white-space: nowrap; }
+
 	.modal-note {
 		margin: 16px 0 0; font-size: 11.5px; font-style: italic; line-height: 1.55;
 		color: var(--ink-40);
@@ -2023,7 +2125,16 @@ const UPI_ID = 'anvesha@upi';
 		background: #fff;
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
-	.upi-qr img { display: block; width: 148px; height: 148px; image-rendering: pixelated; }
+	/* The live canvas is stacked ON the static image rather than replacing it, so the
+	   fallback is already on screen if the draw ever fails — there is no frame where the
+	   student has no QR at all. */
+	.upi-qr { position: relative; }
+	.upi-qr img, .upi-qr-live {
+		display: block; width: 148px; height: 148px; image-rendering: pixelated;
+	}
+	.upi-qr-live { position: absolute; inset: 8px; display: none; }
+	.upi-qr.live .upi-qr-live { display: block; }
+	.upi-qr.live img { visibility: hidden; }
 	.upi-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 	.upi-amount {
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
@@ -2380,7 +2491,7 @@ const UPI_ID = 'anvesha@upi';
 		/* Hangs right, as on the desktop stage and the admin preview — this used to
 		   override .designer's own align-self and pin it left. */
 		.m-designer { align-self: flex-end; }
-		.m-opt { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+		.m-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
 		.m-sheet .buy { margin-top: 4px; }
 
 		/* the drawer is full-width on a phone */

@@ -89,7 +89,20 @@ describe('priceCart', () => {
 	});
 
 	it('rejects an invalid size', () => {
-		assert.throws(() => price([{ merch_id: 'MER_A1B2C3D4', quantity: 1, size: 'XXL' }]), /not a valid size/);
+		// None of these is in SIZES, and none is one spelling away from becoming so —
+		// an example that quietly turns valid is a test that stops testing anything.
+		// 'XXL' in particular IS rejected now: the spelling is 2XL.
+		for (const size of ['XXL', 'XXXL', '4XL', 'MEDIUM'])
+			assert.throws(() => price([{ merch_id: 'MER_A1B2C3D4', quantity: 1, size }]), /not a valid size/);
+	});
+
+	it('accepts the full range, including the two largest', () => {
+		// The storefront, the admin preview and this list all have to agree; a size the
+		// shopper can pick but checkout refuses is a dead end at the last step.
+		for (const size of ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']) {
+			const out = price([{ merch_id: 'MER_A1B2C3D4', quantity: 1, size }]);
+			assert.equal(out.lines[0].size, size, `${size} should price cleanly`);
+		}
 	});
 
 	it('normalises size casing', () => {

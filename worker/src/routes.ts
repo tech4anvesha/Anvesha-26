@@ -1173,3 +1173,48 @@ function safeName(customerInfo: string | null): string {
 		return '';
 	}
 }
+
+// ============================================================
+// 13. DELETE /api/orders/:order_id — drop an abandoned checkout
+// ============================================================
+/**
+ * Removes an order nobody ever paid for.
+ *
+ * The row is created at checkout, before any money moves, because the server has to
+ * price the cart itself and the id has to exist for the UPI note. The cost is that
+ * every abandoned basket leaves a row behind, and those rows are indistinguishable
+ * from real work in the admin's queue.
+ *
+ * Only a DRAFT can be removed: unpaid, with no payment ever submitted. The moment a
+ * student sends a reference and a screenshot the order stops being disposable, because
+ * from then on it may represent money that actually left their account.
+ *
+ * Unauthenticated, like the rest of the order routes: the id is 128 bits of randomness
+ * known only to the browser that created it, and a draft is worth nothing to anyone who
+ * did somehow guess one.
+ */
+export async function abandonOrder(
+	env: Env,
+	req: Request,
+	orderId: string,
+	cors: Cors,
+): Promise<Response> {
+	await requireBudget(env, req, 'checkout');
+	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+
+	// Guarded in the statement, not around it: two tabs closing at once, or a close
+	// racing a payment submission, both resolve at the database rather than in a check
+	// that has already gone stale by the time the DELETE runs.
+	const res = await env.DB.prepare(
+		`DELETE FROM orders
+		  WHERE order_id = ? AND payment_status = 'unpaid'
+		    AND (review_status IS NULL OR review_status = 'none')`,
+	)
+		.bind(orderId)
+		.run();
+
+	// Not an error either way. The order may already be gone, or may have become real
+	// between the student closing the popup and this arriving — and a browser that is
+	// being closed has nothing useful to do with a failure.
+	return json({ ok: true, removed: res.meta.changes > 0 }, {}, cors);
+}

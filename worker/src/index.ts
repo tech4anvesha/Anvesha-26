@@ -44,6 +44,7 @@ import {
 	directPay,
 	getOrder,
 	listMerch,
+	abandonOrder,
 	merchImage,
 	orderLookup,
 	razorpayWebhook,
@@ -91,6 +92,9 @@ export default {
 
 			const order = pathname.match(/^\/api\/orders\/([^/]+)$/);
 			if (method === 'GET' && order) return await getOrder(env, decodeURIComponent(order[1]), cors);
+			// Abandoned checkout. Only ever removes a draft — see abandonOrder.
+			if (method === 'DELETE' && order)
+				return await abandonOrder(env, req, decodeURIComponent(order[1]), cors);
 
 			// Buyer details, attached before payment, so the order knows who placed it
 			// whatever happens next.
