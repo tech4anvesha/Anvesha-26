@@ -1178,20 +1178,23 @@ function safeName(customerInfo: string | null): string {
 // 13. DELETE /api/orders/:order_id — drop an abandoned checkout
 // ============================================================
 /**
- * Removes an order nobody ever paid for.
+ * Removes an order the student is done with.
  *
- * The row is created at checkout, before any money moves, because the server has to
- * price the cart itself and the id has to exist for the UPI note. The cost is that
- * every abandoned basket leaves a row behind, and those rows are indistinguishable
- * from real work in the admin's queue.
+ * Two cases reach here, and they are the same operation:
  *
- * Only a DRAFT can be removed: unpaid, with no payment ever submitted. The moment a
- * student sends a reference and a screenshot the order stops being disposable, because
- * from then on it may represent money that actually left their account.
+ *   A DRAFT — created at checkout, never paid for. The row exists before any money
+ *   moves because the server has to price the cart itself, so every abandoned basket
+ *   leaves one behind. The storefront drops these when the popup closes.
+ *
+ *   A REJECTED order — the student submitted a payment, an admin could not match it,
+ *   and rather than correcting it they would rather the whole thing went away.
+ *
+ * Never a paid one, and never one waiting in the review queue: an admin may be looking
+ * at that screenshot right now, and a paid order is a record of money that moved.
  *
  * Unauthenticated, like the rest of the order routes: the id is 128 bits of randomness
- * known only to the browser that created it, and a draft is worth nothing to anyone who
- * did somehow guess one.
+ * known only to whoever placed the order, and neither case is worth anything to
+ * somebody who did somehow guess one.
  */
 export async function abandonOrder(
 	env: Env,
@@ -1202,19 +1205,33 @@ export async function abandonOrder(
 	await requireBudget(env, req, 'checkout');
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
-	// Guarded in the statement, not around it: two tabs closing at once, or a close
-	// racing a payment submission, both resolve at the database rather than in a check
-	// that has already gone stale by the time the DELETE runs.
+	// Read the proof path before the row goes, or the object is unreachable afterwards.
+	const row = await env.DB.prepare(
+		`SELECT payment_proof_path FROM orders WHERE order_id = ?`,
+	)
+		.bind(orderId)
+		.first<{ payment_proof_path: string | null }>();
+
+	// Guarded in the statement, not around it: a close racing a payment submission, or
+	// a cancel racing an admin's confirm, both resolve at the database rather than in a
+	// check that has already gone stale by the time the DELETE runs.
 	const res = await env.DB.prepare(
 		`DELETE FROM orders
 		  WHERE order_id = ? AND payment_status = 'unpaid'
-		    AND (review_status IS NULL OR review_status = 'none')`,
+		    AND (review_status IS NULL OR review_status IN ('none', 'rejected'))`,
 	)
 		.bind(orderId)
 		.run();
 
+	// Only once the row is actually gone. Deleting the object first would orphan a live
+	// order's screenshot if the DELETE then found the order had been confirmed.
+	if (res.meta.changes && row?.payment_proof_path)
+		await env.MEDIA.delete(row.payment_proof_path).catch((e) =>
+			console.error('orders: could not delete proof for cancelled', orderId, e),
+		);
+
 	// Not an error either way. The order may already be gone, or may have become real
-	// between the student closing the popup and this arriving — and a browser that is
+	// between the student pressing cancel and this arriving — and a browser that is
 	// being closed has nothing useful to do with a failure.
 	return json({ ok: true, removed: res.meta.changes > 0 }, {}, cors);
 }

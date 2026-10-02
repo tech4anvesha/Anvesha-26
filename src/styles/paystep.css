@@ -1,0 +1,135 @@
+/* ============================================================
+   The pay step: scan the QR, then hand over the evidence.
+
+   Shared, because two pages ask for the same thing — the checkout popup when an order
+   is placed, and /order when a rejected payment has to be submitted again. One
+   stylesheet so the second attempt looks exactly like the first.
+
+   Depends only on the theme tokens in styles/theme.css, plus .tk-eyebrow from
+   styles/ticket.css for the small labels.
+   ============================================================ */
+
+/* ---- pay step ----
+   Numbered, because this is the one screen where the student has to leave the site,
+   do something in another app, and come back. Without the two markers it reads as
+   one form with a picture stuck on top of it. */
+.upi-step {
+	display: flex; align-items: center; gap: 9px; margin: 0;
+	font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--secondary);
+}
+.upi-step b {
+	display: grid; place-items: center; flex: none;
+	width: 17px; height: 17px;
+	font-size: 9.5px; color: var(--primary); background: var(--secondary);
+	border-radius: 999px;
+}
+
+/* Both steps share one chassis. Step 2's fields used to float loose below step 1's
+   card, which made the numbered markers look like headings for the page rather than
+   labels on two equal halves of one task. */
+.pay-card {
+	display: flex; flex-direction: column; gap: 13px;
+	padding: 14px;
+	background: var(--sink);
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+}
+/* The step label is the card's header: a rule under it separates it from the fields,
+   so a field's own caption can never be mistaken for part of the step. */
+.pay-card > .upi-step {
+	padding-bottom: 11px;
+	border-bottom: 1.5px solid var(--hair);
+}
+.upi-main { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+/* Paper-white behind the code whatever the card sits on — a QR on a tinted ground
+   is the classic reason a camera will not lock on. */
+.upi-qr {
+	display: grid; place-items: center;
+	padding: 8px;
+	background: #fff;
+	border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+}
+/* The live canvas is stacked ON the static image rather than replacing it, so the
+   fallback is already on screen if the draw ever fails — there is no frame where the
+   student has no QR at all. */
+.upi-qr { position: relative; }
+.upi-qr img, .upi-qr-live {
+	display: block; width: 148px; height: 148px; image-rendering: pixelated;
+}
+.upi-qr-live { position: absolute; inset: 8px; display: none; }
+.upi-qr.live .upi-qr-live { display: block; }
+.upi-qr.live img { visibility: hidden; }
+.upi-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.upi-amount {
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-size: 26px; line-height: 1.1; letter-spacing: -.01em;
+}
+.upi-vpa-label { margin-top: 10px; }
+/* A button, because it copies — the one-handed way to pay when the QR is on the
+   same screen you are holding. */
+.upi-vpa {
+	display: flex; align-items: center; gap: 7px;
+	box-sizing: border-box; width: 100%; padding: 7px 9px; margin: 0;
+	text-align: left; cursor: pointer;
+	font-size: 12px; overflow-wrap: anywhere; color: var(--secondary);
+	background: var(--primary);
+	border: 1.5px solid var(--hair); border-radius: var(--r);
+	transition: border-color .16s ease;
+}
+.upi-vpa:hover { border-color: var(--accent); }
+.upi-vpa span { min-width: 0; overflow-wrap: anywhere; }
+.upi-copy { display: grid; place-items: center; flex: none; margin-left: auto; color: var(--ink-40); }
+.upi-copy svg { width: 13px; height: 13px; stroke-width: 2; }
+.upi-vpa.copied { border-color: var(--accent); }
+.upi-vpa.copied .upi-copy { color: var(--accent); }
+
+.upi-dl {
+	display: flex; align-items: center; justify-content: center; gap: 9px;
+	box-sizing: border-box; width: 100%; padding: 12px;
+	text-decoration: none;
+	font-size: 11px; font-weight: 800; letter-spacing: .14em;
+	color: var(--primary); background: var(--secondary); border-color: var(--secondary);
+}
+.upi-dl:hover { background: var(--accent); border-color: var(--accent); }
+.upi-dl svg { width: 15px; height: 15px; stroke-width: 2.2; }
+.upi-hint { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--ink-40); }
+
+/* ---- the upload box ---- */
+/* The <label> IS the dropzone: a hidden input inside a label is the one way to
+   restyle a file picker without a JS click shim. */
+.proof {
+	position: relative; display: grid; place-items: center;
+	min-height: 104px; padding: 14px 16px 16px; overflow: hidden;
+	text-align: center; cursor: pointer;
+	background: var(--sink);
+	border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+	transition: border-color .16s ease, background .16s ease;
+}
+.proof:hover { border-color: var(--accent); }
+/* Covers the box so the whole thing is the hit target, and keeps the input
+   reachable by keyboard — it is invisible, not display:none. */
+.proof input {
+	position: absolute; inset: 0; width: 100%; height: 100%;
+	opacity: 0; cursor: pointer;
+}
+.proof:focus-within { border-color: var(--accent); box-shadow: var(--pop); }
+/* contain, not cover: a cropped payment screenshot is useless to whoever checks it. */
+.proof-img { display: none; max-width: 100%; max-height: 190px; border-radius: var(--r); }
+.proof.has-file .proof-img { display: block; }
+.proof.has-file { border-style: solid; background: var(--primary); padding: 10px 10px 22px; }
+.proof.has-file .proof-hint { display: none; }
+.proof-hint {
+	display: flex; flex-direction: column; gap: 5px;
+	max-width: 32ch; pointer-events: none;
+}
+.proof-hint b { font-size: 13px; }
+.proof-hint span { font-size: 11px; line-height: 1.5; color: var(--ink-60); text-wrap: pretty; }
+/* The one requirement a screenshot gets rejected for — it has to out-rank the rest of
+   the sentence, or it reads as a detail nobody acts on. */
+.proof-hint strong { color: var(--accent); font-weight: 700; }
+.proof-name {
+	position: absolute; left: 0; right: 0; bottom: 0;
+	padding: 4px 8px; font-size: 9.5px;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	color: var(--primary); background: var(--secondary);
+}
+.proof:not(.has-file) .proof-name { display: none; }

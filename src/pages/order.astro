@@ -14,7 +14,16 @@
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
 import '../styles/ticket.css';
+// The QR + reference + screenshot block, shared with the checkout popup.
+import '../styles/paystep.css';
 import iSearch from 'lucide-static/icons/search.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+import iDownload from 'lucide-static/icons/download.svg?raw';
+import iCopy from 'lucide-static/icons/copy.svg?raw';
+
+// Where the money goes. Kept identical to the checkout page's — one account, and the
+// resubmit form has to point at the same place the first attempt did.
+const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 ---
 
 <SiteLayout
@@ -86,6 +95,100 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 		</div>
 		</div>
 	</div>
+
+	<Fragment slot="overlays">
+		{/* Resubmit. The same QR, reference and screenshot the checkout popup asks for —
+		    a second attempt should not look like a different product. */}
+		<div id="reModal" class="ov" hidden>
+			<div class="ov-panel ov-re" role="dialog" aria-modal="true" aria-labelledby="reTitle">
+				<div class="ov-head">
+					<span class="ov-title" id="reTitle">SUBMIT PAYMENT AGAIN</span>
+					<button class="btn x" id="reClose" type="button" aria-label="Close" set:html={iX} />
+				</div>
+
+				<div class="ov-body">
+					<p class="re-for mono">Order <b id="reOrder">ORD_</b></p>
+
+					<form id="reForm" class="pay-step">
+						<div class="pay-card">
+							<p class="upi-step mono"><b>1</b> Pay in your UPI app</p>
+							<div class="upi-main">
+								<div class="upi-qr" id="reQrBox">
+									<img src="/img/pay/upi-qr.png" alt="UPI payment QR code for Anvesha '26"
+									     width="200" height="200" />
+									<canvas id="reQr" class="upi-qr-live" width="220" height="220"
+									        aria-label="UPI payment QR code with the amount filled in"></canvas>
+								</div>
+								<div class="upi-side">
+									<p class="tk-eyebrow">Amount</p>
+									<b class="upi-amount" id="reAmount">₹0</b>
+									<p class="tk-eyebrow upi-vpa-label">UPI ID</p>
+									<button class="upi-vpa mono" id="reVpa" type="button" title="Copy this UPI ID">
+										<span>{UPI_ID}</span>
+										<i class="upi-copy" aria-hidden="true" set:html={iCopy} />
+									</button>
+								</div>
+							</div>
+							<a class="btn upi-dl" id="reDl" href="/img/pay/upi-qr.png"
+							   download="anvesha-upi-qr.png">
+								<span set:html={iDownload} />SAVE QR
+							</a>
+							<p class="upi-hint">If you have already paid previously, please resubmit the details following the instructions given again.</p>
+						</div>
+
+						<div class="pay-card">
+							<p class="upi-step mono"><b>2</b> Then tell us about it</p>
+
+							<label class="field">
+								<span class="field-label">Transaction / UTR reference</span>
+								<input class="field-input mono" id="reTxn" type="text" autocomplete="off"
+								       spellcheck="false" minlength="4" maxlength="64"
+								       placeholder="from your UPI app" required />
+							</label>
+
+							<label class="field">
+								<span class="field-label">Payment screenshot</span>
+								<span class="proof" id="reProofBox">
+									<input id="reProof" type="file" accept="image/jpeg,image/png,image/webp" required />
+									<img class="proof-img" id="reProofImg" alt="" />
+									<span class="proof-hint">
+										<b>Tap to attach</b>
+										<span>a screenshot showing the payment succeeded with <strong>the transaction id visible clearly</strong>: Screenshots without visible transaction id will not be accepted</span>
+									</span>
+									<span class="proof-name mono" id="reProofName"></span>
+								</span>
+							</label>
+						</div>
+
+						<p class="pay-err" id="reErr" hidden></p>
+						<button class="btn od-go" id="reGo" type="submit">
+							<span id="reGoLabel">SUBMIT PAYMENT</span>
+						</button>
+					</form>
+
+					{/* Same 14-tile bar the checkout uses, so the wait reads the same way. */}
+					<div id="reBusy" class="processing" hidden>
+						<p class="proc-label">Sending your payment details</p>
+						<div id="reProgress" class="pay-progress" role="progressbar"
+						     aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+							{Array.from({ length: 14 }).map(() => <span class="seg" />)}
+						</div>
+					</div>
+
+					<div id="reDone" class="re-done" hidden>
+						<span class="recv-mark" aria-hidden="true"></span>
+						<h3 class="recv-title">Resubmission accepted</h3>
+						<p class="recv-text">
+							We&rsquo;ve got your new payment details. Someone checks them against our
+							statement, usually within a day, and your collection pass lands in your
+							inbox the moment it&rsquo;s confirmed.
+						</p>
+						<button class="btn orderback" id="reDoneBtn" type="button">DONE</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</Fragment>
 </SiteLayout>
 
 <script>
@@ -112,11 +215,17 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 	// visit swaps in fresh nodes that nothing would have wired. Everything re-runs on
 	// astro:page-load, same as every other page here.
 	let inited: HTMLElement | null = null;
+	let ac: AbortController | null = null;
 
 	function initOrder() {
 		const form = document.getElementById('odForm') as HTMLFormElement | null;
 		if (!form || form === inited) return;
 		inited = form;
+		// Drops the previous visit's window-level listeners; without it every
+		// ClientRouter return would stack another Escape handler on the document.
+		ac?.abort();
+		ac = new AbortController();
+		const { signal } = ac;
 
 		const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 		const rollEl = $<HTMLInputElement>('oRoll'), phoneEl = $<HTMLInputElement>('oPhone');
@@ -218,7 +327,15 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 							`</div>` +
 						`</div>` +
 					`</div>` +
-					(paid ? `<button class="btn qrdl" type="button">DOWNLOAD PASS</button>` : '');
+					(paid ? `<button class="btn qrdl" type="button">DOWNLOAD PASS</button>` : '') +
+					// A rejected payment is the one state the student can act on: fix it,
+					// or be rid of it. Anything else is waiting, and offers nothing.
+					(o.review_status === 'rejected'
+						? `<div class="od-act">` +
+							`<button class="btn od-redo" type="button" data-redo>SUBMIT AGAIN</button>` +
+							`<button class="btn od-cancel" type="button" data-cancel>CANCEL ORDER</button>` +
+						`</div>`
+						: '');
 
 				// The QR is drawn, not templated — the canvas has to exist first.
 				if (paid) {
@@ -238,6 +355,9 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 					};
 				}
 
+				card.querySelector('[data-redo]')?.addEventListener('click', () => openResubmit(o));
+				card.querySelector('[data-cancel]')?.addEventListener('click', () => cancelOrder(o));
+
 				listEl.appendChild(card);
 			}
 
@@ -248,8 +368,229 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 			splitEl.classList.add('is-split');
 		}
 
-		form.onsubmit = async (e) => {
+		// ---- cancel ----
+		async function cancelOrder(o: Order) {
+			if (!confirm(
+				`Cancel order ${o.order_id}?\n\nIt is removed for good, along with the screenshot you sent. ` +
+				`If you did pay and we simply could not match it, use SUBMIT AGAIN instead.`,
+			)) return;
+
+			try {
+				const res = await fetch(`${API}/api/orders/${encodeURIComponent(o.order_id)}`, { method: 'DELETE' });
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.message || data.error || 'Could not cancel that order');
+				// `removed: false` means it stopped being cancellable between the click and
+				// the request — an admin confirming it, most likely. Re-reading is the only
+				// honest answer; the card will come back showing whatever is now true.
+				if (!data.removed) alert('That order can no longer be cancelled — it has just been confirmed.');
+				await lookup();
+			} catch (err) {
+				errEl.textContent = (err as Error).message;
+				errEl.hidden = false;
+			}
+		}
+
+		// ---- resubmit ----
+		const reModal = $('reModal'), reForm = $<HTMLFormElement>('reForm');
+		const reBusy = $('reBusy'), reDone = $('reDone');
+		const reTxn = $<HTMLInputElement>('reTxn'), reProof = $<HTMLInputElement>('reProof');
+		const reProofBox = $('reProofBox'), reProofImg = $<HTMLImageElement>('reProofImg');
+		const reProofName = $('reProofName'), reErr = $('reErr');
+		const reGo = $<HTMLButtonElement>('reGo'), reGoLabel = $('reGoLabel');
+		const reQr = $<HTMLCanvasElement>('reQr'), reQrBox = $('reQrBox');
+		const reVpa = $<HTMLButtonElement>('reVpa'), reDl = $<HTMLAnchorElement>('reDl');
+		const UPI_ID = reVpa.querySelector('span')!.textContent!.trim();
+		const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+		const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
+		let redoOrder: Order | null = null;
+		let proofUrl: string | null = null;
+		let reDlUrl: string | null = null;
+
+		const segs = [...$('reProgress').querySelectorAll<HTMLElement>('.seg')];
+		let segTimer = 0;
+		function setSegs(n: number) {
+			segs.forEach((el, i) => el.classList.toggle('on', i < n));
+			$('reProgress').setAttribute('aria-valuenow', String(Math.round((n / segs.length) * 100)));
+		}
+		/** Lights tiles one at a time, holding the last one back until the server answers. */
+		function startProgress() {
+			setSegs(0);
+			let i = 0;
+			clearInterval(segTimer);
+			segTimer = setInterval(() => { if (i < segs.length - 1) setSegs(++i); }, 110) as unknown as number;
+		}
+		const finishProgress = () => { clearInterval(segTimer); setSegs(segs.length); };
+		const resetProgress = () => { clearInterval(segTimer); setSegs(0); };
+
+		function showProof(file: File | null) {
+			if (proofUrl) { URL.revokeObjectURL(proofUrl); proofUrl = null; }
+			reProofBox.classList.toggle('has-file', Boolean(file));
+			reProofName.textContent = file ? file.name : '';
+			if (!file) { reProofImg.removeAttribute('src'); return; }
+			proofUrl = URL.createObjectURL(file);
+			reProofImg.src = proofUrl;
+		}
+
+		function reFace(face: 'form' | 'busy' | 'done') {
+			reForm.hidden = face !== 'form';
+			reBusy.hidden = face !== 'busy';
+			reDone.hidden = face !== 'done';
+			$<HTMLButtonElement>('reClose').disabled = face === 'busy';
+		}
+
+		function openResubmit(o: Order) {
+			redoOrder = o;
+			$('reOrder').textContent = o.order_id;
+			$('reAmount').textContent = rupees(o.total_price_paise);
+			reTxn.value = '';
+			reProof.value = '';
+			showProof(null);
+			reErr.hidden = true;
+			reGoLabel.textContent = 'SUBMIT PAYMENT';
+			reFace('form');
+			resetProgress();
+			paintUpiQr(o.order_id, o.total_price_paise);
+			openOverlay('reModal', true);
+			reTxn.focus();
+		}
+
+		/**
+		 * The same UPI intent URI the checkout draws, for the same order.
+		 *
+		 * `am` means the student confirms an amount rather than typing one, and `tn`
+		 * puts the order id in the bank narration so the admin checking the statement a
+		 * second time can see which order a credit belongs to.
+		 */
+		function paintUpiQr(orderId: string, paise: number) {
+			const amount = (paise / 100).toFixed(2);
+			// The underscore is kept: the whole point of the note is that it matches the
+			// order id exactly on the statement.
+			const note = `Anvesha26 ${orderId}`.replace(/[^A-Za-z0-9 _-]/g, '-').slice(0, 50);
+			const uri =
+				`upi://pay?pa=${encodeURIComponent(UPI_ID)}` +
+				`&pn=${encodeURIComponent("Anvesha '26")}` +
+				`&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+			try {
+				drawQR(reQr, uri);
+				reQrBox.classList.add('live');
+			} catch (e) {
+				// The static QR underneath is still on screen; it just carries no amount.
+				console.warn('[order] could not draw the UPI QR, falling back to the static one', e);
+				return;
+			}
+			reQr.toBlob((blob) => {
+				if (!blob) return;
+				if (reDlUrl) URL.revokeObjectURL(reDlUrl);
+				reDlUrl = URL.createObjectURL(blob);
+				reDl.href = reDlUrl;
+				reDl.download = `anvesha-upi-${orderId}.png`;
+			}, 'image/png');
+		}
+
+		reVpa.onclick = async () => {
+			try {
+				await navigator.clipboard.writeText(UPI_ID);
+				reVpa.classList.add('copied');
+				setTimeout(() => reVpa.classList.remove('copied'), 1400);
+			} catch {
+				// Insecure origin or a denied permission: select it so it can be copied by hand.
+				const r = document.createRange();
+				r.selectNodeContents(reVpa.querySelector('span')!);
+				const sel = getSelection();
+				sel?.removeAllRanges();
+				sel?.addRange(r);
+			}
+		};
+
+		reProof.onchange = () => {
+			const file = reProof.files?.[0] ?? null;
+			reErr.hidden = true;
+			// The same two rules the worker enforces, so a bad file fails instantly
+			// instead of after a 5MB upload.
+			if (file && !PROOF_TYPES.includes(file.type)) {
+				reErr.textContent = 'That file type will not work — use a JPG, PNG or WebP screenshot.';
+				reErr.hidden = false;
+				reProof.value = '';
+				return showProof(null);
+			}
+			if (file && file.size > MAX_PROOF_BYTES) {
+				reErr.textContent = 'That screenshot is over 5MB. A normal phone screenshot is well under it.';
+				reErr.hidden = false;
+				reProof.value = '';
+				return showProof(null);
+			}
+			showProof(file);
+		};
+
+		reForm.onsubmit = async (e) => {
 			e.preventDefault();
+			if (!redoOrder) return;
+			const file = reProof.files?.[0] ?? null;
+			if (!file) {
+				reErr.textContent = 'Attach a screenshot of the successful payment.';
+				reErr.hidden = false;
+				return;
+			}
+
+			reGo.disabled = true;
+			reErr.hidden = true;
+			reFace('busy');
+			startProgress();
+
+			try {
+				const body = new FormData();
+				body.append('payment_ref', reTxn.value.trim());
+				body.append('proof', file);
+				// Same endpoint as the first attempt. The server allows it precisely
+				// because reject left payment_status at 'unpaid' — the order never
+				// stopped being payable.
+				const res = await fetch(`${API}/api/orders/${encodeURIComponent(redoOrder.order_id)}/payment`, {
+					method: 'POST',
+					body,
+				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.message || data.error || 'Could not submit that payment');
+
+				finishProgress();
+				await new Promise((r) => setTimeout(r, 420));
+				reFace('done');
+			} catch (err) {
+				// Back to the form with the reference intact — a rejected file or a
+				// dropped connection should not cost the student their typing.
+				reFace('form');
+				reErr.textContent = (err as Error).message;
+				reErr.hidden = false;
+			} finally {
+				reGo.disabled = false;
+				resetProgress();
+			}
+		};
+
+		function closeResubmit() {
+			openOverlay('reModal', false);
+			showProof(null);
+			redoOrder = null;
+			// Re-read, so the card behind the modal shows CHECKING rather than the
+			// rejection the student just dealt with.
+			void lookup();
+		}
+		$('reClose').onclick = closeResubmit;
+		$('reDoneBtn').onclick = closeResubmit;
+		reModal.addEventListener('click', (e) => { if (e.target === reModal) closeResubmit(); }, { signal });
+		addEventListener('keydown', (e) => {
+			// Not while the upload is in flight: closing then would leave the student
+			// unsure whether their screenshot ever arrived.
+			if (e.key === 'Escape' && !reModal.hidden && reBusy.hidden) closeResubmit();
+		}, { signal });
+
+		function openOverlay(id: string, on: boolean) {
+			$(id).hidden = !on;
+			document.body.classList.toggle('ov-open', on);
+		}
+
+		/** Re-reads this student's orders and repaints. The one place that fetches. */
+		async function lookup() {
 			goBtn.disabled = true;
 			errEl.hidden = true;
 			goLabel.textContent = 'LOOKING…';
@@ -277,7 +618,9 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 				goBtn.disabled = false;
 				goLabel.textContent = 'FIND MY ORDER';
 			}
-		};
+		}
+
+		form.onsubmit = (e) => { e.preventDefault(); void lookup(); };
 	}
 
 	document.addEventListener('astro:page-load', initOrder);
@@ -482,6 +825,103 @@ import iSearch from 'lucide-static/icons/search.svg?raw';
 
 	/* Below this the two columns have nothing left to give: the form's own fields are
 	   about to stack, which makes the left column as tall as the right one anyway. */
+	/* ---- the two things a rejected order can do ---- */
+	:global(.od-act) { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+	:global(.od-redo), :global(.od-cancel) {
+		padding: 12px 10px;
+		font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
+	}
+	/* Fixing it is the one we want pressed; cancelling is available, not advertised. */
+	:global(.od-redo) { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
+	:global(.od-redo:hover) { background: var(--accent); border-color: var(--accent); }
+	:global(.od-cancel) { color: var(--ink-60); }
+	:global(.od-cancel:hover) { color: var(--accent); border-color: var(--accent); }
+
+	/* ---- the resubmit overlay ----
+	   Its own chassis rather than the admin panel's: that one lives in a different
+	   page's scoped styles, and importing a whole admin stylesheet for one dialog would
+	   drag far more with it than this costs. */
+	.ov {
+		position: fixed; inset: 0; z-index: 60;
+		display: grid; place-items: center;
+		padding: clamp(12px, 3vw, 28px);
+		background: color-mix(in srgb, var(--secondary) 55%, transparent);
+		backdrop-filter: blur(3px);
+	}
+	.ov[hidden] { display: none; }
+	.ov-panel {
+		display: flex; flex-direction: column;
+		width: min(460px, 100%); max-height: 88vh;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		box-shadow: var(--pop-lg);
+	}
+	.ov-head {
+		display: flex; align-items: center; justify-content: space-between; gap: 12px;
+		padding: 13px 16px;
+		background: var(--secondary); color: var(--primary);
+	}
+	.ov-title {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .18em;
+	}
+	/* min-height: 0 is what lets this scroll instead of pushing the panel past 88vh. */
+	.ov-body {
+		min-height: 0; overflow-y: auto; overflow-x: hidden;
+		display: flex; flex-direction: column; gap: 14px;
+		padding: 16px;
+	}
+	.re-for { margin: 0; font-size: 10px; letter-spacing: .1em; color: var(--ink-40); }
+	.re-for b { color: var(--secondary); overflow-wrap: anywhere; }
+
+	/* ---- the wait, and the end ---- */
+	/* Same 14 tiles as the checkout, so a second attempt feels like the first. */
+	.processing { display: flex; flex-direction: column; gap: 16px; padding: 18px 0; }
+	.processing[hidden] { display: none; }
+	.proc-label {
+		margin: 0; text-align: center;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+	}
+	.pay-progress { display: flex; gap: 4px; }
+	.seg {
+		flex: 1; height: 16px;
+		border: 1.5px solid var(--secondary); border-radius: var(--r);
+		transition: background .12s ease;
+	}
+	.seg.on { background: var(--accent); }
+
+	.re-done {
+		display: flex; flex-direction: column; align-items: center; gap: 11px;
+		padding: 18px 8px 8px; text-align: center;
+	}
+	.re-done[hidden] { display: none; }
+	/* A tick drawn from two borders — no icon file for one mark. */
+	.recv-mark {
+		display: grid; place-items: center; flex: none;
+		width: 44px; height: 44px;
+		background: var(--accent); border-radius: 999px;
+	}
+	.recv-mark::after {
+		content: ''; width: 13px; height: 23px;
+		border: solid var(--primary); border-width: 0 3px 3px 0;
+		transform: rotate(45deg) translate(-2px, -2px);
+	}
+	.recv-title {
+		margin: 0;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 19px; letter-spacing: -.01em; text-transform: uppercase;
+	}
+	.recv-text { margin: 0; max-width: 34ch; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+	.orderback {
+		box-sizing: border-box; width: 100%; margin-top: 6px; padding: 13px;
+		font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
+	}
+	/* The page behind must not scroll under an open dialog. */
+	:global(body.ov-open) { overflow: hidden; }
+
+	@media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
+
 	/* Below this there is no empty space left to put anything in — the left column alone
 	   is already the whole width — so the answer goes back under the form. */
 	@media (max-width: 1100px) {

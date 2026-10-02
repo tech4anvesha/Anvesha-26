@@ -4,6 +4,8 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 import '../styles/catalogue-tree.css';
 // .tk-eyebrow / .tk-id are borrowed by the pay and received faces.
 import '../styles/ticket.css';
+// The QR + reference + screenshot block, shared with /order's resubmit form.
+import '../styles/paystep.css';
 import chevronLeft from 'lucide-static/icons/chevron-left.svg?raw';
 import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
 import shoppingCart from 'lucide-static/icons/shopping-cart.svg?raw';
@@ -255,7 +257,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		     moves through this site; the student pays in their own banking app and
 		     comes back with a reference and a screenshot. -->
 		<form id="payStepForm" class="pay-step" hidden>
-			<div class="upi">
+			<div class="pay-card">
 				<p class="upi-step mono"><b>1</b> Pay in your UPI app</p>
 
 				<div class="upi-main">
@@ -290,36 +292,35 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				   download="anvesha-upi-qr.png">
 					<span set:html={iDownload} />SAVE QR
 				</a>
-				<p class="upi-hint">
-					Paying from this phone? Save the QR, then open your UPI app and pick it
-					from your gallery &mdash; a phone cannot scan a code on its own screen.
-				</p>
+				<p class="upi-hint">If you have already paid previously, please resubmit the details following the instructions given again.</p>
 			</div>
 
-			<p class="upi-step mono"><b>2</b> Then tell us about it</p>
+			<div class="pay-card">
+				<p class="upi-step mono"><b>2</b> Then tell us about it</p>
 
-			<label class="field">
-				<span class="field-label">Transaction / UTR reference</span>
-				<input class="field-input mono" id="fTxn" name="payment_ref" type="text"
-				       autocomplete="off" spellcheck="false" minlength="4" maxlength="64"
-				       placeholder="from your UPI app" required />
-			</label>
+				<label class="field">
+					<span class="field-label">Transaction / UTR reference</span>
+					<input class="field-input mono" id="fTxn" name="payment_ref" type="text"
+					       autocomplete="off" spellcheck="false" minlength="4" maxlength="64"
+					       placeholder="from your UPI app" required />
+				</label>
 
-			<label class="field">
-				<span class="field-label">Payment screenshot</span>
+				<label class="field">
+					<span class="field-label">Payment screenshot</span>
 				<!-- The input is the whole box: a label wrapping a hidden file input is
 				     the one way to restyle a file picker without a click shim. -->
-				<span class="proof" id="proofBox">
-					<input id="fProof" name="proof" type="file"
-					       accept="image/jpeg,image/png,image/webp" required />
-					<img class="proof-img" id="proofImg" alt="" />
-					<span class="proof-hint">
-						<b>Tap to attach</b>
+					<span class="proof" id="proofBox">
+						<input id="fProof" name="proof" type="file"
+						       accept="image/jpeg,image/png,image/webp" required />
+						<img class="proof-img" id="proofImg" alt="" />
+						<span class="proof-hint">
+							<b>Tap to attach</b>
 						<span>a screenshot showing the payment succeeded with <strong>the transaction id visible clearly</strong>: Screenshots without visible transaction id will not be accepted</span>
+						</span>
+						<span class="proof-name mono" id="proofName"></span>
 					</span>
-					<span class="proof-name mono" id="proofName"></span>
-				</span>
-			</label>
+				</label>
+			</div>
 
 			<p class="pay-err" id="payErr2" hidden></p>
 			<button class="btn paybtn" id="submitBtn" type="submit">
@@ -2129,116 +2130,6 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 	   exactly how all three faces ended up stacked at once. */
 	/* Explicit, because the author `display` above outranks the UA's [hidden] rule. */
 	.pay-form[hidden], .receipt[hidden], .pay-step[hidden] { display: none; }
-
-	/* ---- pay step ----
-	   Numbered, because this is the one screen where the student has to leave the site,
-	   do something in another app, and come back. Without the two markers it reads as
-	   one form with a picture stuck on top of it. */
-	.upi-step {
-		display: flex; align-items: center; gap: 9px; margin: 0;
-		font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
-	}
-	.upi-step b {
-		display: grid; place-items: center; flex: none;
-		width: 17px; height: 17px;
-		font-size: 9.5px; color: var(--primary); background: var(--secondary);
-		border-radius: 999px;
-	}
-
-	.upi {
-		display: flex; flex-direction: column; gap: 12px;
-		padding: 14px;
-		background: var(--sink);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	.upi-main { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-	/* Paper-white behind the code whatever the card sits on — a QR on a tinted ground
-	   is the classic reason a camera will not lock on. */
-	.upi-qr {
-		display: grid; place-items: center;
-		padding: 8px;
-		background: #fff;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-	}
-	/* The live canvas is stacked ON the static image rather than replacing it, so the
-	   fallback is already on screen if the draw ever fails — there is no frame where the
-	   student has no QR at all. */
-	.upi-qr { position: relative; }
-	.upi-qr img, .upi-qr-live {
-		display: block; width: 148px; height: 148px; image-rendering: pixelated;
-	}
-	.upi-qr-live { position: absolute; inset: 8px; display: none; }
-	.upi-qr.live .upi-qr-live { display: block; }
-	.upi-qr.live img { visibility: hidden; }
-	.upi-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-	.upi-amount {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-size: 26px; line-height: 1.1; letter-spacing: -.01em;
-	}
-	.upi-vpa-label { margin-top: 10px; }
-	/* A button, because it copies — the one-handed way to pay when the QR is on the
-	   same screen you are holding. */
-	.upi-vpa {
-		display: flex; align-items: center; gap: 7px;
-		box-sizing: border-box; width: 100%; padding: 7px 9px; margin: 0;
-		text-align: left; cursor: pointer;
-		font-size: 12px; overflow-wrap: anywhere; color: var(--secondary);
-		background: var(--primary);
-		border: 1.5px solid var(--hair); border-radius: var(--r);
-		transition: border-color .16s ease;
-	}
-	.upi-vpa:hover { border-color: var(--accent); }
-	.upi-vpa span { min-width: 0; overflow-wrap: anywhere; }
-	.upi-copy { display: grid; place-items: center; flex: none; margin-left: auto; color: var(--ink-40); }
-	.upi-copy svg { width: 13px; height: 13px; stroke-width: 2; }
-	.upi-vpa.copied { border-color: var(--accent); }
-	.upi-vpa.copied .upi-copy { color: var(--accent); }
-
-	.upi-dl {
-		display: flex; align-items: center; justify-content: center; gap: 9px;
-		box-sizing: border-box; width: 100%; padding: 12px;
-		text-decoration: none;
-		font-size: 11px; font-weight: 800; letter-spacing: .14em;
-		color: var(--primary); background: var(--secondary); border-color: var(--secondary);
-	}
-	.upi-dl:hover { background: var(--accent); border-color: var(--accent); }
-	.upi-dl svg { width: 15px; height: 15px; stroke-width: 2.2; }
-	.upi-hint { margin: 0; font-size: 11px; line-height: 1.55; color: var(--ink-40); }
-
-	/* ---- the upload box ---- */
-	/* The <label> IS the dropzone: a hidden input inside a label is the one way to
-	   restyle a file picker without a JS click shim. */
-	.proof {
-		position: relative; display: grid; place-items: center;
-		min-height: 120px; padding: 16px; overflow: hidden;
-		text-align: center; cursor: pointer;
-		background: var(--sink);
-		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
-		transition: border-color .16s ease, background .16s ease;
-	}
-	.proof:hover { border-color: var(--accent); }
-	/* Covers the box so the whole thing is the hit target, and keeps the input
-	   reachable by keyboard — it is invisible, not display:none. */
-	.proof input {
-		position: absolute; inset: 0; width: 100%; height: 100%;
-		opacity: 0; cursor: pointer;
-	}
-	.proof:focus-within { border-color: var(--accent); box-shadow: var(--pop); }
-	/* contain, not cover: a cropped payment screenshot is useless to whoever checks it. */
-	.proof-img { display: none; max-width: 100%; max-height: 190px; border-radius: var(--r); }
-	.proof.has-file .proof-img { display: block; }
-	.proof.has-file { border-style: solid; background: var(--primary); padding: 10px 10px 22px; }
-	.proof.has-file .proof-hint { display: none; }
-	.proof-hint { display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
-	.proof-hint b { font-size: 13px; }
-	.proof-hint span { font-size: 11.5px; color: var(--ink-60); }
-	.proof-name {
-		position: absolute; left: 0; right: 0; bottom: 0;
-		padding: 4px 8px; font-size: 9.5px;
-		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-		color: var(--primary); background: var(--secondary);
-	}
-	.proof:not(.has-file) .proof-name { display: none; }
 
 	/* ---- received ---- */
 	.recv {
