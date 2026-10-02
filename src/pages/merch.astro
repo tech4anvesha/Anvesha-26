@@ -1381,7 +1381,10 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				// No QR and no ticket: nobody has checked this payment yet, and handing
 				// over a collection pass now would make the review pointless.
 				recvId.textContent = data.order_id;
-				recvName.textContent = buyerName;
+				// The leading space lives here, not in the markup: the build collapses
+				// whitespace between text and a tag, which ran this straight into the
+				// name. Conditional, so an empty name leaves no stray gap either.
+				recvName.textContent = buyerName ? ` ${buyerName}` : '';
 				cart = {}; saveCart(); renderCart();
 				payForm.reset();
 				payStepForm.reset();

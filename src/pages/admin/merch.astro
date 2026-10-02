@@ -21,7 +21,6 @@ import iOrders from 'lucide-static/icons/receipt-text.svg?raw';
 import iDownload from 'lucide-static/icons/download.svg?raw';
 import iLayers from 'lucide-static/icons/layers.svg?raw';
 import iScan from 'lucide-static/icons/scan-line.svg?raw';
-import iGhost from 'lucide-static/icons/file-clock.svg?raw';
 import iFlame from 'lucide-static/icons/flame.svg?raw';
 import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 ---
@@ -238,13 +237,6 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 								</p>
 							</div>
 							<div class="ord-tools">
-								{/* A basket someone opened and walked away from is not an order
-								    yet — hidden by default so the table shows work, not noise. */}
-								<button class="btn ord-tool ord-tool-drafts" id="ordDrafts" type="button"
-								        aria-pressed="false">
-									<span class="m-add-icon" set:html={iGhost} />
-									<span>DRAFTS <b id="ordDraftN">0</b></span>
-								</button>
 								<button class="btn ord-tool ord-tool-go" id="ordDistribute" type="button">
 									<span class="m-add-icon" set:html={iScan} />
 									<span>DISTRIBUTION</span>
@@ -883,33 +875,23 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	 *
 	 * The storefront deletes these on close when it can, but it cannot once the QR has
 	 * been shown — at that point the student may have paid and simply not come back, and
-	 * those rows have to survive. Hence a filter rather than only a cleanup.
+	 * those rows have to survive in the database. They are simply never listed here.
 	 */
 	const isDraft = (o: Order) => o.payment_status === 'unpaid' && o.review_status === 'none';
-
-	let showDrafts = false;
 
 	function renderOrders() {
 		const body = $('ordBody');
 		dropProofUrls();
 		body.innerHTML = '';
 
-		const drafts = orders.filter(isDraft).length;
-		$('ordDraftN').textContent = String(drafts);
-		$('ordDrafts').hidden = drafts === 0 && !showDrafts;
-		$('ordDrafts').classList.toggle('on', showDrafts);
-		$('ordDrafts').setAttribute('aria-pressed', String(showDrafts));
-
-		const shown = showDrafts ? orders : orders.filter((o) => !isDraft(o));
+		// Drafts never reach the table. They are rows the database needs and the
+		// counter does not.
+		const shown = orders.filter((o) => !isDraft(o));
 		$('ordCount').textContent = String(shown.length);
 		$('ordEmpty').hidden = shown.length > 0;
-		$('ordEmpty').textContent = orders.length && !shown.length
-			? 'No orders waiting. Press DRAFTS to see abandoned checkouts.'
-			: 'No orders yet.';
 
 		for (const o of shown) {
 			const tr = document.createElement('tr');
-			if (isDraft(o)) tr.className = 'ord-draft';
 			const paid = o.payment_status === 'paid';
 
 			tr.innerHTML =
@@ -2076,7 +2058,6 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		$('delClose').onclick = () => openModal('delModal', false);
 		$('delCancel').onclick = () => { pendingDelete = null; openModal('delModal', false); };
 		$('delGo').onclick = confirmDelete;
-		$('ordDrafts').onclick = () => { showDrafts = !showDrafts; renderOrders(); };
 		$('shotClose').onclick = () => openModal('shotModal', false);
 		$('rejClose').onclick = () => openModal('rejModal', false);
 		$('rejCancel').onclick = () => { pendingReject = null; openModal('rejModal', false); };
@@ -2314,14 +2295,6 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		border: 1.5px solid var(--hair); border-radius: var(--r);
 	}
 	.shot-frame img { display: block; width: 100%; }
-
-	/* Off by default and quiet when on — this reveals noise, it is not a primary tool. */
-	.ord-tool-drafts { color: var(--ink-40); }
-	.ord-tool-drafts.on { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
-	.ord-tool-drafts b { font-weight: 800; }
-	/* A draft is a basket, not an order: greyed so it never reads as work. */
-	.ord-draft td { color: var(--ink-40); }
-	.ord-draft .mono { color: var(--ink-40); }
 
 	.ord-del { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
 	.ord-del svg { width: 13px; height: 13px; stroke-width: 2.2; }
