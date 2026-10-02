@@ -98,3 +98,15 @@
 	font-size: 11.5px; font-weight: 800; letter-spacing: .14em;
 }
 .qrdl { background: var(--accent); color: var(--primary); border-color: var(--accent); }
+
+/* ---- what was bought ----
+   Lives here, not in a page's scoped styles: both the checkout popup and /order print
+   the same list inside the same ticket. Scoped to one page it simply did not reach the
+   other, which showed up as bullet points and a price run into the quantity. */
+.order-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.order-items li {
+	display: flex; justify-content: space-between; gap: 12px;
+	font-size: 12.5px; line-height: 1.45; color: var(--ink-60);
+}
+.order-items li > span { min-width: 0; }
+.order-items b { flex: none; color: var(--secondary); }
