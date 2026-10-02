@@ -32,6 +32,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 >
 	<div class="page od-page">
 		<div class="od-split" id="odSplit">
+		<div class="od-left">
 		<header class="page-head od-head" data-reveal>
 			<p class="eyebrow">Merch &middot; Collection pass</p>
 			<h1 class="page-title">Your order</h1>
@@ -66,11 +67,9 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			</form>
 		</header>
 
-		{/* The right half. One of these two is on screen at a time: the explainer until
-		    there is an answer, the answer after. */}
-		<div class="od-right">
-		{/* Answers the question almost everyone arrives with: why is there no pass yet.
-		    Hidden once results are on screen — by then it has done its job. */}
+		{/* Stays put whether or not there is an answer on screen. It is the explanation
+		    for a PENDING order as much as an introduction — and hiding it was what left
+		    the left column half empty the moment a result arrived. */}
 		<section class="section od-how" id="odHow" data-reveal>
 			<div class="sechead">
 				<span class="sechead-label">How this works</span>
@@ -83,7 +82,11 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				<li><b>3</b><span><strong>Your pass arrives</strong> by email, and shows up on this page. Show its QR at the merch desk.</span></li>
 			</ol>
 		</section>
+		</div>
 
+		{/* The answer. Empty until a lookup returns something, at which point the page
+		    gives up a column to it. */}
+		<div class="od-right">
 		<section class="section od-results" id="odResults" hidden data-reveal>
 			<div class="sechead">
 				<span class="sechead-label">Found</span>
@@ -231,7 +234,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		const rollEl = $<HTMLInputElement>('oRoll'), phoneEl = $<HTMLInputElement>('oPhone');
 		const errEl = $('odErr'), goBtn = $<HTMLButtonElement>('odGo');
 		const resultsEl = $('odResults'), listEl = $('odList'), metaEl = $('odMeta');
-		const howEl = $('odHow'), goLabel = $('odGoLabel'), splitEl = $('odSplit');
+		const goLabel = $('odGoLabel'), splitEl = $('odSplit');
 
 		// Uppercased as it is typed, so what the student sees matches what is stored.
 		// The caret is restored because assigning .value sends it to the end, which makes
@@ -361,9 +364,8 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				listEl.appendChild(card);
 			}
 
-			// The explainer has done its job once there is a real answer on screen, and
-			// the page gives up a column to put that answer beside the form.
-			howEl.hidden = true;
+			// The page gives up a column to put the answer beside the form. The
+			// explainer stays: for a PENDING order it is the answer to "why no pass yet".
 			resultsEl.hidden = false;
 			splitEl.classList.add('is-split');
 		}
@@ -610,7 +612,6 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				// Back to one column: with nothing to show, a narrow header beside an
 				// empty half is worse than the plain stack it started as.
 				resultsEl.hidden = true;
-				howEl.hidden = false;
 				splitEl.classList.remove('is-split');
 				errEl.textContent = (err as Error).message;
 				errEl.hidden = false;
@@ -664,21 +665,30 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 
 	   The dividing rule is the left column's own border, not an element — same
 	   construction the storefront's .hero uses. */
+	.od-left { display: flex; flex-direction: column; }
+	/* The results own the right column outright; a section border there would draw a
+	   rule across half the page with nothing on the other side of it. */
+	.od-right > .section { border-bottom: 0; }
+
 	.od-split.is-split {
 		/* The floor is the form's 520px plus the section's widest padding (52px a side),
 		   so the column can never be too narrow to hold it at any viewport. */
 		grid-template-columns: clamp(630px, 44vw, 740px) minmax(0, 1fr);
-		align-items: start;
+		/* Stretch, not start: the dividing rule is the left column's border, so a
+		   short left column would stop it halfway down and leave the two halves
+		   touching with nothing between them. */
+		align-items: stretch;
 	}
-	.od-split.is-split .od-head {
-		/* Stays put while a long list of orders scrolls past it — the form is what you
-		   come back to when the first roll number was the wrong one. */
-		position: sticky; top: 0;
-		/* The vertical rule now does the dividing; a bottom border too would stop dead
-		   halfway across the page. */
-		border-right: var(--stroke) solid var(--secondary);
-		border-bottom: 0;
-	}
+	/* The rule belongs to the whole left column, not to the header inside it — on the
+	   header alone it stopped where the form ended and left the explainer below it
+	   floating against the results with nothing between them. */
+	.od-split.is-split .od-left { border-right: var(--stroke) solid var(--secondary); }
+	/* One column of steps once the space is halved: three across a 630px column would
+	   be 2 + 1, which reads as a wrapped row rather than a list. */
+	.od-split.is-split .od-steps { grid-template-columns: minmax(0, 1fr); }
+	.od-split.is-split .od-steps li { padding: 13px 14px; }
+	/* Nothing below it, so no rule under it. */
+	.od-split.is-split .od-how { border-bottom: 0; }
 	/* The right half owns its own section borders, so the two columns do not double up
 	   on rules where they meet. */
 	.od-right > .section:last-child { border-bottom: 0; }
@@ -926,10 +936,11 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 	   is already the whole width — so the answer goes back under the form. */
 	@media (max-width: 1100px) {
 		.od-split.is-split { grid-template-columns: minmax(0, 1fr); }
-		.od-split.is-split .od-head {
-			position: static;
-			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		.od-split.is-split .od-left { border-right: 0; }
+		.od-split.is-split .od-how {
+			border-bottom: var(--stroke) solid var(--secondary);
 		}
+		.od-split.is-split .od-steps { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 	}
 
 	@media (max-width: 560px) {
