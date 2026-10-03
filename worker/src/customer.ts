@@ -14,16 +14,21 @@ export interface Customer {
 	rollNumber: string;
 }
 
-/** IMS + 5 digits, e.g. IMS24101. Case-insensitive in, always uppercase out — the
- *  counter looks orders up by this, and two casings of one roll must never be two
- *  different-looking students. */
-export const ROLL_PATTERN = /^IMS\d{5}$/i;
-
-/** Shared with the roll-number lookup so the counter and the checkout agree on what a
- *  valid roll looks like, and on the single normalised form stored and queried. */
+/**
+ * Uppercased, de-spaced, and otherwise taken as given.
+ *
+ * No format check on purpose: IMS is only one of the roll schemes on campus, and
+ * anyone who can log in with an @iisertvm.ac.in address is entitled to buy. The email
+ * domain is the gate; the roll is just a label to find the order by. Uppercasing is the
+ * one rule that has to survive, because the counter looks orders up by this string and
+ * two casings of one roll must never be two different-looking students.
+ *
+ * The bounds below are sanity limits, not validation — an empty roll could not be
+ * looked up, and the column is not a place to park a kilobyte.
+ */
 export function normaliseRoll(v: unknown): string {
 	const roll = String(v ?? '').trim().replace(/\s+/g, '').toUpperCase();
-	if (!ROLL_PATTERN.test(roll)) throw bad('bad_roll_number', 'Enter your roll number as IMS followed by 5 digits');
+	if (!roll || roll.length > 20) throw bad('bad_roll_number', 'Enter your roll number');
 	return roll;
 }
 

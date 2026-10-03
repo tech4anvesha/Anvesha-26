@@ -46,10 +46,11 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				<div class="od-fields">
 					<label class="field">
 						<span class="field-label">Roll number</span>
+						{/* No pattern — IMS is not the only roll scheme on campus. Uppercased
+						    on the way in so it matches the stored form. */}
 						<input class="field-input roll-input" id="oRoll" name="roll_number" type="text"
-						       autocomplete="off" spellcheck="false" maxlength="8" placeholder="IMS24101"
-						       pattern="[Ii][Mm][Ss][0-9]{5}"
-						       title="IMS followed by 5 digits, e.g. IMS24101" required />
+						       autocomplete="off" spellcheck="false" maxlength="20" placeholder="IMS24101"
+						       required />
 					</label>
 					<label class="field">
 						<span class="field-label">Mobile you ordered with</span>

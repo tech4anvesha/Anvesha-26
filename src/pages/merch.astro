@@ -226,12 +226,12 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			</label>
 			<label class="field">
 				<span class="field-label">Roll number</span>
-				{/* The pattern spells IMS out per-character rather than using a case
-				    insensitive flag, which HTML patterns do not have. Typing is uppercased
+				{/* No pattern: IMS is not the only roll scheme on campus, and the
+				    @iisertvm.ac.in email is what decides who may buy. Typing is uppercased
 				    on the way in, so the box shows the same form the server stores. */}
 				<input class="field-input roll-input" id="fRoll" name="roll_number" type="text"
-				       autocomplete="off" spellcheck="false" maxlength="8" placeholder="IMS24101"
-				       pattern="[Ii][Mm][Ss][0-9]{5}" title="IMS followed by 5 digits, e.g. IMS24101" required />
+				       autocomplete="off" spellcheck="false" maxlength="20" placeholder="IMS24101"
+				       required />
 			</label>
 			<label class="field">
 				<span class="field-label">Phone</span>

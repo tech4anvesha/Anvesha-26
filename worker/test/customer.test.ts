@@ -19,8 +19,17 @@ describe('parseCustomer', () => {
 		assert.equal(parseCustomer({ ...ok, roll_number: ' ims 24101 ' }).rollNumber, 'IMS24101');
 	});
 
-	it('rejects a roll number that is not IMS + 5 digits', () => {
-		for (const roll of ['IMS2410', 'IMS241012', 'IMSABCDE', 'IM24101', '24101', 'BSMS24101', '', null])
+	it('accepts any roll scheme on campus, not just IMS', () => {
+		// The email domain decides who may buy; the roll is only a label to find the
+		// order by. A PhD or integrated-MSc roll must not be turned away at checkout.
+		for (const roll of ['BSMS24101', 'PHD2024001', 'ims24101', '24101', 'IMS241012'])
+			assert.equal(parseCustomer({ ...ok, roll_number: roll }).rollNumber, roll.toUpperCase(), `rejected ${roll}`);
+	});
+
+	it('still refuses an empty roll or a novel-length one', () => {
+		// Not format checks — an empty roll cannot be looked up, and the column is not
+		// a place to park a kilobyte.
+		for (const roll of ['', '   ', null, 'X'.repeat(21)])
 			assert.throws(() => parseCustomer({ ...ok, roll_number: roll }), /roll number/i, `accepted ${String(roll)}`);
 	});
 
