@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS login_validation (
   updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ---------- who is allowed in ----------
+-- The second factor beside the shared password: a roll number has to be here before
+-- the password is checked at all. See migrate-admin-roster.sql for why this is its own
+-- table rather than a column on login_validation, and for the seeding commands.
+CREATE TABLE IF NOT EXISTS admin_roster (
+  roll_number TEXT PRIMARY KEY,
+  person      TEXT,
+  active      INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+  added_by    TEXT,
+  added_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  note        TEXT
+);
+
 -- ---------- who came in, and when ----------
 -- One row per login. This is the audit trail: the password is shared, so this
 -- table is the only thing that says *which person* made a change.

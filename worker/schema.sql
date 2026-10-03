@@ -60,10 +60,9 @@ CREATE TABLE IF NOT EXISTS orders (
   -- needs to tell that apart from both to know which items are still owed.
   collection_status  TEXT    NOT NULL DEFAULT 'pending'
                        CHECK (collection_status IN ('pending', 'partial', 'collected')),
-  razorpay_order_id  TEXT,                      -- order_xxx, from Razorpay
-  -- IMS + 5 digits, uppercase. NULL until the buyer's details are taken at payment:
-  -- the row is created at checkout, before anyone has been asked who they are. This is
-  -- what the counter looks an order up by when a student has no QR to show.
+  -- Uppercase, otherwise taken as typed — IMS is not the only roll scheme on campus.
+  -- Set when the row is created, which is when payment proof is submitted. This is what
+  -- the counter looks an order up by when a student has no QR to show.
   roll_number        TEXT,
   -- JSON: { name, phone, email, rollNumber }. Written before payment on the gateway
   -- path, because Razorpay's webhook knows nothing about the buyer — without this a
@@ -93,8 +92,6 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at         TEXT
 );
 
--- the webhook arrives knowing only Razorpay's order id, so this lookup must be indexed
-CREATE INDEX IF NOT EXISTS idx_orders_razorpay ON orders (razorpay_order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status   ON orders (payment_status, collection_status);
 
 -- ---------- payments ----------

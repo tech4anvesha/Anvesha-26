@@ -93,21 +93,27 @@ export async function requireAdmin(env: Env, req: Request): Promise<AdminSession
 	// Expiry lives in the WHERE clause: a session that has aged out simply stops
 	// matching, so there is no separate sweep job to forget to run.
 	const row = await env.DB.prepare(
-		`SELECT a.id, a.name, a.roll_number, a.collegemail, v.active
+		`SELECT a.id, a.name, a.roll_number, a.collegemail, v.active, r.active AS rostered
 		   FROM admin_login a, login_validation v
+		   LEFT JOIN admin_roster r ON r.roll_number = a.roll_number
 		  WHERE a.session_token = ?
 		    AND a.logout_time IS NULL
 		    AND a.login_time > datetime('now', ?)
 		    AND v.id = 1`,
 	)
 		.bind(token, `-${SESSION_HOURS} hours`)
-		.first<AdminSession & { active: number }>();
+		.first<AdminSession & { active: number; rostered: number | null }>();
 
 	// A missing row is either a bad/expired token or an unconfigured gate; both mean
 	// "not signed in" and neither should say which, so the caller learns nothing about
 	// whether a token was valid.
 	if (!row) throw unauthorized('Session expired — sign in again');
 	if (row.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
+	// Re-read on every request for the same reason `active` is: taking someone off the
+	// roster has to end the session they already hold. A check that only stopped new
+	// logins would leave a removed volunteer with twelve more hours of full access.
+	if (row.rostered !== 1)
+		throw new ApiError(403, 'not_rostered', 'This roll number is no longer allowed into the panel');
 
 	return { id: row.id, name: row.name, roll_number: row.roll_number, collegemail: row.collegemail };
 }
@@ -132,20 +138,40 @@ export async function adminLogin(env: Env, req: Request, cors: Cors): Promise<Re
 		throw bad('bad_email', 'Use your @iisertvm.ac.in email address');
 	if (!password) throw bad('bad_password', 'Enter the admin password');
 
+	// Both halves of the gate in one round trip. The roster is LEFT JOINed rather than
+	// filtered on, so a roll that is not on it comes back as a NULL instead of no row —
+	// the difference between "not allowed" and "panel unconfigured" has to stay visible
+	// here even though neither is reported to the caller.
 	const gate = await env.DB.prepare(
-		`SELECT password_hash, password_salt, active FROM login_validation WHERE id = 1`,
-	).first<{ password_hash: string; password_salt: string; active: number }>();
+		`SELECT v.password_hash, v.password_salt, v.active, r.active AS rostered
+		   FROM login_validation v
+		   LEFT JOIN admin_roster r ON r.roll_number = ?
+		  WHERE v.id = 1`,
+	)
+		.bind(rollNumber)
+		.first<{ password_hash: string; password_salt: string; active: number; rostered: number | null }>();
 	if (!gate) throw new ApiError(503, 'not_configured', 'No admin password is set');
 
 	// Checked before the password so a disabled panel cannot be probed for a valid one.
 	if (gate.active !== 1) throw new ApiError(403, 'admin_disabled', 'Admin access is switched off');
 
+	// Derived even when the roll is not on the roster, and compared either way. The
+	// password is SHARED, so anyone holding it could otherwise walk IMS24001, IMS24002,
+	// … and read off the roster from which roll stops saying "not authorised" — and that
+	// roll is all they would then need. One answer for both failures, and the same work
+	// done before it, so neither the wording nor the timing says which half failed.
 	const attempt = await hashPassword(password, gate.password_salt);
-	// Constant-time: a plain === leaks how many leading characters were right.
-	if (!timingSafeEqual(attempt, gate.password_hash)) {
-		// Deliberately vague, and deliberately not logged with the attempted password.
-		console.warn('admin: failed login for', email);
-		throw unauthorized('Wrong password');
+	const passwordOk = timingSafeEqual(attempt, gate.password_hash);
+	const rosterOk = gate.rostered === 1;
+
+	if (!passwordOk || !rosterOk) {
+		// The specific reason goes to the log, never to the response: an admin who cannot
+		// get in needs `wrangler tail` to tell them which of the two it was.
+		console.warn(
+			`admin: failed login for ${email} (${rollNumber}) —`,
+			!rosterOk ? (gate.rostered === 0 ? 'roll suspended' : 'roll not on roster') : 'wrong password',
+		);
+		throw unauthorized('Those details were not accepted');
 	}
 
 	const token = randomId('ADM_');
@@ -881,9 +907,9 @@ export async function adminOrderProof(
 /**
  * The decision that turns evidence into a paid order, or sends it back.
  *
- * Confirm follows settleOrder's discipline exactly, and for the same reason: the UPDATE
- * is guarded on `payment_status = 'unpaid'` and the mail is sent only when that UPDATE
- * actually changed a row. An admin double-clicking CONFIRM — or two admins working the
+ * Confirm is the only settlement path left now that the gateway handlers are gone, and
+ * it keeps their discipline: the UPDATE is guarded on `payment_status = 'unpaid'` and the
+ * mail is sent only when that UPDATE actually changed a row. An admin double-clicking CONFIRM — or two admins working the
  * queue at once — is precisely the double-delivery case that guard exists for.
  *
  * Reject leaves payment_status at 'unpaid' rather than setting 'failed', so the student

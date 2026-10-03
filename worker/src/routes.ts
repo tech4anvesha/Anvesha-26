@@ -4,14 +4,6 @@ import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, 
 import { type Customer, normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import {
-	fetchPayment,
-	type PaymentEntity,
-	paymentFromEvent,
-	verifyCheckoutSignature,
-	verifyWebhookSignature,
-	type WebhookEvent,
-} from './razorpay.ts';
-import {
 	ApiError,
 	EXT,
 	broadcastChange,
@@ -292,156 +284,7 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 	);
 }
 
-/** What settleOrder needs off an order row. Named because three queries select it. */
-interface SettleableOrder {
-	order_id: string;
-	order_info: string;
-	payment_status: string;
-	total_price_paise: number;
-	customer_info: string | null;
-}
 
-// ============================================================
-// 4. POST /api/webhooks/razorpay — payment result, straight from Razorpay
-// ============================================================
-export async function razorpayWebhook(env: Env, req: Request, ctx?: ExecutionContext): Promise<Response> {
-	// Raw text, not req.json(): the HMAC is over the exact bytes Razorpay sent.
-	const raw = await req.text();
-	// Cap before hashing: HMAC over an unbounded body is CPU an unauthenticated caller
-	// would otherwise get to spend for free, since the signature check comes after it.
-	if (raw.length > 128_000) {
-		console.warn('razorpay webhook: oversized body', raw.length);
-		return json({ error: 'payload_too_large' }, { status: 413 });
-	}
-	const ok = await verifyWebhookSignature(env, raw, req.headers.get('X-Razorpay-Signature'));
-	if (!ok) {
-		console.warn('razorpay webhook: bad signature');
-		return json({ error: 'invalid_signature' }, { status: 401 });
-	}
-
-	// 400, not a thrown 500: a malformed body is not something a retry can fix, and a
-	// 5xx makes Razorpay redeliver the same broken event for days.
-	let body: WebhookEvent;
-	try {
-		body = JSON.parse(raw) as WebhookEvent;
-	} catch {
-		console.warn('razorpay webhook: body is not valid JSON');
-		return json({ error: 'invalid_json' }, { status: 400 });
-	}
-	const entity = paymentFromEvent(body);
-
-	// Audit first, act second — so a crash below still leaves a record of what arrived.
-	await env.DB.prepare(`INSERT INTO webhook_events (event_type, payload) VALUES (?, ?)`)
-		.bind(body.event ?? 'unknown', raw)
-		.run();
-
-	if (!entity) return json({ ok: true, ignored: 'no payment entity' });
-
-	const order = await env.DB.prepare(
-		`SELECT order_id, order_info, payment_status, total_price_paise, customer_info
-		   FROM orders WHERE razorpay_order_id = ?`,
-	)
-		.bind(entity.order_id)
-		.first<SettleableOrder>();
-
-	// 200, not 404. A non-2xx makes Razorpay retry this event for days, and an
-	// unknown order is not something a retry can fix.
-	if (!order) {
-		console.warn('razorpay webhook: no local order for', entity.order_id);
-		return json({ ok: true, ignored: 'unknown order' });
-	}
-
-	const paid = body.event === 'payment.captured' || entity.status === 'captured';
-
-	// What was actually captured has to match what was owed. A valid signature only
-	// proves Razorpay sent the event, not that the right amount arrived — without this
-	// a ₹1 capture against a ₹1200 order would mark it paid and print a collection QR.
-	// Short-paid orders are left unpaid and flagged rather than failed: the money did
-	// arrive, so this needs a human to reconcile, not an automatic rejection.
-	if (paid && entity.amount !== order.total_price_paise) {
-		console.error(
-			`razorpay webhook: AMOUNT MISMATCH on ${order.order_id} — captured ${entity.amount}, owed ${order.total_price_paise}`,
-		);
-		return json({ ok: true, ignored: 'amount mismatch', order_id: order.order_id });
-	}
-
-	const status = paid ? 'paid' : 'failed';
-
-	// Already settled — Razorpay redelivering an event must not rewrite it.
-	if (order.payment_status === status) return json({ ok: true, idempotent: true });
-
-	await settleOrder(env, order, status, entity, ctx);
-
-	return json({ ok: true, order_id: order.order_id, payment_status: status });
-}
-
-/**
- * Writes an order's payment outcome. The ONE place that does.
- *
- * Two callers reach it — Razorpay's webhook and the browser's success callback — and
- * either can arrive first, or twice, or alone. That is why nothing here asks whether
- * the work is already done: the conditional UPDATE and INSERT OR IGNORE make a second
- * run a no-op at the database rather than a check the caller has to remember.
- *
- * The confirmation mail is sent from here for the same reason. Hanging it off the
- * caller is how the gateway path ended up silent while the counter path mailed — one
- * writer, one mail.
- */
-async function settleOrder(
-	env: Env,
-	order: SettleableOrder,
-	status: 'paid' | 'failed',
-	entity: PaymentEntity,
-	ctx?: ExecutionContext,
-): Promise<void> {
-	const statements = [
-		env.DB.prepare(
-			`UPDATE orders SET payment_status = ?, updated_at = datetime('now')
-			  WHERE order_id = ? AND payment_status = 'unpaid'`,
-		).bind(status, order.order_id),
-	];
-
-	if (status === 'paid') {
-		// INSERT OR IGNORE + the UNIQUE index on razorpay_transaction_id: a duplicate
-		// delivery is a no-op rather than a second payment row for one transaction.
-		statements.push(
-			env.DB.prepare(
-				`INSERT OR IGNORE INTO payments (payment_id, order_id, razorpay_transaction_id, transaction_info)
-				 VALUES (?, ?, ?, ?)`,
-			).bind(newPaymentId(), order.order_id, entity.id, JSON.stringify(entity)),
-		);
-	}
-
-	// batch() is a transaction: the order flips and the payment is recorded together,
-	// or neither happens.
-	const [flip] = await env.DB.batch(statements);
-
-	if (status !== 'paid' || !order.customer_info) return;
-
-	// The UPDATE is guarded on payment_status = 'unpaid', so `changes` is 1 for the
-	// caller that actually settled the order and 0 for anyone who lost the race. Both
-	// callers check the status before getting here, but that check and this write are
-	// not atomic together — the webhook and the browser's callback can both read
-	// 'unpaid' and both arrive. Mailing on `changes` rather than on reaching this line
-	// is what stops the shopper getting two receipts for one payment.
-	if (!flip.meta.changes) return;
-
-	// Only after the batch commits: a receipt must never describe an order that failed
-	// to save.
-	const customer = JSON.parse(order.customer_info) as { name?: string; email?: string };
-	if (!customer.email) return;
-
-	const mail = sendOrderEmail(env, {
-		to: customer.email,
-		name: customer.name ?? '',
-		orderId: order.order_id,
-		transactionId: entity.id,
-		items: JSON.parse(order.order_info) as PricedLine[],
-		totalPaise: order.total_price_paise,
-	});
-	if (ctx) ctx.waitUntil(mail);
-	else await mail;
-}
 
 // ============================================================
 // 5. GET /api/orders/:order_id — receipt + QR payload for the student
@@ -865,114 +708,7 @@ export async function validateCustomer(
 	return json({ ok: true, order_id: orderId }, {}, cors);
 }
 
-// ============================================================
-// 10. POST /api/verify-payment — the browser's half of a Razorpay payment
-// ============================================================
-/**
- * Confirms a payment the shopper's browser says succeeded, and settles the order.
- *
- * Three checks, in order, and the order matters:
- *
- *   1. The signature. HMAC over `order_id|payment_id` with RAZORPAY_KEY_SECRET —
- *      proof the ids came from Razorpay and not from the shopper's devtools.
- *   2. The payment, read back from Razorpay. A valid signature says these ids are
- *      real; it says nothing about how much was captured, or whether it was captured
- *      at all. Only Razorpay can answer that, so the receipt is written from what it
- *      reports rather than from anything the browser sent.
- *   3. The amount, against what the order was priced at server-side.
- *
- * This exists for speed, not for trust: the webhook settles the same order with the
- * same function and arrives whether or not the browser survives. Whichever lands first
- * wins and the other is a no-op. Without this the shopper would stare at a spinner
- * waiting on a server-to-server call they cannot see.
- */
-export async function verifyPayment(
-	env: Env,
-	req: Request,
-	cors: Cors,
-	ctx?: ExecutionContext,
-): Promise<Response> {
-	await requireBudget(env, req, 'pay');
 
-	const body = await readJson<{
-		razorpay_order_id?: string;
-		razorpay_payment_id?: string;
-		razorpay_signature?: string;
-	}>(req);
-	const rzpOrderId = String(body.razorpay_order_id ?? '');
-	const paymentId = String(body.razorpay_payment_id ?? '');
-	const signature = String(body.razorpay_signature ?? '');
-	if (!rzpOrderId || !paymentId || !signature)
-		throw bad('missing_fields', 'razorpay_order_id, razorpay_payment_id and razorpay_signature are all required');
-
-	if (!(await verifyCheckoutSignature(env, rzpOrderId, paymentId, signature))) {
-		console.warn('verify-payment: bad signature for', rzpOrderId);
-		throw bad('invalid_signature', 'This payment could not be verified');
-	}
-
-	const order = await env.DB.prepare(
-		`SELECT order_id, order_info, payment_status, total_price_paise, customer_info
-		   FROM orders WHERE razorpay_order_id = ?`,
-	)
-		.bind(rzpOrderId)
-		.first<SettleableOrder>();
-	if (!order) throw notFound('No such order');
-
-	// The webhook may have beaten us here. Nothing to do but hand back the receipt.
-	if (order.payment_status === 'paid') return json(await receiptFor(env, order, true), {}, cors);
-
-	const entity = await fetchPayment(env, paymentId);
-
-	// The signature covers the pair, so this should be impossible — but it is one
-	// comparison standing between a valid signature for order A and a receipt on
-	// order B, and the check costs nothing.
-	if (entity.order_id !== rzpOrderId) {
-		console.error('verify-payment: payment', paymentId, 'belongs to', entity.order_id, 'not', rzpOrderId);
-		throw bad('order_mismatch', 'This payment does not belong to this order');
-	}
-
-	// Authorised but not yet captured. Real, and it will almost certainly capture a
-	// moment later — but an order is not paid until the money is actually taken, so
-	// this returns unsettled and lets the webhook finish the job.
-	if (entity.status !== 'captured')
-		return json({ ok: true, settled: false, payment_status: 'unpaid', order_id: order.order_id }, {}, cors);
-
-	// Same guard the webhook applies, for the same reason: a signature proves Razorpay
-	// sent this, not that the right amount arrived. Flagged for a human rather than
-	// failed — the money did move.
-	if (entity.amount !== order.total_price_paise) {
-		console.error(
-			`verify-payment: AMOUNT MISMATCH on ${order.order_id} — captured ${entity.amount}, owed ${order.total_price_paise}`,
-		);
-		throw new ApiError(409, 'amount_mismatch', 'The amount paid does not match this order');
-	}
-
-	await settleOrder(env, order, 'paid', entity, ctx);
-
-	return json(await receiptFor(env, order, false), { status: 201 }, cors);
-}
-
-/** The receipt shape the paid screen renders, read back after settling so it reports
- *  what the database holds rather than what this request hoped to write. */
-async function receiptFor(env: Env, order: SettleableOrder, idempotent: boolean) {
-	const payment = await env.DB.prepare(
-		`SELECT razorpay_transaction_id FROM payments WHERE order_id = ?`,
-	)
-		.bind(order.order_id)
-		.first<{ razorpay_transaction_id: string | null }>();
-
-	return {
-		ok: true,
-		settled: true,
-		idempotent,
-		order_id: order.order_id,
-		transaction_id: payment?.razorpay_transaction_id ?? null,
-		payment_status: 'paid',
-		total_price_paise: order.total_price_paise,
-		items: JSON.parse(order.order_info) as PricedLine[],
-		customer: order.customer_info ? JSON.parse(order.customer_info) : null,
-	};
-}
 
 // ============================================================
 // 11. POST /api/orders/:order_id/payment — the student's evidence
@@ -1113,9 +849,9 @@ export async function submitPayment(
 		? await env.DB
 				.prepare(
 					`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
-					                     collection_status, razorpay_order_id, roll_number, customer_info,
+					                     collection_status, roll_number, customer_info,
 					                     review_status, payment_ref, payment_proof_path, payment_submitted_at)
-					 VALUES (?, ?, ?, 'unpaid', 'pending', NULL, ?, ?, 'pending', ?, ?, datetime('now'))
+					 VALUES (?, ?, ?, 'unpaid', 'pending', ?, ?, 'pending', ?, ?, datetime('now'))
 					 ON CONFLICT (order_id) DO NOTHING`,
 				)
 				.bind(

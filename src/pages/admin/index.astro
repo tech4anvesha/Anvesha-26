@@ -26,7 +26,11 @@ import '../../styles/admin-controls.css';
 			</label>
 			<label class="field">
 				<span class="field-label">Roll number</span>
-				<input class="field-input" id="fRoll" name="roll_number" type="text"
+				{/* Caps only. text-transform alone would be a lie — it restyles the glyphs
+				    and leaves value lowercase — so the JS below rewrites the value itself
+				    and the CSS is only there so nothing flickers between keystrokes. */}
+				<input class="field-input roll-caps" id="fRoll" name="roll_number" type="text"
+				       autocomplete="off" spellcheck="false" autocapitalize="characters"
 				       maxlength="32" required />
 			</label>
 			<label class="field">
@@ -58,6 +62,16 @@ import '../../styles/admin-controls.css';
 	const err = document.getElementById('loginErr') as HTMLElement;
 	const $ = <T extends HTMLElement = HTMLInputElement>(id: string) => document.getElementById(id) as T;
 
+	// Rewritten as it is typed, not just on submit, so what the admin reads back is what
+	// gets sent. The caret is restored because assigning to .value moves it to the end,
+	// which makes editing the middle of a roll impossible.
+	const roll = $('fRoll');
+	roll.addEventListener('input', () => {
+		const at = roll.selectionStart;
+		roll.value = roll.value.toUpperCase();
+		roll.setSelectionRange(at, at);
+	});
+
 	form.onsubmit = async (e) => {
 		e.preventDefault();
 		btn.disabled = true;
@@ -70,7 +84,7 @@ import '../../styles/admin-controls.css';
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name: $('fName').value,
-					roll_number: $('fRoll').value,
+					roll_number: $('fRoll').value.toUpperCase(),
 					collegemail: $('fEmail').value,
 					password: $('fPassword').value,
 				}),
@@ -114,4 +128,12 @@ import '../../styles/admin-controls.css';
 
 	/* Control chassis comes from styles/admin-controls.css — only the size differs here. */
 	.loginbtn { padding: 16px; margin-top: 4px; font-size: 12.5px; }
+
+	/* Belt to the JS braces: this only keeps a lowercase keystroke from showing for the
+	   one frame before the input handler rewrites it. The value is uppercased in JS —
+	   text-transform never touches it. Mono so IMS24038 and IMS24O38 look different. */
+	.roll-caps {
+		text-transform: uppercase;
+		font-family: 'DM Mono', ui-monospace, monospace; letter-spacing: .08em;
+	}
 </style>

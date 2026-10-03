@@ -5,7 +5,6 @@
  *   GET  /api/merch/:id/image           image, streamed from R2
  *   POST /api/checkout                  price the cart (a quote — writes nothing)
  *   POST /api/pay                       interim counter payment (no gateway)
- *   POST /api/webhooks/razorpay         payment result (Razorpay -> us)
  *   GET  /api/orders/:order_id          receipt + QR payload
  *   GET  /api/distribution/:id          is this counter link live?
  *   POST /api/distribution/:id/scan     verify a scanned QR      [session in url]
@@ -47,9 +46,7 @@ import {
 	abandonOrder,
 	merchImage,
 	orderLookup,
-	razorpayWebhook,
 	submitPayment,
-	verifyPayment,
 } from './routes.ts';
 import { ApiError, bad, corsHeaders, type Env, json, notFound, requireBudget } from './util.ts';
 
@@ -75,16 +72,11 @@ export default {
 
 			if (method === 'POST' && pathname === '/api/checkout') return await checkout(env, req, cors);
 
-			// No CORS headers here on purpose: Razorpay calls this server-to-server,
-			// and no browser origin should be able to reach it.
-			if (method === 'POST' && pathname === '/api/webhooks/razorpay')
-				return await razorpayWebhook(env, req, ctx);
-
-			// The browser's half of a gateway payment: signature in, receipt out. The
-			// webhook above is what an order's paid state actually rests on; this only
-			// stops the shopper watching a spinner until it arrives.
-			if (method === 'POST' && pathname === '/api/verify-payment')
-				return await verifyPayment(env, req, cors, ctx);
+			// /api/webhooks/razorpay and /api/verify-payment are gone with the
+			// razorpay_order_id column they both looked orders up by. The signature and
+			// API helpers they used are still in src/razorpay.ts, untouched: re-adding a
+			// gateway means a migration to put that column back and two handlers to
+			// rebuild on top of them, not a rewrite.
 
 			// Before the /:order_id patterns below, or "lookup" is read as an order id.
 			if (method === 'POST' && pathname === '/api/orders/lookup')
