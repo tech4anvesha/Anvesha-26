@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "worker/src/admin.ts": {
-    "mtime": 1791053592.1369739,
-    "ast_hash": "f2a24a93102fe49b312cd4a937da569d",
+    "mtime": 1791055014.642348,
+    "ast_hash": "14541fb5715d209e518e690db4775cff",
     "semantic_hash": ""
   },
   "worker/src/distribution.ts": {
@@ -830,8 +830,8 @@
     "semantic_hash": ""
   },
   "worker/test/roster.test.ts": {
-    "mtime": 1791053634.9569721,
-    "ast_hash": "def6b3ca65637f01c20ca414df0007a3",
+    "mtime": 1791055024.6135306,
+    "ast_hash": "d65d161e445709b00c8a459f48572157",
     "semantic_hash": ""
   }
 }

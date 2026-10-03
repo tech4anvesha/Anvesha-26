@@ -61,6 +61,12 @@ const THEME = {
  * TODO(anvesha): ask the remaining eight for a PNG.
  */
 const SPONSORS = [
+	// First, so it renders as section 01. colsFor(1) gives a single column, which makes
+	// the cell full width — the title slot gets the top of the sheet and the widest tile
+	// on it without needing a rule of its own.
+	{ cat: 'Title Sponsor', of: [
+		{ name: 'SciAstra', logo: '/img/sponsors/sciastra.png' },
+	] },
 	{ cat: '3D Printing & Prototyping Partner', of: [
 		{ name: '69 Rigs', logo: '/img/sponsors/69rigs.png' },
 	] },
@@ -272,6 +278,18 @@ const TICKER = [
 					<canvas class="hw-canvas" aria-hidden="true"></canvas>
 				</span>
 			</h1>
+
+			{/* The title sponsor belongs beside the fest's name, not down in the sponsor
+			    sheet with the other thirteen — that is what the title slot buys. Sized off
+			    the eyebrow above so the stack reads label → ANVESHA'26 → label rather than
+			    three weights competing. alt="" on the mark because the name is set in type
+			    right beside it: a screen reader should say "SciAstra" once, not twice. */}
+			<p class="home-sponsor" data-reveal>
+				<span class="hs-label">Sponsored by</span>
+				<img class="hs-logo" src="/img/sponsors/sciastra.png" alt=""
+				     width="345" height="342" decoding="async" />
+				<span class="hs-name">SciAstra</span>
+			</p>
 
 			{/* Same rule—mark—rule divider, with a bouncing arrow where the ✕ was: the hero
 			    now fills the whole card, so nothing below it is visible on open and this is
@@ -1187,6 +1205,25 @@ const TICKER = [
 	.home-head .home-alt:hover {
 		background: var(--secondary); color: var(--primary); border-color: var(--secondary);
 	}
+	/* Title sponsor line. Deliberately quieter than the eyebrow it mirrors: that one
+	   announces who is putting the fest on, this one credits who paid for it, and the
+	   wordmark between them has to stay the loudest thing on the plate. */
+	.home-sponsor {
+		display: flex; align-items: center; justify-content: center;
+		gap: 9px; margin: 14px 0 0;
+		font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+		color: color-mix(in srgb, var(--secondary) 62%, transparent);
+	}
+	/* The mark is a dark disc on transparency. A hairline ring keeps its edge from
+	   dissolving wherever the artwork behind it goes dark, which it does on this crop. */
+	.hs-logo {
+		display: block; flex: none; width: 28px; height: 28px; border-radius: 50%;
+		box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--secondary) 20%, transparent);
+	}
+	/* Full ink against the washed label, so the eye lands on the name and not on
+	   "sponsored by" — the two are one line and only one of them is the point. */
+	.hs-name { font-weight: 800; letter-spacing: .1em; color: var(--secondary); }
+
 	/* The shared .eyebrow puts a rule on the left only, which reads fine ranged left but
 	   pushes the text right of centre in a centred stack. A matching rule on the right
 	   balances it — measured 7px off before, 0 after. */
@@ -1382,6 +1419,11 @@ const TICKER = [
 		   than the flare, and black on it measured close to nothing. The rules either side
 		   stay --iris — they read fine on the dark and tie back to the year and arrow. */
 		.home-head .eyebrow { color: var(--primary); }
+		/* Same inversion, same reason — and the ring goes paper too or it disappears
+		   into the nebula it was drawn to separate the mark from. */
+		.home-sponsor { color: color-mix(in srgb, var(--primary) 72%, transparent); }
+		.hs-name { color: var(--primary); }
+		.hs-logo { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--primary) 34%, transparent); }
 
 		/* Side by side, always. Wrapping put one button under the other and cost the
 		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
@@ -1396,6 +1438,8 @@ const TICKER = [
 		   scrollable middle gets, which is the point of the fixed layout. */
 		.home-head { padding-top: 14px; padding-bottom: 10px; }
 		.home-x { margin-top: 12px; gap: 9px; }
+		.home-sponsor { margin-top: 10px; font-size: 10px; gap: 7px; }
+		.hs-logo { width: 22px; height: 22px; }
 		.home-x-rule { width: clamp(26px, 12vw, 60px); }
 		.eyebrow { margin-bottom: 10px; }
 	}

@@ -23,7 +23,7 @@
   "21": "smoke.mjs",
   "22": "admin/merch.astro",
   "23": "set-admin-password.mjs",
-  "24": "lib/admin.ts",
+  "24": "pages/index.astro",
   "25": "CatalogueHub",
   "26": "events.astro",
   "27": "jsqr",
@@ -40,5 +40,6 @@
   "38": "event-types.ts",
   "39": "onCatalogueChange",
   "40": "razorpay.ts",
-  "41": "AdminLayout.astro"
+  "41": "apply.astro",
+  "42": "roster.test.ts"
 }

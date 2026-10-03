@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/pages/admin/index.astro": {
-    "mtime": 1786649741.5102315,
-    "ast_hash": "6864db15d953cb6635c3bc5f736c8238",
+    "mtime": 1791053615.9592729,
+    "ast_hash": "eac6a923116481cd81a0994fef3bfb4a",
     "semantic_hash": ""
   },
   "src/pages/admin/merch.astro": {
@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "worker/src/admin.ts": {
-    "mtime": 1791053101.518298,
-    "ast_hash": "883cf63e9cd5178c99deeef72d4fba6e",
+    "mtime": 1791053592.1369739,
+    "ast_hash": "f2a24a93102fe49b312cd4a937da569d",
     "semantic_hash": ""
   },
   "worker/src/distribution.ts": {
@@ -827,6 +827,11 @@
   "public/img/sponsors/wow-momo.png": {
     "mtime": 1788786335.611662,
     "ast_hash": "e88e0e44670f5db1f1c0308336a58c94",
+    "semantic_hash": ""
+  },
+  "worker/test/roster.test.ts": {
+    "mtime": 1791053634.9569721,
+    "ast_hash": "def6b3ca65637f01c20ca414df0007a3",
     "semantic_hash": ""
   }
 }
