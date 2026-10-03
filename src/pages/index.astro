@@ -1419,17 +1419,24 @@ const TICKER = [
 		   than the flare, and black on it measured close to nothing. The rules either side
 		   stay --iris — they read fine on the dark and tie back to the year and arrow. */
 		.home-head .eyebrow { color: var(--primary); }
-		/* Same inversion, same reason — and the ring goes paper too or it disappears
-		   into the nebula it was drawn to separate the mark from. */
-		.home-sponsor { color: color-mix(in srgb, var(--primary) 72%, transparent); }
-		.hs-name { color: var(--primary); }
-		.hs-logo { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--primary) 34%, transparent); }
+		/* NOT inverted, unlike the eyebrow directly above it. That line sits at the top of
+		   the plate where this crop is the dark nebula and needs paper to survive; the
+		   sponsor line sits below the wordmark, where the artwork has already gone light,
+		   and white washed out there. So it stays ink — a little stronger than the desktop
+		   62% to hold its own against the texture. */
+		.home-sponsor { color: color-mix(in srgb, var(--secondary) 76%, transparent); }
+		.hs-name { color: var(--secondary); }
+		.hs-logo { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--secondary) 24%, transparent); }
 
 		/* Side by side, always. Wrapping put one button under the other and cost the
 		   scroller a whole row; nowrap plus a shared basis keeps them on one line and
 		   equal, however long the labels get. */
 		.home-actions { flex-wrap: nowrap; gap: 9px; margin-top: 18px; }
-		.home-actions > a { flex: 1 1 0; min-width: 0; justify-content: center; }
+		/* `> *`, not `> a`: EVENTS is an anchor but SPONSORS opens a dialog and so is a
+		   <button>. Matching only the anchor gave EVENTS `flex: 1 1 0` and left SPONSORS
+		   at its intrinsic width, so one button ate the row and the pair looked lopsided.
+		   The child that needs equal sizing here is "both of them", regardless of tag. */
+		.home-actions > * { flex: 1 1 0; min-width: 0; justify-content: center; }
 		.cta, .home-alt { padding: 14px 10px; font-size: 11px; letter-spacing: .1em; }
 		/* The arrow is the first thing to go when the two share a line. */
 		.cta > span:last-child { display: none; }
