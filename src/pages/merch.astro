@@ -1091,10 +1091,9 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		function resetProgress() { clearInterval(segTimer); setSegs(0); }
 		resetProgress();
 
+		// The id quoted by /api/checkout. Nothing exists on the server under it until
+		// SUBMIT, so walking away from the popup leaves nothing to clean up.
 		let currentOrder: string | null = null;
-		// Whether the payment QR has been on screen for this order. Once it has, the
-		// order is no longer disposable: the student may have paid against it already.
-		let sawQr = false;
 
 		// The popup has four faces; `face` decides which one shows. Driving them all from
 		// one call means two can never be on screen together.
@@ -1118,30 +1117,6 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		}
 		setFace('details');
 
-		/**
-		 * Drops an order the student walked away from.
-		 *
-		 * The row is created at checkout, before any money moves, so an abandoned basket
-		 * would otherwise sit in the admin's queue looking like work. The server only
-		 * ever removes a draft, so the worst case is a no-op.
-		 *
-		 * ONLY when the QR was never shown. Once it has been, the student may have paid
-		 * in their banking app and simply not come back to submit the reference — and
-		 * deleting the order they paid against would leave them with nothing to attach
-		 * proof to. Those stay, and the admin panel hides them from the queue instead.
-		 *
-		 * keepalive, because this usually fires as the tab is being closed.
-		 */
-		function abandonOrder() {
-			if (!currentOrder || sawQr) return;
-			const id = currentOrder;
-			currentOrder = null;
-			void fetch(`${API}/api/orders/${encodeURIComponent(id)}`, {
-				method: 'DELETE',
-				keepalive: true,
-			}).catch(() => { /* a browser on its way out has nothing to do with a failure */ });
-		}
-
 		function openPay(on: boolean) {
 			payOpen = on;
 			payModal.setAttribute('aria-hidden', String(!on));
@@ -1153,11 +1128,8 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			gsap.to(scrim, { autoAlpha: on || cartOpen ? 1 : 0, duration: rm ? 0 : 0.22 });
 			// Closing always resets to the form: an order already submitted must not
 			// reopen on its receipt and invite a second submission on a stale id.
-			if (!on) { abandonOrder(); setFace('details'); currentOrder = null; sawQr = false; }
+			if (!on) { setFace('details'); currentOrder = null; }
 		}
-
-		// Covers the other way out: closing the tab outright, rather than the popup.
-		addEventListener('pagehide', () => { if (payOpen) abandonOrder(); }, { signal });
 		$('payClose').onclick = () => openPay(false);
 
 		// ---- 1. cart -> order ----
@@ -1203,9 +1175,10 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		};
 
 		// ---- 2. details -> pay ----
-		// NEXT, not PAY: nothing is charged here. The details are attached to the order
-		// so that whatever happens next — payment, abandonment, a rejected screenshot —
-		// the order already knows whose it is.
+		// NEXT, not PAY: nothing is charged here, and nothing is stored either. The
+		// details are only checked, by the server that owns the rules for them, so a
+		// mistyped email is caught here rather than after the student has paid. They
+		// travel for real with the submission in step 3.
 		payForm.onsubmit = async (e) => {
 			e.preventDefault();
 			if (!currentOrder) return;
@@ -1230,7 +1203,6 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				if (!res.ok) throw new Error(data.message || data.error || 'Please check your details');
 
 				buyerName = fName.value.trim();
-				sawQr = true;
 				setFace('pay');
 				fTxn.focus();
 			} catch (err) {
@@ -1367,6 +1339,15 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				const body = new FormData();
 				body.append('payment_ref', fTxn.value.trim());
 				body.append('proof', file);
+				// The order does not exist on the server yet — this request is what creates
+				// it. So the bag and the buyer ride along, exactly as they were sent to
+				// /api/checkout for the quote. The server re-prices from the catalogue, so
+				// these are a statement of what was wanted, not of what it costs.
+				body.append('cart', JSON.stringify(Object.values(cart)));
+				body.append('customer', JSON.stringify({
+					name: fName.value, roll_number: fRoll.value,
+					phone: fPhone.value, email: fEmail.value,
+				}));
 
 				const res = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/payment`, {
 					method: 'POST',
@@ -1392,7 +1373,6 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				// Submitted: the order belongs to the review queue now, and closing the
 				// popup must not try to take it back.
 				currentOrder = null;
-				sawQr = false;
 				setFace('received');
 			} catch (err) {
 				// Back to the pay step with the reference intact — a rejected file or a

@@ -1,7 +1,7 @@
 /** Endpoint handlers. Each one throws ApiError; index.ts turns that into a response. */
 
 import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
-import { normaliseRoll, parseCustomer } from './customer.ts';
+import { type Customer, normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import {
 	fetchPayment,
@@ -264,18 +264,17 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 
 	const priced: PricedCart = priceCart(lines, rows);
 
+	// A QUOTE, not an order. Nothing is written here on purpose: most people who click
+	// CHECKOUT never pay, and a row per click filled the admin queue with carts that
+	// were only ever browsed. The row is created by submitPayment, when there is a
+	// transaction reference and a screenshot to put in it — that is the first moment
+	// anything happened worth recording.
+	//
+	// The id is minted here anyway, because the student pays against it: it goes into
+	// the UPI note so the bank narration matches the order. submitPayment re-prices the
+	// cart from the catalogue rather than trusting what comes back, so holding this on
+	// the client costs nothing.
 	const orderId = newOrderId();
-
-	// razorpay_order_id stays NULL: there is no gateway. Minting a stub id instead would
-	// put rows in the table that look like real gateway orders and confuse later
-	// reconciliation.
-	await env.DB.prepare(
-		`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
-		                     collection_status, razorpay_order_id)
-		 VALUES (?, ?, ?, 'unpaid', 'pending', NULL)`,
-	)
-		.bind(orderId, JSON.stringify(priced.lines), priced.total_price_paise)
-		.run();
 
 	return json(
 		{
@@ -848,7 +847,7 @@ export async function directPay(
  * Rejected once the order is settled: the name on a paid order is part of the record,
  * and this endpoint takes no proof of who is calling.
  */
-export async function attachCustomer(
+export async function validateCustomer(
 	env: Env,
 	req: Request,
 	orderId: string,
@@ -857,21 +856,11 @@ export async function attachCustomer(
 	await requireBudget(env, req, 'checkout');
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
-	const customer = parseCustomer(await readJson(req)); // throws before anything is written
-
-	const order = await env.DB.prepare(`SELECT payment_status FROM orders WHERE order_id = ?`)
-		.bind(orderId)
-		.first<{ payment_status: string }>();
-	if (!order) throw notFound('No such order');
-	if (order.payment_status !== 'unpaid')
-		throw new ApiError(409, 'order_settled', 'This order has already been settled');
-
-	await env.DB.prepare(
-		`UPDATE orders SET roll_number = ?, customer_info = ?, updated_at = datetime('now')
-		  WHERE order_id = ? AND payment_status = 'unpaid'`,
-	)
-		.bind(customer.rollNumber, JSON.stringify(customer), orderId)
-		.run();
+	// Validates and writes NOTHING. There is no row yet — submitPayment creates it — but
+	// the student still has to hear about a mistyped email here, at the details step,
+	// rather than after they have paid. parseCustomer owns those rules, so checking them
+	// in one place on the server keeps the browser from holding a second, drifting copy.
+	parseCustomer(await readJson(req));
 
 	return json({ ok: true, order_id: orderId }, {}, cors);
 }
@@ -999,6 +988,25 @@ async function receiptFor(env: Env, order: SettleableOrder, idempotent: boolean)
  * multipart, not JSON: readJson caps bodies at 32 KiB and a 2 MB screenshot is ~2.7 MB
  * once base64'd, eighty times over.
  */
+/**
+ * One JSON field out of a multipart body.
+ *
+ * The 32 KiB cap mirrors readJson: this is the same untrusted-body surface, just wrapped
+ * in a form part, and a cart is a few hundred bytes. Malformed JSON gets a named error
+ * rather than a SyntaxError, because the browser builds these and a 500 would say the
+ * server broke when it did not.
+ */
+function readField(form: FormData, name: string): unknown {
+	const raw = form.get(name);
+	if (typeof raw !== 'string') throw bad(`missing_${name}`, `Your ${name} details did not come through`);
+	if (raw.length > 32 * 1024) throw bad(`bad_${name}`, `That ${name} is too large`);
+	try {
+		return JSON.parse(raw);
+	} catch {
+		throw bad(`bad_${name}`, `Could not read your ${name} details`);
+	}
+}
+
 export async function submitPayment(
 	env: Env,
 	req: Request,
@@ -1020,13 +1028,25 @@ export async function submitPayment(
 	)
 		.bind(orderId)
 		.first<{ payment_status: string; review_status: string | null; payment_proof_path: string | null }>();
-	if (!order) throw notFound('No such order');
-	if (order.payment_status !== 'unpaid')
-		throw new ApiError(409, 'order_settled', 'This order has already been settled');
-	// 'pending' is excluded on purpose: a second submission while one is already in the
-	// queue would quietly replace the evidence an admin may be looking at right now.
-	if (order.review_status === 'pending')
-		throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
+
+	// No row is the NORMAL case now: checkout only quotes, so this request is what brings
+	// the order into existence. A row means a resubmission after a rejection, which goes
+	// down the update path below with its existing items and buyer untouched.
+	if (order) {
+		if (order.payment_status !== 'unpaid')
+			throw new ApiError(409, 'order_settled', 'This order has already been settled');
+		// 'pending' is excluded on purpose: a second submission while one is already in the
+		// queue would quietly replace the evidence an admin may be looking at right now.
+		if (order.review_status === 'pending')
+			throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
+	} else {
+		// The same two gates checkout applies. This route can be reached without going
+		// through checkout at all, so they have to be re-asserted here or a closed shop
+		// could still have orders pushed into it.
+		const release = await readSwitches(env);
+		if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+		if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
+	}
 
 	const form = await req.formData().catch(() => null);
 	if (!form) throw bad('bad_body', 'Expected multipart form data');
@@ -1046,6 +1066,28 @@ export async function submitPayment(
 	if (!(await looksLikeImage(shot, shot.type)))
 		throw bad('bad_image', 'That file is not the image type it claims to be');
 
+	// Everything needed to CREATE the order, parsed only when there is no row. The cart
+	// and the buyer travel with the submission because nothing was stored at checkout.
+	//
+	// Priced here from the catalogue, never from what the browser says it owes: the
+	// client sends ids, sizes and quantities, and priceCart looks the money up. That is
+	// the same rule checkout followed, moved to the point where the row is written.
+	let fresh: { priced: PricedCart; customer: Customer } | null = null;
+	if (!order) {
+		const lines = parseCart({ cart: readField(form, 'cart') });
+		const customer = parseCustomer(readField(form, 'customer'));
+
+		const ids = [...new Set(lines.map((l) => l.merch_id))];
+		const { results: rows } = await env.DB.prepare(
+			`SELECT id, name, price_paise, has_size FROM merch
+			  WHERE is_active = 1 AND id IN (${ids.map(() => '?').join(',')})`,
+		)
+			.bind(...ids)
+			.all<MerchRow>();
+
+		fresh = { priced: priceCart(lines, rows), customer };
+	}
+
 	const key = `orders/${orderId}.${EXT[shot.type]}`;
 
 	// Object first, row second. A row pointing at a missing object would show the admin
@@ -1055,22 +1097,49 @@ export async function submitPayment(
 		httpMetadata: { contentType: shot.type, cacheControl: 'private, no-store' },
 	});
 	// A resubmission in a different format leaves the old object behind under its own
-	// extension, and nothing would ever point at it again.
-	if (order.payment_proof_path && order.payment_proof_path !== key)
-		await env.MEDIA.delete(order.payment_proof_path).catch((e) =>
-			console.error('proof: could not delete superseded object', order.payment_proof_path, e),
+	// extension, and nothing would ever point at it again. Only reachable on the update
+	// path — a brand new order has no earlier screenshot to supersede.
+	const stale = order?.payment_proof_path;
+	if (stale && stale !== key)
+		await env.MEDIA.delete(stale).catch((e) =>
+			console.error('proof: could not delete superseded object', stale, e),
 		);
 
-	const res = await env.DB.prepare(
-		`UPDATE orders
-		    SET review_status = 'pending', payment_ref = ?, payment_proof_path = ?,
-		        payment_submitted_at = datetime('now'), review_note = NULL,
-		        updated_at = datetime('now')
-		  WHERE order_id = ? AND payment_status = 'unpaid'`,
-	)
-		.bind(ref, key, orderId)
-		.run();
-	if (!res.meta.changes) throw new ApiError(409, 'order_settled', 'This order has already been settled');
+	// ON CONFLICT DO NOTHING rather than a plain INSERT: two submissions racing on one id
+	// (a double-tapped SUBMIT) must not become a 500, and the loser must not overwrite
+	// the evidence the winner just filed. Zero changes means someone else got there, and
+	// that reads the same to the student as submitting twice.
+	const res = fresh
+		? await env.DB
+				.prepare(
+					`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
+					                     collection_status, razorpay_order_id, roll_number, customer_info,
+					                     review_status, payment_ref, payment_proof_path, payment_submitted_at)
+					 VALUES (?, ?, ?, 'unpaid', 'pending', NULL, ?, ?, 'pending', ?, ?, datetime('now'))
+					 ON CONFLICT (order_id) DO NOTHING`,
+				)
+				.bind(
+					orderId,
+					JSON.stringify(fresh.priced.lines),
+					fresh.priced.total_price_paise,
+					fresh.customer.rollNumber,
+					JSON.stringify(fresh.customer),
+					ref,
+					key,
+				)
+				.run()
+		: await env.DB
+				.prepare(
+					`UPDATE orders
+					    SET review_status = 'pending', payment_ref = ?, payment_proof_path = ?,
+					        payment_submitted_at = datetime('now'), review_note = NULL,
+					        updated_at = datetime('now')
+					  WHERE order_id = ? AND payment_status = 'unpaid'`,
+				)
+				.bind(ref, key, orderId)
+				.run();
+	if (!res.meta.changes)
+		throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
 
 	const live = broadcastChange(env, 'orders', `payment submitted ${orderId}`);
 	if (ctx) ctx.waitUntil(live);

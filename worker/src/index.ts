@@ -3,7 +3,7 @@
  *
  *   GET  /api/merch                     catalogue
  *   GET  /api/merch/:id/image           image, streamed from R2
- *   POST /api/checkout                  price the cart, open an order
+ *   POST /api/checkout                  price the cart (a quote — writes nothing)
  *   POST /api/pay                       interim counter payment (no gateway)
  *   POST /api/webhooks/razorpay         payment result (Razorpay -> us)
  *   GET  /api/orders/:order_id          receipt + QR payload
@@ -39,7 +39,7 @@ import {
 	startDistribution,
 } from './distribution.ts';
 import {
-	attachCustomer,
+	validateCustomer,
 	checkout,
 	directPay,
 	getOrder,
@@ -96,11 +96,11 @@ export default {
 			if (method === 'DELETE' && order)
 				return await abandonOrder(env, req, decodeURIComponent(order[1]), cors);
 
-			// Buyer details, attached before payment, so the order knows who placed it
-			// whatever happens next.
+			// Buyer details, checked but NOT stored: there is no order row until payment is
+			// submitted. This exists so a bad email fails at the details step.
 			const cust = pathname.match(/^\/api\/orders\/([^/]+)\/customer$/);
 			if (method === 'POST' && cust)
-				return await attachCustomer(env, req, decodeURIComponent(cust[1]), cors);
+				return await validateCustomer(env, req, decodeURIComponent(cust[1]), cors);
 
 			// The student's evidence: a UPI reference and a screenshot. Settles nothing —
 			// it only puts the order in the admin's review queue.
