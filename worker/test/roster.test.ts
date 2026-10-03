@@ -81,3 +81,31 @@ describe('open sessions re-check the roster', () => {
 		assert.equal(stillIn(1, 0), false);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Whose name ends up in the audit trail.
+//
+// The roll number is proven against the roster; the name on the login form never was.
+// So the name is derived from the roll rather than accepted from the form — otherwise
+// "PP / IMS23196" is a valid login and every attribution it writes says PP.
+// ---------------------------------------------------------------------------
+
+/** adminLogin's `identity`: the roster's person, falling back to the typed name. */
+const identityFor = (rosterPerson: string | null, typed: string) => rosterPerson?.trim() || typed;
+
+describe('recorded identity', () => {
+	it('uses the roster name and ignores what was typed', () => {
+		assert.equal(identityFor('Pragun Nepal', 'PP'), 'Pragun Nepal');
+	});
+
+	it('cannot be dodged by typing someone else', () => {
+		// The roll decides. Claiming to be another rostered admin changes nothing.
+		assert.equal(identityFor('Binto B', 'Riya Vithal Diwan'), 'Binto B');
+	});
+
+	it('falls back to the typed name when a roster row has no person', () => {
+		// A seeding oversight, not a state worth refusing a login over.
+		assert.equal(identityFor(null, 'Ishitha V R'), 'Ishitha V R');
+		assert.equal(identityFor('   ', 'Ishitha V R'), 'Ishitha V R');
+	});
+});

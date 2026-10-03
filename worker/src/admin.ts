@@ -143,13 +143,19 @@ export async function adminLogin(env: Env, req: Request, cors: Cors): Promise<Re
 	// the difference between "not allowed" and "panel unconfigured" has to stay visible
 	// here even though neither is reported to the caller.
 	const gate = await env.DB.prepare(
-		`SELECT v.password_hash, v.password_salt, v.active, r.active AS rostered
+		`SELECT v.password_hash, v.password_salt, v.active, r.active AS rostered, r.person
 		   FROM login_validation v
 		   LEFT JOIN admin_roster r ON r.roll_number = ?
 		  WHERE v.id = 1`,
 	)
 		.bind(rollNumber)
-		.first<{ password_hash: string; password_salt: string; active: number; rostered: number | null }>();
+		.first<{
+			password_hash: string;
+			password_salt: string;
+			active: number;
+			rostered: number | null;
+			person: string | null;
+		}>();
 	if (!gate) throw new ApiError(503, 'not_configured', 'No admin password is set');
 
 	// Checked before the password so a disabled panel cannot be probed for a valid one.
@@ -174,16 +180,29 @@ export async function adminLogin(env: Env, req: Request, cors: Cors): Promise<Re
 		throw unauthorized('Those details were not accepted');
 	}
 
+	// The ROSTER's name wins over the typed one. Every attribution column downstream —
+	// orders.reviewed_by_name, merch_release.changed_by_name, the panel's own byline —
+	// is copied from this row, and a self-declared name made all of them worthless: on
+	// 3 Oct an order was confirmed by "PP". Deriving it from the roll the person just
+	// had to prove means they cannot appear as anyone else, rather than being asked
+	// nicely to type their real name.
+	//
+	// The typed name is the fallback only for a roster row with person left NULL, which
+	// is a seeding oversight rather than a state worth failing a login over.
+	const identity = gate.person?.trim() || name;
+
 	const token = randomId('ADM_');
 	await env.DB.prepare(
 		`INSERT INTO admin_login (name, roll_number, collegemail, session_token)
 		 VALUES (?, ?, ?, ?)`,
 	)
-		.bind(name, rollNumber, email, token)
+		.bind(identity, rollNumber, email, token)
 		.run();
 
 	return json(
-		{ ok: true, token, expires_in_hours: SESSION_HOURS, admin: { name, roll_number: rollNumber, collegemail: email } },
+		// `identity`, not `name`: the panel stores this and prints it as its byline, and a
+		// byline disagreeing with what the audit trail recorded is worse than either alone.
+		{ ok: true, token, expires_in_hours: SESSION_HOURS, admin: { name: identity, roll_number: rollNumber, collegemail: email } },
 		{ status: 201 },
 		cors,
 	);
