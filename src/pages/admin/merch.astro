@@ -1071,6 +1071,8 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	type Tally = {
 		id: string; name: string; category: string; image: string | null;
 		qty: number; revenue: number;
+		/** Per-size counts. Empty for an item that has no sizes — a tote is a tote. */
+		sizes: Record<string, number>;
 	};
 
 	/**
@@ -1090,9 +1092,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				const key = l.merch_id || l.name;
 				const rec = byMerch.get(key) ?? {
 					id: key, name: l.name, category: 'Unknown', image: null, qty: 0, revenue: 0,
+					sizes: {} as Record<string, number>,
 				};
 				rec.qty += l.quantity;
 				rec.revenue += l.line_total_paise;
+				// The size is on the LINE, not the item: one order can hold the same tee in
+				// three sizes, and the counter has to pick three different garments for it.
+				if (l.size) rec.sizes[l.size] = (rec.sizes[l.size] ?? 0) + l.quantity;
 				byMerch.set(key, rec);
 			}
 		}
@@ -1107,11 +1113,25 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		}
 
 		const tallies = [...byMerch.values()].sort((a, b) => b.qty - a.qty);
+
+		// Only the sizes that were actually ordered get a column. Printing all seven when
+		// the fest sold three would be five columns of nothing, and the whole point of
+		// this sheet is that someone can read it at a glance. SIZES fixes the order so
+		// the row runs XS→3XL rather than whatever came back first; anything unrecognised
+		// is appended rather than dropped, because a column nobody expected is a question
+		// worth asking and a garment that silently vanishes is not.
+		const seen = new Set<string>();
+		for (const t of tallies) for (const sz of Object.keys(t.sizes)) seen.add(sz);
+		const sizeCols = [
+			...SIZES.filter((sz) => seen.has(sz)),
+			...[...seen].filter((sz) => !SIZES.includes(sz)).sort(),
+		];
 		const byCategory = new Map<string, number>();
 		for (const t of tallies) byCategory.set(t.category, (byCategory.get(t.category) ?? 0) + t.revenue);
 
 		return {
 			tallies,
+			sizeCols,
 			categories: [...byCategory.entries()].sort((a, b) => b[1] - a[1]),
 			units: tallies.reduce((n, t) => n + t.qty, 0),
 			total: tallies.reduce((n, t) => n + t.revenue, 0),
@@ -1135,6 +1155,14 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 					`<td class="fr-item">${escape(t.name)}</td>` +
 					`<td class="fr-cat">${escape(t.category)}</td>` +
 					`<td class="fr-units">${t.qty}</td>` +
+					// A zero prints as a dot, not as "0": the counter is scanning this for
+					// the numbers it has to pick, and a grid of noughts hides them.
+					c.sizeCols
+						.map((sz) => {
+							const n = t.sizes[sz] ?? 0;
+							return `<td class="fr-sz${n ? '' : ' is-nil'}">${n || '·'}</td>`;
+						})
+						.join('') +
 					`<td class="fr-amt">₹${toRupees(t.revenue)}</td>` +
 					`</tr>`,
 			)
@@ -1164,7 +1192,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			(c.tallies.length
 				? `<div class="fr-scroll"><table class="fr-table"><thead><tr>` +
 					`<th class="fr-n">#</th><th></th><th>Item</th><th>Category</th>` +
-					`<th class="fr-units">Units</th><th class="fr-amt">Taken</th>` +
+					`<th class="fr-units">Units</th>` +
+					c.sizeCols.map((sz) => `<th class="fr-sz">${escape(sz)}</th>`).join('') +
+					`<th class="fr-amt">Taken</th>` +
 					`</tr></thead><tbody>${rows}</tbody></table></div>`
 				: `<p class="ord-empty">Nothing paid for yet.</p>`) +
 
@@ -1183,8 +1213,27 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	function downloadCollections() {
 		const c = collections();
-		const rows: (string | number)[][] = [['Item', 'Category', 'Units to produce', 'Amount taken (INR)']];
-		for (const t of c.tallies) rows.push([t.name, t.category, t.qty, (t.revenue / 100).toFixed(2)]);
+		// Size columns sit between the total and the money, so the sheet reads
+		// item → how many → how many of each → what it brought in.
+		const rows: (string | number)[][] = [
+			['Item', 'Category', 'Units to produce', ...c.sizeCols, 'Amount taken (INR)'],
+		];
+		for (const t of c.tallies) {
+			rows.push([
+				t.name, t.category, t.qty,
+				// 0, not '·': the dot is a reading aid for the screen, and a spreadsheet
+				// column has to stay numeric or it cannot be summed.
+				...c.sizeCols.map((sz) => t.sizes[sz] ?? 0),
+				(t.revenue / 100).toFixed(2),
+			]);
+		}
+
+		// The per-size totals across every item — what the printer actually needs.
+		if (c.sizeCols.length) {
+			rows.push([], ['Units by size', ...c.sizeCols]);
+			rows.push(['All items', ...c.sizeCols.map((sz) =>
+				c.tallies.reduce((n, t) => n + (t.sizes[sz] ?? 0), 0))]);
+		}
 
 		// Blank row, then the summaries — one file, readable top to bottom in Excel.
 		rows.push([], ['Category', 'Amount taken (INR)']);
@@ -2356,7 +2405,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 
 	/* ---- collections: a filed record ---- */
-	.ov-file { width: min(840px, 100%); position: relative; overflow: visible; }
+	/* Wider than the other dialogs because this one is a production sheet: item, units
+	   and up to seven size columns have to be readable in one look, which is the whole
+	   reason someone opens it. Still min()-capped, so a narrow laptop gets the viewport
+	   rather than a dialog hanging off the edge. */
+	.ov-file { width: min(1180px, 100%); position: relative; overflow: visible; }
 	/* Folder tab. Sits above the panel's top edge, hence the negative offset. */
 	.fr-tab {
 		position: absolute; top: -25px; left: 26px;
@@ -2401,7 +2454,10 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	.fr-scroll {
 		--row: 62px; --head: 32px;
 		max-height: calc(var(--row) * 3 + var(--head));
-		overflow-y: auto; overscroll-behavior: contain;
+		/* Both axes named. overflow-x was never declared, so it resolved to `auto` off the
+		   y rule and the table could slide sideways with no scrollbar to say so — which
+		   read as the first column being cut off rather than as something scrollable. */
+		overflow-y: auto; overflow-x: auto; overscroll-behavior: contain;
 		margin-bottom: 22px;
 		border: 1.5px solid var(--secondary);
 	}
@@ -2411,8 +2467,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	/* Ruled ledger, dividers on every column. */
 	.fr-table { width: 100%; border-collapse: collapse; }
+	/* 8px, not the 10px the rest of the panel uses: this table now carries up to seven
+	   size columns on top of the five it always had, and every px of horizontal padding
+	   is paid twelve times over. The ruled grid still reads at 8. */
 	.fr-table th, .fr-table td {
-		padding: 8px 10px; text-align: left;
+		padding: 8px 8px; text-align: left;
 		border-right: 1.5px solid var(--hair); border-bottom: 1.5px solid var(--hair);
 	}
 	.fr-table th:last-child, .fr-table td:last-child { border-right: 0; }
@@ -2426,19 +2485,26 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		border-bottom: 1.5px solid var(--secondary);
 	}
 	.fr-n {
-		width: 34px;
+		width: 26px;
 		font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; color: var(--ink-40);
 	}
-	.fr-art-cell { width: 46px; }
+	.fr-art-cell { width: 40px; }
 	/* One line, clipped: a wrapping name would push the row past the fixed height and
 	   the three-row cut would stop landing where it should. */
 	.fr-item {
 		font-size: 13px; font-weight: 600;
-		max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		/* min-width as well as max: this is the one elastic column, so it has to be able
+		   to give ground when the size columns appear — but not collapse to nothing. It
+		   ellipsises; the full name is in the CSV. */
+		min-width: 96px; max-width: 200px;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 	}
 	.fr-cat {
 		font-family: 'DM Mono', ui-monospace, monospace;
 		font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-60);
+		/* Capped, because the longest category sets this column for every row and
+		   "Magnetic Bookmark" is twice the width of "Mug". */
+		max-width: 116px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 	}
 	.fr-units {
 		width: 66px; text-align: right;
@@ -2446,12 +2512,23 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		color: var(--accent);
 	}
 	.fr-amt {
-		width: 96px; text-align: right;
+		width: 88px; text-align: right;
 		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
 	}
 	.fr-table thead .fr-units, .fr-table thead .fr-amt {
 		font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5px; color: var(--ink-40);
 	}
+
+	/* Size columns: narrow, centred, mono so the digits line up into a readable grid
+	   down the sheet. Tight padding — seven of these sit side by side. */
+	.fr-table .fr-sz {
+		width: 32px; text-align: center; padding-left: 3px; padding-right: 3px;
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px;
+	}
+	.fr-table thead .fr-sz { font-size: 8.5px; color: var(--ink-40); }
+	/* A size nobody ordered, or an item that has no sizes at all. Dropped right back so
+	   the populated cells are what the eye lands on. */
+	.fr-table .fr-sz.is-nil { color: var(--ink-40); opacity: .45; }
 
 	/* Leader dots, as on a ledger line. */
 	.fr-subs { margin-bottom: 22px; }
@@ -3203,7 +3280,10 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		.fr-total > div:first-child { border-right: 0; border-bottom: 1.5px solid var(--hair); }
 		/* The ledger scrolls sideways inside its own frame rather than the whole record. */
 		.fr-scroll { overflow-x: auto; }
-		.fr-table { min-width: 460px; }
+		/* Was 460px, before the size columns existed. The frame scrolls sideways on a
+		   phone by design — this only has to be wide enough that the columns keep their
+		   shape while it does, rather than crushing to one character each. */
+		.fr-table { min-width: 720px; }
 		.fr-item { max-width: 130px; }
 
 		/* ---- EDIT: fields and pictures only ---- */
