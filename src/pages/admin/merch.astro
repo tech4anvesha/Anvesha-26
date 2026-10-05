@@ -1191,7 +1191,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			`<p class="fr-legend">Units to produce</p>` +
 			(c.tallies.length
 				? `<div class="fr-scroll"><table class="fr-table"><thead><tr>` +
-					`<th class="fr-n">#</th><th></th><th>Item</th><th>Category</th>` +
+					// Every header carries its column's class. Under `table-layout: fixed` the
+					// FIRST row sets the widths, so a bare <th> leaves that column unsized
+					// and the rest of the table pays for it.
+					`<th class="fr-n">#</th><th class="fr-art-cell"></th>` +
+					`<th class="fr-item">Item</th><th class="fr-cat">Category</th>` +
 					`<th class="fr-units">Units</th>` +
 					c.sizeCols.map((sz) => `<th class="fr-sz">${escape(sz)}</th>`).join('') +
 					`<th class="fr-amt">Taken</th>` +
@@ -2466,7 +2470,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	.fr-table tbody tr { height: var(--row); }
 
 	/* Ruled ledger, dividers on every column. */
-	.fr-table { width: 100%; border-collapse: collapse; }
+	/* `fixed`, not the default `auto`. Under auto, a cell's width/max-width is a hint the
+	   browser may discard in favour of the widest content, and it did: "Magnetic Bookmark"
+	   set the category column for every row and the longest product name set the item
+	   column, so the table ran past the panel and slid sideways. Under fixed the declared
+	   widths below are obeyed exactly, and the one column with NO width — .fr-item — takes
+	   whatever is left over, which is precisely the behaviour wanted. */
+	.fr-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
 	/* 8px, not the 10px the rest of the panel uses: this table now carries up to seven
 	   size columns on top of the five it always had, and every px of horizontal padding
 	   is paid twelve times over. The ruled grid still reads at 8. */
@@ -2493,18 +2503,17 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	   the three-row cut would stop landing where it should. */
 	.fr-item {
 		font-size: 13px; font-weight: 600;
-		/* min-width as well as max: this is the one elastic column, so it has to be able
-		   to give ground when the size columns appear — but not collapse to nothing. It
-		   ellipsises; the full name is in the CSV. */
-		min-width: 96px; max-width: 200px;
+		/* Deliberately unsized: under `table-layout: fixed` this is the column that
+		   absorbs the slack, so it widens on a roomy panel and gives ground when seven
+		   size columns turn up. It ellipsises; the full name is in the CSV. */
 		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 	}
 	.fr-cat {
 		font-family: 'DM Mono', ui-monospace, monospace;
 		font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-60);
-		/* Capped, because the longest category sets this column for every row and
-		   "Magnetic Bookmark" is twice the width of "Mug". */
-		max-width: 116px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		/* A real width, not a max: under fixed layout this is binding, which is the whole
+		   point — "Magnetic Bookmark" no longer sets the column for every row. */
+		width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 	}
 	.fr-units {
 		width: 66px; text-align: right;
