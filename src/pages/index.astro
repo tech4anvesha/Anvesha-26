@@ -50,49 +50,53 @@ const THEME = {
 /**
  * The sponsors, by what they actually gave.
  *
- * `logo` points at a file that need not exist yet: each tile falls back to the name set
- * in type if the image 404s, so dropping a file into public/img/sponsors/ is the whole
- * job — no markup change and no code change.
+ * Names only, except the title slot. Five marks used to sit here, and they were a mix of
+ * Wikimedia files and logos lifted off company sites — inconsistent in weight, colour and
+ * crop, and only ever covering a third of the list. One typeface for everyone reads as a
+ * deliberate sheet rather than as a collection of whatever could be found.
  *
- * Five marks are in: Domino's, Burger King and Wow! Momo from Wikimedia Commons, Natraj
- * and Imperial Life Sciences from their own sites. The other eight are small enough that
- * they publish no usable mark, and they show their name instead — nothing here is drawn
- * or approximated, because a logo we invented is worse than a wordmark.
- * TODO(anvesha): ask the remaining eight for a PNG.
+ * `logo` is optional: a sponsor with one gets the mark, a sponsor without gets their name
+ * set in type, decided at build time rather than by waiting for an image to fail.
  */
 const SPONSORS = [
 	// First, so it renders as section 01. colsFor(1) gives a single column, which makes
 	// the cell full width — the title slot gets the top of the sheet and the widest tile
 	// on it without needing a rule of its own.
+	//
+	// The title sponsor keeps its mark; everyone below is set in type. That is the
+	// hierarchy the title slot is sold on, and it is the same logo already standing
+	// under the wordmark in the hero.
 	{ cat: 'Title Sponsor', of: [
 		{ name: 'SciAstra', logo: '/img/sponsors/sciastra.png' },
 	] },
 	{ cat: '3D Printing & Prototyping Partner', of: [
-		{ name: '69 Rigs', logo: '/img/sponsors/69rigs.png' },
+		{ name: '69 Rigs' },
 	] },
 	{ cat: 'Stationery Partners', of: [
-		{ name: 'Phoebus', logo: '/img/sponsors/phoebus.png' },
-		{ name: 'August', logo: '/img/sponsors/august.png' },
+		{ name: 'Phoebus' },
+		{ name: 'August' },
 	] },
 	{ cat: 'Food Partners', of: [
-		{ name: "Domino's", logo: '/img/sponsors/dominos.png' },
-		{ name: 'Natraj', logo: '/img/sponsors/natraj.png' },
-		{ name: 'Tasty', logo: '/img/sponsors/tasty.png' },
-		{ name: 'Burger King', logo: '/img/sponsors/burger-king.png' },
-		{ name: 'Wow! Momo', logo: '/img/sponsors/wow-momo.png' },
-		{ name: 'Dinu Bakeries', logo: '/img/sponsors/dinu.png' },
+		{ name: "Domino's" },
+		{ name: 'Natraj' },
+		{ name: 'Tasty' },
+		{ name: 'Wow! Momo' },
+		{ name: 'Nutrice' },
 	] },
 	{ cat: 'Learning Partner', of: [
-		{ name: 'Finlatics', logo: '/img/sponsors/finlatics.png' },
-	] },
-	{ cat: 'Trekking Partner', of: [
-		{ name: 'Adventure Amas', logo: '/img/sponsors/adventure-amas.png' },
-	] },
-	{ cat: 'Science Education Partner', of: [
-		{ name: 'Imperial Life Sciences', logo: '/img/sponsors/imperial-life-sciences.png' },
+		{ name: 'Finlatics' },
 	] },
 	{ cat: 'Hospitality Partner', of: [
-		{ name: 'RinShi', logo: '/img/sponsors/rinshi.png' },
+		{ name: 'RinShi' },
+	] },
+	{ cat: 'Gaming Partner', of: [
+		{ name: 'Sector7 Games' },
+	] },
+	{ cat: 'Electronics Partner', of: [
+		{ name: 'City Mobiles' },
+	] },
+	{ cat: 'Books Partner', of: [
+		{ name: 'DC Books' },
 	] },
 ];
 const sponsorCount = SPONSORS.reduce((n, g) => n + g.of.length, 0);
@@ -599,14 +603,18 @@ const TICKER = [
 							</h3>
 
 							<div class="sp-grid" style={`--cols:${g.cols}`}>
+								{/* is-text up front when there is no mark at all. An <img> with no src
+								    ships a broken-image glyph AND never fires the onerror below — `error`
+								    fires for a src that fails to load, not for one that was never set.
+								    The handler stays for the sponsor that does have a logo, covering a
+								    file that 404s. */}
 								{g.of.map((sp) => (
-									<article class="sp-cell">
+									<article class={`sp-cell${sp.logo ? '' : ' is-text'}`}>
 										<i class="sp-ref mono">{sp.ref}</i>
-										{/* onerror rather than a build-time check: the file may not
-										    exist yet, and the name set in type is a better fallback
-										    than a broken-image glyph — or than a logo we drew. */}
-										<img class="sp-logo" src={sp.logo} alt={sp.name} loading="lazy"
-										     onerror="this.closest('.sp-cell').classList.add('is-text')" />
+										{sp.logo && (
+											<img class="sp-logo" src={sp.logo} alt={sp.name} loading="lazy"
+											     onerror="this.closest('.sp-cell').classList.add('is-text')" />
+										)}
 										<span class="sp-name">{sp.name}</span>
 									</article>
 								))}
