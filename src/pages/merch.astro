@@ -49,7 +49,11 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 					<div id="tree" class="tree tree-index" data-reveal role="tree" aria-label="Merch catalogue"></div>
 					<div class="divider" data-reveal aria-hidden="true">
 						<span class="dv-line"></span>
-						<span class="dv-cross"></span>
+						<!-- Drawn, not the ↓ glyph — same reason as the buy button's arrow:
+						     a typed arrow falls back to a hairline symbol font. -->
+						<svg class="dv-arrow" viewBox="0 0 24 24" aria-hidden="true">
+							<path d="M12 3 V20 M4.8 12.8 L12 20 L19.2 12.8" />
+						</svg>
 						<span class="dv-line"></span>
 					</div>
 
@@ -1669,12 +1673,14 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 
 	.divider { display: flex; align-items: center; gap: 12px; margin: 14px 0 22px; }
 	.divider .dv-line { flex: 1; height: 1.5px; background: var(--hair); }
-	/* registration cross, drawn not typed. ponytail: add transform: rotate(45deg)
-	   here to turn the + into an ✕ — that is the whole switch. */
-	.dv-cross { position: relative; flex: none; width: 11px; height: 11px; }
-	.dv-cross::before, .dv-cross::after { content: ''; position: absolute; background: var(--accent); }
-	.dv-cross::before { left: 50%; top: 0; bottom: 0; width: 1.5px; transform: translateX(-50%); }
-	.dv-cross::after { top: 50%; left: 0; right: 0; height: 1.5px; transform: translateY(-50%); }
+	/* The divider's mark points down the page, at the product block below it. Stroke
+	   values copied from .buy .arrow so the two arrows on this column are visibly the
+	   same pen rather than two drawings that happen to both be arrows. */
+	.dv-arrow {
+		flex: none; width: 15px; height: 15px;
+		fill: none; stroke: var(--accent); stroke-width: 2.4;
+		stroke-linecap: square; stroke-linejoin: miter;
+	}
 
 	/* margin-top:auto puts the slack ABOVE the copy, so name/description/credit sit
 	   low in the column and read as one block with the size and buy rows */
