@@ -1,0 +1,151 @@
+/* ============================================================
+   ANVESHA '26 — catalogue rail, index variant   [TRIAL]
+
+   An alternative skin for the same rail, layered over styles/catalogue-tree.css.
+   Everything is scoped under `.tree-index`, so the admin panel, the events panel
+   and the teams page keep the tree exactly as it was — this is the storefront's
+   alone, and removing the class removes the design.
+
+   The idea: the page already prints a "Sponsor catalogue" and a "COLLECTIONS
+   record" as filed paper. This makes the rail the CONTENTS PAGE of that same
+   catalogue rather than a file explorer.
+
+     T-SHIRTS ──────────────────── 6
+        Dragon Warrior ········ ₹365
+     ▌  Reflection of Eden ···· ₹365
+        Space Wave ············ ₹365
+     STICKERS ──────────────────── 4
+
+   Three things are deliberately taken away:
+
+     the elbow connectors — an elbow says "this item is inside that folder", which
+       is true of a filesystem and irrelevant to someone buying a t-shirt. The
+       indent and the category bar say it for a fraction of the ink.
+
+     the 01/02/03 badges — numbering is a promise that order carries meaning. It
+       does not here: item 02 is not after item 01 in any sense a shopper acts on.
+
+     the black fill on the selected row — it swallowed the row's own connectors,
+       which then needed three more rules to dig back out. Weight and a rule say
+       "this one" without painting over anything.
+
+   The leader dots are the one loud thing, and they are borrowed rather than
+   invented: the same gradient recipe as .fr-dots in the collections sheet.
+   ============================================================ */
+
+/* ---- the rail ---- */
+.tree-index {
+	/* The bars below are sticky, so the rail needs padding at the top edge only;
+	   the old symmetric inset let a bar sit half off the scrollport. */
+	padding: 0 6px 2px 0; margin: 0 -6px 0 0;
+}
+
+/* ---- category bar ----
+   Sticky, which is the quiet usability win here: scrolling a long catalogue, the
+   category you are inside stays named at the top of the rail instead of leaving
+   with its rows. */
+.tree-index .tcat {
+	position: sticky; top: 0; z-index: 2;
+	grid-template-columns: 13px 1fr auto;
+	gap: 11px;
+	padding: 13px 2px 9px;
+	background: var(--primary);
+	border-radius: 0;
+	/* The rule belongs to the bar, so it travels with it while stuck. */
+	box-shadow: inset 0 -1.5px 0 var(--hair);
+}
+.tree-index .tkids + .tcat,
+.tree-index .tsec + .tsec > .tcat { border-top: 0; }
+/* The section is what bounds the sticky bar. No overflow or transform here: either
+   would make it the containing block for sticky and pin the bar inside its own
+   section, which looks like it is not sticky at all. */
+.tree-index .tsec { display: flow-root; }
+
+/* The caret becomes a registration mark — the same + that divides the page below,
+   rotating to a − when its branch is open. Drawn, because the injected SVG is a
+   chevron and this is a different idea, not a rotated one. */
+.tree-index .tcaret { position: relative; width: 13px; height: 13px; }
+.tree-index .tcaret svg { display: none; }
+.tree-index .tcaret::before,
+.tree-index .tcaret::after {
+	content: ''; position: absolute; background: var(--ink-40);
+	transition: opacity .18s ease, background .12s ease;
+}
+.tree-index .tcaret::before { left: 50%; top: 0; bottom: 0; width: 1.5px; transform: translateX(-50%); }
+.tree-index .tcaret::after { top: 50%; left: 0; right: 0; height: 1.5px; transform: translateY(-50%); }
+/* Open: the vertical stroke goes, leaving a minus. */
+.tree-index .tcat.open .tcaret::before { opacity: 0; }
+.tree-index .tcat.open .tcaret::before,
+.tree-index .tcat.open .tcaret::after,
+.tree-index .tcat:hover .tcaret::before,
+.tree-index .tcat:hover .tcaret::after { background: var(--accent); }
+
+.tree-index .tcat .tname {
+	font-size: 10.5px; font-weight: 800; letter-spacing: .16em;
+}
+/* "6 items", kept as words — the bar has room, and a bare numeral beside a
+   category name reads as a code rather than a count. */
+.tree-index .tcat .tmeta {
+	font-size: 9.5px; letter-spacing: .08em; font-variant-numeric: tabular-nums;
+}
+
+/* ---- item row ----
+   Two columns now: the name (which carries the dots) and the price. */
+.tree-index .titem {
+	grid-template-columns: 1fr auto;
+	gap: 12px;
+	padding: 8px 2px 8px 24px;
+	border-radius: 0;
+}
+.tree-index .titem::before,
+.tree-index .titem::after { content: none; }
+.tree-index .tnum { display: none; }
+
+/* The ledger line. .tname holds a bare text node, so ::after sits beside it as a
+   second flex item and takes the slack — the dots then always run exactly from the
+   end of the name to the price, at any width. */
+.tree-index .titem .tname {
+	display: flex; align-items: baseline; gap: 9px;
+	font-size: 13px; font-weight: 600; letter-spacing: 0;
+}
+.tree-index .titem .tname::after {
+	content: ''; flex: 1 1 auto; min-width: 14px; height: 1px;
+	align-self: center;
+	/* Same recipe as .fr-dots in the collections sheet. */
+	background-image: linear-gradient(to right, var(--ink-40) 33%, transparent 0);
+	background-size: 5px 1px; background-repeat: repeat-x;
+	opacity: .75;
+}
+.tree-index .tprice { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ---- states ----
+   Hover tints the row's own strip rather than the full width, so the dots and the
+   price stay on paper and the line keeps reading as a ledger entry. */
+.tree-index button.tnode:hover { background: transparent; }
+.tree-index .titem:hover .tname { color: var(--secondary); }
+.tree-index .titem:hover .tname::after { opacity: 1; }
+.tree-index .titem:hover .tprice { color: var(--secondary); }
+
+/* Selected: an accent rule in the indent and the name in the expanded face. One
+   typographic event, no fill. */
+.tree-index .titem.active,
+.tree-index .titem.active:hover {
+	position: relative;
+	background: transparent; color: var(--secondary); box-shadow: none;
+}
+.tree-index .titem.active::before {
+	content: ''; position: absolute; left: 6px; top: 7px; bottom: 7px;
+	width: 3px; background: var(--accent);
+}
+.tree-index .titem.active .tname {
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-weight: 800;
+}
+.tree-index .titem.active .tname::after { opacity: 1; }
+.tree-index .titem.active .tprice { color: var(--accent); font-weight: 700; }
+
+/* Keyboard parity: the rail is a list of buttons and the hover cue is colour only,
+   which a keyboard never triggers. */
+.tree-index button.tnode:focus-visible {
+	outline: var(--stroke) solid var(--accent); outline-offset: -2px;
+}

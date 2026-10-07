@@ -41,6 +41,10 @@ button.tnode {
 }
 .tkids { overflow: hidden; }
 .tkids + .tcat { border-top: 1.5px solid var(--hair); }
+/* Same divider when the rail wraps each category in a .tsec — the storefront does, so
+   that its sticky bars have a box to be bounded by. Admin builds flat markup and keeps
+   the sibling rule above; both shapes get the same hairline. */
+.tsec + .tsec > .tcat { border-top: 1.5px solid var(--hair); }
 .tcaret { display: grid; place-items: center; width: 16px; color: var(--ink-40); }
 .tcaret svg {
 	width: 15px; height: 15px; stroke-width: 2.2;

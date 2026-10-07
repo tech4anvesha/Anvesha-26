@@ -2,6 +2,9 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 // The catalogue rail, shared with the admin panel so both browse the same component.
 import '../styles/catalogue-tree.css';
+// TRIAL: the index skin for the rail. Scoped to `.tree-index` — delete this line
+// and the class on #tree below to go back to the tree, nothing else is involved.
+import '../styles/catalogue-index.css';
 // .tk-eyebrow / .tk-id are borrowed by the pay and received faces.
 import '../styles/ticket.css';
 // The QR + reference + screenshot block, shared with /order's resubmit form.
@@ -43,7 +46,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 						<span class="crumb-count"><b id="crumbCount">0</b> items</span>
 					</div>
 
-					<div id="tree" class="tree" data-reveal role="tree" aria-label="Merch catalogue"></div>
+					<div id="tree" class="tree tree-index" data-reveal role="tree" aria-label="Merch catalogue"></div>
 					<div class="divider" data-reveal aria-hidden="true">
 						<span class="dv-line"></span>
 						<span class="dv-cross"></span>
@@ -615,7 +618,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				folder.innerHTML =
 					`<span class="tcaret">${caretRight}</span>` +
 					`<span class="tname">${c.name}</span>` +
-					`<span class="tmeta">${c.items.length} items</span>`;
+					`<span class="tmeta">${c.items.length} item${c.items.length === 1 ? '' : 's'}</span>`;
 				folder.onclick = () => {
 					const opening = openCat !== c.id;
 					openCat = opening ? c.id : null;
@@ -625,7 +628,14 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 					// somewhere unrelated to what was tapped.
 					syncTree(true, opening ? 'cat' : null);
 				};
-				treeEl.appendChild(folder);
+				// A section box per category. The folder bar is sticky in the index skin,
+				// and sticky is bounded by its containing block — as flat siblings every
+				// bar pinned to the same offset and they stacked on top of each other.
+				// Inside a section, each bar is pushed out by the next one, as intended.
+				const sec = document.createElement('div');
+				sec.className = 'tsec';
+				treeEl.appendChild(sec);
+				sec.appendChild(folder);
 				folderOf.set(c.id, folder);
 
 				const kids = document.createElement('div');
@@ -642,7 +652,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 					b.onclick = () => selectItem(it);
 					kids.appendChild(b);
 				});
-				treeEl.appendChild(kids);
+				sec.appendChild(kids);
 				kidsOf.set(c.id, kids);
 			});
 
@@ -720,8 +730,12 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 
 		function revealInTree(reveal: Reveal, animate: boolean) {
 			if (!reveal) return;
+			// The SECTION for a category, not the bar. The bar is sticky, and a stuck
+			// element reports its pinned rect rather than its position in flow — measuring
+			// it would say "already at the top" the moment it glued itself there, and the
+			// rail would creep instead of landing.
 			const el = reveal === 'cat'
-				? (openCat ? folderOf.get(openCat) ?? null : null)
+				? (openCat ? folderOf.get(openCat)?.closest<HTMLElement>('.tsec') ?? null : null)
 				: treeEl.querySelector<HTMLElement>('.titem.active');
 			if (!el) return;
 
@@ -771,11 +785,14 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			const v = item.views[viewIdx];
 			stageViewEl.innerHTML = `<span class="big art">${artHTML(item, viewIdx)}</span>`;
 			stageLabelEl.textContent = `${pad(viewIdx + 1)} / ${v.label}`;
-			// ponytail: two-line split so long names break like the reference. One word = one line.
-			const parts = item.name.split(' ');
-			pNameEl.innerHTML = parts.length > 1
-				? `${parts.slice(0, -1).join(' ')}<br />${parts.at(-1)}`
-				: item.name;
+			// Wrapped on width, not on word count. The old rule put the LAST word on its own
+			// line regardless of how much room was left, so "Reflection of Eden" became
+			// "REFLECTION OF" + "EDEN" — and since REFLECTION OF is itself wider than the
+			// column at 46px, the browser wrapped it again and stranded OF on a line alone.
+			// Letting the text wrap normally is what "break when the width runs out" means.
+			// textContent, not innerHTML: there is no markup to insert any more, and the
+			// name comes from the admin catalogue.
+			pNameEl.textContent = item.name;
 			pDescEl.textContent = item.desc;
 			pDesignerEl.innerHTML = `Design <b>${item.designer}</b>`;
 			pPriceEl.textContent = rupees(item.price_paise);
