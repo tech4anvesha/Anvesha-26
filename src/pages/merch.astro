@@ -617,8 +617,13 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 					`<span class="tname">${c.name}</span>` +
 					`<span class="tmeta">${c.items.length} items</span>`;
 				folder.onclick = () => {
-					openCat = openCat === c.id ? null : c.id;
-					syncTree();
+					const opening = openCat !== c.id;
+					openCat = opening ? c.id : null;
+					// Reveal the branch that just OPENED, not the selected product. The
+					// product usually lives in a different category — the one that just
+					// collapsed — so centring it after a folder click sent the list
+					// somewhere unrelated to what was tapped.
+					syncTree(true, opening ? 'cat' : null);
 				};
 				treeEl.appendChild(folder);
 				folderOf.set(c.id, folder);
@@ -671,7 +676,10 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				{ y: 0, stagger: 0.035, duration: 0.3, ease: 'power2.out', clearProps: 'transform' });
 		}
 
-		function syncTree(animate = true) {
+		/** What the rail should bring into view once the branches have finished moving. */
+		type Reveal = 'item' | 'cat' | null;
+
+		function syncTree(animate = true, reveal: Reveal = 'item') {
 			catalog.forEach((c) => {
 				setBranch(c, animate);
 				c.items.forEach((it, ii) => {
@@ -682,7 +690,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				});
 			});
 
-			revealActiveItem();
+			revealInTree(reveal, animate);
 		}
 
 		// ponytail: rect deltas, not offsetTop — offsetTop is measured from the nearest
@@ -695,9 +703,51 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			box.scrollBy({ [axis]: delta, behavior: rm ? 'auto' : 'smooth' });
 		}
 
-		function revealActiveItem() {
-			const el = treeEl.querySelector('.titem.active') as HTMLElement | null;
-			if (el) scrollCentre(treeEl, el, 'top');
+		/**
+		 * Bring a row into view WHILE the branches above it are still opening.
+		 *
+		 * setBranch tweens every branch's height for 340ms. The old code measured the
+		 * target in the same tick it started those tweens, so the number it scrolled by
+		 * described a layout that no longer existed a frame later: the opening branch
+		 * still had height 0 and the closing ones still had their full height. Picking a
+		 * category near the bottom meant every branch above it was about to collapse by
+		 * several hundred px, which is exactly why the rail shot past to the end.
+		 *
+		 * So the target is re-read every frame and the scroll eases toward wherever it
+		 * currently is. A moving target needs no prediction — only repeated measurement.
+		 */
+		let revealRaf = 0;
+
+		function revealInTree(reveal: Reveal, animate: boolean) {
+			if (!reveal) return;
+			const el = reveal === 'cat'
+				? (openCat ? folderOf.get(openCat) ?? null : null)
+				: treeEl.querySelector<HTMLElement>('.titem.active');
+			if (!el) return;
+
+			// A category header goes near the TOP, so the rows that just appeared are what
+			// fills the rail beneath it. A product centres, as it always did.
+			const targetFor = () => {
+				const r = el.getBoundingClientRect(), b = treeEl.getBoundingClientRect();
+				const delta = reveal === 'cat'
+					? r.top - b.top - 6
+					: (r.top + r.height / 2) - (b.top + b.height / 2);
+				const want = treeEl.scrollTop + delta;
+				return Math.max(0, Math.min(want, treeEl.scrollHeight - treeEl.clientHeight));
+			};
+
+			cancelAnimationFrame(revealRaf);
+			if (!animate || rm) { treeEl.scrollTop = targetFor(); return; }
+
+			// Runs a little past the 340ms branch tween, then lands exactly.
+			const until = performance.now() + 460;
+			const step = () => {
+				const t = targetFor();
+				if (performance.now() >= until) { treeEl.scrollTop = t; return; }
+				treeEl.scrollTop += (t - treeEl.scrollTop) * 0.2;
+				revealRaf = requestAnimationFrame(step);
+			};
+			revealRaf = requestAnimationFrame(step);
 		}
 
 		// ---- selection ----
@@ -1617,6 +1667,26 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		margin: 0; max-width: 44ch;
 		font-style: italic; font-size: 13.5px; line-height: 1.62;
 		color: var(--ink-60);
+		/* Three lines, then it scrolls inside its own box.
+		   Everything under the description — the designer credit, the SIZES row, the
+		   size chips and ADD TO BAG — has to be reachable without scrolling the page.
+		   .tree gives up space first, being the flex:1 child, but once it hits its
+		   140px floor a long description grows .product and pushes that block off the
+		   bottom of .hero. Three lines is what leaves room for all of it; the
+		   description is what yields, because it is the only part the reader can
+		   scroll for and still understand. */
+		max-height: calc(1.62em * 3);
+		overflow-y: auto; overscroll-behavior: contain;
+		/* Room for the scrollbar, so the last words are not printed underneath it. */
+		padding-right: 12px;
+		/* Visible, unlike .tree's hidden one: here the scrollbar IS the signal that
+		   there is more to read. */
+		scrollbar-width: thin;
+	}
+	/* The same signal for WebKit, which ignores scrollbar-width. */
+	.desc::-webkit-scrollbar { width: 4px; }
+	.desc::-webkit-scrollbar-thumb {
+		background: var(--ink-40); border-radius: 4px;
 	}
 	.designer {
 		align-self: flex-end;
