@@ -1408,18 +1408,29 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			try {
 				// multipart, so the browser sets its own boundary. A base64 screenshot in
 				// JSON would be 80x over the worker's body cap.
-				const body = new FormData();
-				body.append('payment_ref', fTxn.value.trim());
-				body.append('proof', file);
-				// The order does not exist on the server yet — this request is what creates
-				// it. So the bag and the buyer ride along, exactly as they were sent to
-				// /api/checkout for the quote. The server re-prices from the catalogue, so
-				// these are a statement of what was wanted, not of what it costs.
-				body.append('cart', JSON.stringify(Object.values(cart)));
-				body.append('customer', JSON.stringify({
-					name: fName.value, roll_number: fRoll.value,
-					phone: fPhone.value, email: fEmail.value,
-				}));
+				// EVERY TEXT FIELD BEFORE THE FILE. Multipart parts are serialised in append
+				// order, so appending the screenshot first put `cart` and `customer` at the
+				// far end of the body, behind hundreds of KB of image. An upload that is cut
+				// short — the same flaky campus wifi that produces "Failed to fetch" — can
+				// then deliver a body the parser accepts but which stops before those two
+				// parts, and the server answers "your cart details did not come through".
+				// Ordered this way the metadata is in the first few hundred bytes: a
+				// truncated upload now fails on the image, which is both true and fixable.
+				const buildBody = () => {
+					const body = new FormData();
+					body.append('payment_ref', fTxn.value.trim());
+					// The order does not exist on the server yet — this request is what
+					// creates it. So the bag and the buyer ride along, exactly as they were
+					// sent to /api/checkout for the quote. The server re-prices from the
+					// catalogue, so these state what was wanted, not what it costs.
+					body.append('cart', JSON.stringify(Object.values(cart)));
+					body.append('customer', JSON.stringify({
+						name: fName.value, roll_number: fRoll.value,
+						phone: fPhone.value, email: fEmail.value,
+					}));
+					body.append('proof', file);
+					return body;
+				};
 
 				/**
 				 * One retry, and ONLY on a network failure.
@@ -1434,9 +1445,13 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				// Captured, not read through the closure on each attempt: the retry must
 				// target the order this submission started on, whatever happened since.
 				const oid = currentOrder;
+				// A FRESH body per attempt. Reusing one FormData across two fetches relies on
+				// the File still being readable the second time, and on a phone it may not
+				// be — the picker's handle can go stale, and the retry then streams a body
+				// that stops partway. Rebuilding costs nothing and removes the question.
 				const post = () => fetch(`${API}/api/orders/${encodeURIComponent(oid)}/payment`, {
 					method: 'POST',
-					body,
+					body: buildBody(),
 				});
 				let res: Response;
 				try {

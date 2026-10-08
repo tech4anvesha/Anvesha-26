@@ -734,7 +734,16 @@ export async function validateCustomer(
  */
 function readField(form: FormData, name: string): unknown {
 	const raw = form.get(name);
-	if (typeof raw !== 'string') throw bad(`missing_${name}`, `Your ${name} details did not come through`);
+	// Actionable, because the student can almost always fix this one. A missing field in
+	// a body that otherwise parsed means the upload was cut short, or the page has been
+	// open long enough to be running an older build — and reloading cures both. The old
+	// wording ("did not come through") described the server's view and left them stuck.
+	if (typeof raw !== 'string')
+		throw bad(
+			`missing_${name}`,
+			'Your bag did not reach us — reload the page, open your bag and submit again. ' +
+				'Nothing has been charged twice.',
+		);
 	if (raw.length > 32 * 1024) throw bad(`bad_${name}`, `That ${name} is too large`);
 	try {
 		return JSON.parse(raw);
