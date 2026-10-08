@@ -24,8 +24,6 @@ export interface Env {
 	RESEND_API_KEY?: string;
 	MAIL_FROM?: string;
 	MAIL_REPLY_TO?: string;
-	// Resend's daily ceiling. Unset means the free tier's 100.
-	MAIL_DAILY_LIMIT?: string;
 	MONEY_RL: RateLimit;
 	// Submit-only, and much larger — see wrangler.jsonc for why.
 	SUBMIT_RL: RateLimit;

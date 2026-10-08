@@ -13,7 +13,7 @@
  */
 
 import { type PricedLine } from './cart.ts';
-import { type MailResult, mailQuota, sendOrderEmail, sendRejectionEmail } from './email.ts';
+import { type MailResult, mailBlock, sendOrderEmail, sendRejectionEmail } from './email.ts';
 import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
 import {
 	ApiError,
@@ -380,11 +380,10 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 
 	return json(
 		{
-			// The mail ledger rides along with the list. Without it the counter could only
-			// appear after a review had already been made — which is exactly too late to
-			// warn anyone that the day is nearly spent.
-			mail_quota: await mailQuota(env)
-				.then((q) => ({ used: q.sent, refused: q.refused, limit: q.limit, blocked: q.blocked, resets_at: q.resetsAt }))
+			// Whether sending has stopped, so the panel knows on load rather than finding
+			// out when someone clicks a tick.
+			mail_block: await mailBlock(env)
+				.then((b) => ({ blocked: b.blocked, resets_at: b.resetsAt }))
 				.catch(() => null),
 			orders: results.map((o) => {
 				// Counter payments store name/contact/email; a Razorpay entity carries
@@ -931,17 +930,17 @@ export async function adminOrderProof(
 /**
  * What the panel is told about the email.
  *
- * The quota numbers come back on EVERY review, not only on failure, so the panel can
- * show "83 of 100 used today" and the admin sees the wall coming instead of hitting it.
- * resets_at is an instant, not a formatted time — the browser knows the reader's clock
- * and the server does not.
+ * No counts. There is no way to read Resend's counter on a send-only key, and a number
+ * we invented would be the thing people planned around. Only two facts travel: did this
+ * message go, and has Resend stopped accepting for the day.
  */
 async function mailReport(env: Env, mail: MailResult) {
-	const q = await mailQuota(env).catch(() => null);
+	const block = await mailBlock(env).catch(() => null);
 	return {
 		sent: mail.sent,
 		reason: mail.sent ? null : mail.reason,
-		quota: q && { used: q.sent, refused: q.refused, limit: q.limit, blocked: q.blocked, resets_at: q.resetsAt },
+		blocked: Boolean(block?.blocked),
+		resets_at: block?.resetsAt ?? null,
 	};
 }
 
@@ -995,6 +994,23 @@ export async function adminReviewOrder(
 		throw new ApiError(409, 'nothing_to_review', 'This order has no payment waiting to be reviewed');
 
 	const customer = readCustomer(order.customer_info);
+
+	// ---- the hard stop ----
+	// Checked BEFORE anything is written. Once Resend has refused a message for quota,
+	// no review may proceed: confirming an order whose student cannot be told is the
+	// state this is here to prevent. Deliberately keyed on hardBlocked — a REAL 429 —
+	// and not on our own tally, which under-counts and would otherwise halt a queue
+	// Resend was still perfectly willing to serve.
+	const block = await mailBlock(env).catch(() => null);
+	if (block?.blocked) {
+		throw new ApiError(
+			503,
+			'mail_quota_reached',
+			'The daily email quota has been reached, so students can no longer be notified. ' +
+				'Confirming and rejecting are paused. Kindly restart confirmation later on, ' +
+				'after the quota resets at 05:30.',
+		);
+	}
 
 	if (action === 'reject') {
 		await env.DB.prepare(

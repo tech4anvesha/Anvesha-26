@@ -202,18 +202,10 @@ export type MailResult =
 	| { sent: true }
 	| { sent: false; reason: 'no_key' | 'quota' | 'error'; status?: number; detail?: string };
 
-/** Resend's free tier. Override with MAIL_DAILY_LIMIT if the plan changes. */
-const DEFAULT_DAILY_LIMIT = 100;
-
-export interface MailQuota {
-	/** Messages accepted today. */
-	sent: number;
-	/** Messages Resend refused for quota today. */
-	refused: number;
-	limit: number;
-	/** True once Resend has said no, or our own count has reached the limit. */
+export interface MailBlock {
+	/** True only because Resend answered 429. There is no other source of truth. */
 	blocked: boolean;
-	/** ISO instant of the next UTC midnight — when Resend's counter rolls over. */
+	/** ISO instant of the next UTC midnight — when Resend's day rolls over. */
 	resetsAt: string;
 }
 
@@ -230,37 +222,19 @@ function nextUtcMidnight(): string {
  * Read before every send, so a day that Resend has already refused costs no API call
  * at all — the panel is told "quota" immediately rather than after a round trip.
  */
-export async function mailQuota(env: Env): Promise<MailQuota> {
-	const limit = Number(env.MAIL_DAILY_LIMIT) || DEFAULT_DAILY_LIMIT;
+export async function mailBlock(env: Env): Promise<MailBlock> {
 	const row = await env.DB.prepare(
-		`SELECT sent, refused, blocked_at FROM mail_quota WHERE utc_day = date('now')`,
-	).first<{ sent: number; refused: number; blocked_at: string | null }>();
+		`SELECT blocked_at FROM mail_quota WHERE utc_day = date('now')`,
+	).first<{ blocked_at: string | null }>();
 
-	const sent = row?.sent ?? 0;
-	return {
-		sent,
-		refused: row?.refused ?? 0,
-		limit,
-		blocked: Boolean(row?.blocked_at) || sent >= limit,
-		resetsAt: nextUtcMidnight(),
-	};
+	return { blocked: Boolean(row?.blocked_at), resetsAt: nextUtcMidnight() };
 }
 
-/** One accepted message. */
-async function countSent(env: Env): Promise<void> {
+/** Resend said no. The only thing recorded, and the only thing trusted. */
+async function recordRefusal(env: Env): Promise<void> {
 	await env.DB.prepare(
-		`INSERT INTO mail_quota (utc_day, sent) VALUES (date('now'), 1)
-		 ON CONFLICT (utc_day) DO UPDATE SET sent = sent + 1`,
-	).run();
-}
-
-/** Resend said no. Authoritative — shuts the day regardless of what we had counted. */
-async function countRefused(env: Env): Promise<void> {
-	await env.DB.prepare(
-		`INSERT INTO mail_quota (utc_day, refused, blocked_at)
-		 VALUES (date('now'), 1, datetime('now'))
-		 ON CONFLICT (utc_day) DO UPDATE SET refused = refused + 1,
-		     blocked_at = COALESCE(blocked_at, datetime('now'))`,
+		`INSERT INTO mail_quota (utc_day, blocked_at) VALUES (date('now'), datetime('now'))
+		 ON CONFLICT (utc_day) DO UPDATE SET blocked_at = COALESCE(blocked_at, datetime('now'))`,
 	).run();
 }
 
@@ -277,9 +251,9 @@ async function deliver(env: Env, payload: unknown, label: string): Promise<MailR
 		return { sent: false, reason: 'no_key' };
 	}
 
-	const quota = await mailQuota(env).catch(() => null);
-	if (quota?.blocked) {
-		console.warn(`email: daily quota spent (${quota.sent}/${quota.limit}), skipping ${label}`);
+	const block = await mailBlock(env).catch(() => null);
+	if (block?.blocked) {
+		console.warn(`email: Resend refused earlier today, skipping ${label}`);
 		return { sent: false, reason: 'quota' };
 	}
 
@@ -293,17 +267,14 @@ async function deliver(env: Env, payload: unknown, label: string): Promise<MailR
 			body: JSON.stringify(payload),
 		});
 
-		if (res.ok) {
-			await countSent(env).catch((e) => console.error('email: could not count a send', e));
-			return { sent: true };
-		}
+		if (res.ok) return { sent: true };
 
 		const body = await res.text();
 		// 429 is the quota, but Resend also names it in the body — match either, because
 		// a plan change could move the status and the wording is the surer signal.
 		const isQuota = res.status === 429 || /quota|rate.?limit/i.test(body);
 		if (isQuota) {
-			await countRefused(env).catch((e) => console.error('email: could not count a refusal', e));
+			await recordRefusal(env).catch((e) => console.error('email: could not record the refusal', e));
 			console.error(`email: QUOTA REACHED, ${label} not sent`);
 			return { sent: false, reason: 'quota', status: res.status, detail: body.slice(0, 200) };
 		}

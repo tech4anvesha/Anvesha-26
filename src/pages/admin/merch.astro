@@ -829,38 +829,53 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	type MailInfo = {
 		sent: boolean;
 		reason: 'no_key' | 'quota' | 'error' | null;
-		quota: { used: number; refused: number; limit: number; blocked: boolean; resets_at: string } | null;
+		/** Resend has refused for the day. The only mail fact worth acting on. */
+		blocked: boolean;
+		resets_at: string | null;
 	};
 
-	/**
-	 * Tells the admin what happened to the student's email.
-	 *
-	 * Resend's free tier is 100 messages per UTC day, which lands at 05:30 in the
-	 * morning here — so a quota that runs out in the evening stays out all night. The
-	 * review itself always succeeds; what changes is whether the student has their pass
-	 * or needs chasing, and that has to be said while the admin is still on that order.
-	 */
-	/** Shape of the ledger as the orders list reports it. */
-	type Quota = NonNullable<MailInfo['quota']>;
+	/** Set once Resend has refused; every review is barred until the quota resets. */
+	let mailHardStopped = false;
 
+	/**
+	 * Reflect whether sending has stopped.
+	 *
+	 * There is no "N of 100 left" any more and there should not be: the key cannot read
+	 * Resend's counter, so any number here would be one we made up — and a made-up number
+	 * on screen is one somebody plans the evening around. The banner shows nothing while
+	 * mail is working and says so plainly when it is not.
+	 */
+	function paintMailBlock(b: { blocked: boolean; resets_at: string | null } | null) {
+		mailHardStopped = Boolean(b?.blocked);
+		document.body.classList.toggle('mail-stopped', mailHardStopped);
+
+		const el = $('mailQuota');
+		el.hidden = !mailHardStopped;
+		if (!mailHardStopped) return;
+		const when = b?.resets_at
+			? new Date(b.resets_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' })
+			: '05:30';
+		$('mailQuotaText').textContent =
+			`Daily email quota reached. Confirming and rejecting are paused until ${when}, ` +
+			`because students cannot be notified.`;
+	}
+
+	/** The same wall the worker enforces, said earlier so the click does nothing at all. */
+	function mailStopNotice(): boolean {
+		if (!mailHardStopped) return false;
+		alert(
+			'The daily email quota has been reached.\n\n' +
+			'Confirming and rejecting are paused, because students can no longer be notified.\n\n' +
+			'Kindly restart confirmation later on, after the quota resets at 05:30.',
+		);
+		return true;
+	}
+
+	/** Tells the admin what happened to this student's email. */
 	function reportMail(m: MailInfo | undefined, what: string) {
 		if (!m) return;
-		paintQuota(m.quota);
+		paintMailBlock(m);
 		if (m.sent) return;
-
-		if (m.reason === 'quota' && m.quota) {
-			const when = new Date(m.quota.resets_at).toLocaleString(undefined, {
-				weekday: 'short', hour: 'numeric', minute: '2-digit',
-			});
-			alert(
-				`${what} — but the email was NOT sent.\n\n` +
-				`Today's mail quota is used up (${m.quota.used + m.quota.refused} of ${m.quota.limit}).\n` +
-				`It resets at ${when}.\n\n` +
-				`Sending is paused until then. The order is saved and the student can still ` +
-				`see their pass at anvesha26.in/order — write this one down so someone can tell them.`,
-			);
-			return;
-		}
 		alert(
 			`${what} — but the email was NOT sent` +
 			(m.reason === 'no_key' ? ' (no mail key configured).' : '.') +
@@ -868,31 +883,8 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		);
 	}
 
-	/**
-	 * The standing mail counter. Always on.
-	 *
-	 * It used to appear only in the last 15, which meant the one day it mattered was the
-	 * one day nobody had been watching it. A number that is always there gets read in
-	 * passing; a warning that appears suddenly gets dismissed.
-	 */
-	function paintQuota(q: MailInfo['quota']) {
-		const el = $('mailQuota');
-		if (!q) { el.hidden = true; return; }
-		el.hidden = false;
-
-		const used = q.used + q.refused;
-		const left = Math.max(0, q.limit - used);
-		el.classList.toggle('is-spent', q.blocked);
-		// Amber inside the last twenty: still sending, but worth planning around.
-		el.classList.toggle('is-low', !q.blocked && left <= 20);
-
-		const when = new Date(q.resets_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
-		$('mailQuotaText').textContent = q.blocked
-			? `Mail quota spent — ${used} of ${q.limit} used. Sending is paused until ${when}. Orders still confirm, but students are not emailed.`
-			: `${left} of ${q.limit} emails left today · resets ${when}`;
-	}
-
 	async function confirmPayment(o: Order) {
+		if (mailStopNotice()) return;
 		if (!confirm(`Confirm payment for ${o.order_id}?\n\nThis marks the order paid and emails the student their collection QR.`)) return;
 		try {
 			const res = await adminFetch<{ duplicate_reference?: boolean; email?: MailInfo }>(
@@ -913,6 +905,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	let pendingReject: Order | null = null;
 	function openReject(o: Order) {
+		if (mailStopNotice()) return;
 		pendingReject = o;
 		$('rejId').textContent = o.order_id;
 		$('rejRef').textContent = o.payment_ref || '—';
@@ -1022,11 +1015,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	async function loadOrders() {
 		try {
 			$('ordErr').hidden = true;
-			const data = await adminFetch<{ orders: Order[]; mail_quota?: Quota | null }>('/api/admin/orders');
+			const data = await adminFetch<{
+				orders: Order[];
+				mail_block?: { blocked: boolean; resets_at: string | null } | null;
+			}>('/api/admin/orders');
 			orders = data.orders;
-			// Painted on every load, so the counter is correct the moment the tab opens
-			// and stays correct as other admins work through the queue.
-			paintQuota(data.mail_quota ?? null);
+			// Read on every load, so a tab opened after sending stopped knows immediately.
+			paintMailBlock(data.mail_block ?? null);
 			renderOrders();
 		} catch (e) {
 			$('ordErr').textContent = (e as Error).message;
@@ -2501,12 +2496,14 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		flex: none; width: 7px; height: 7px; border-radius: 50%;
 		background: var(--ink-40);
 	}
-	/* Three states, each louder than the last: a quiet count most of the day, a warning
-	   inside the last twenty, and an unmissable line once sending has stopped. */
-	.mail-quota.is-low { color: var(--secondary); }
-	.mail-quota.is-low .mq-dot { background: var(--iris, var(--accent)); }
-	.mail-quota.is-spent { color: var(--secondary); font-weight: 600; }
-	.mail-quota.is-spent .mq-dot {
+	/* One state only: shown when sending has stopped, absent otherwise. */
+	.mail-quota { color: var(--secondary); font-weight: 600; }
+	/* Once sending has stopped the row controls go flat and uninviting. Still focusable,
+	   so a keyboard user gets the same explanation rather than silently nothing. */
+	body.mail-stopped .ord-ok, body.mail-stopped .ord-no {
+		opacity: .35; cursor: not-allowed;
+	}
+	.mail-quota .mq-dot {
 		background: var(--accent);
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 	}
