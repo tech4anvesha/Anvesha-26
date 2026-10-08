@@ -236,6 +236,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 									The table reads far better on a desktop. Tap an order's items for the full slip.
 								</p>
 							</div>
+							{/* Standing quota line. Hidden until the day is nearly spent, so it is
+							    a warning rather than wallpaper — a banner always on screen is one
+							    nobody reads on the evening it finally matters. */}
+							<p class="mail-quota" id="mailQuota" hidden>
+								<span class="mq-dot" aria-hidden="true"></span>
+								<span id="mailQuotaText"></span>
+							</p>
 							<div class="ord-tools">
 								<button class="btn ord-tool ord-tool-go" id="ordDistribute" type="button">
 									<span class="m-add-icon" set:html={iScan} />
@@ -818,10 +825,77 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		}
 	}
 
+	/** What the worker reports about the email on every review. */
+	type MailInfo = {
+		sent: boolean;
+		reason: 'no_key' | 'quota' | 'error' | null;
+		quota: { used: number; refused: number; limit: number; blocked: boolean; resets_at: string } | null;
+	};
+
+	/**
+	 * Tells the admin what happened to the student's email.
+	 *
+	 * Resend's free tier is 100 messages per UTC day, which lands at 05:30 in the
+	 * morning here — so a quota that runs out in the evening stays out all night. The
+	 * review itself always succeeds; what changes is whether the student has their pass
+	 * or needs chasing, and that has to be said while the admin is still on that order.
+	 */
+	/** Shape of the ledger as the orders list reports it. */
+	type Quota = NonNullable<MailInfo['quota']>;
+
+	function reportMail(m: MailInfo | undefined, what: string) {
+		if (!m) return;
+		paintQuota(m.quota);
+		if (m.sent) return;
+
+		if (m.reason === 'quota' && m.quota) {
+			const when = new Date(m.quota.resets_at).toLocaleString(undefined, {
+				weekday: 'short', hour: 'numeric', minute: '2-digit',
+			});
+			alert(
+				`${what} — but the email was NOT sent.\n\n` +
+				`Today's mail quota is used up (${m.quota.used + m.quota.refused} of ${m.quota.limit}).\n` +
+				`It resets at ${when}.\n\n` +
+				`Sending is paused until then. The order is saved and the student can still ` +
+				`see their pass at anvesha26.in/order — write this one down so someone can tell them.`,
+			);
+			return;
+		}
+		alert(
+			`${what} — but the email was NOT sent` +
+			(m.reason === 'no_key' ? ' (no mail key configured).' : '.') +
+			`\n\nThe order is saved. The student can see their pass at anvesha26.in/order.`,
+		);
+	}
+
+	/**
+	 * The standing mail counter. Always on.
+	 *
+	 * It used to appear only in the last 15, which meant the one day it mattered was the
+	 * one day nobody had been watching it. A number that is always there gets read in
+	 * passing; a warning that appears suddenly gets dismissed.
+	 */
+	function paintQuota(q: MailInfo['quota']) {
+		const el = $('mailQuota');
+		if (!q) { el.hidden = true; return; }
+		el.hidden = false;
+
+		const used = q.used + q.refused;
+		const left = Math.max(0, q.limit - used);
+		el.classList.toggle('is-spent', q.blocked);
+		// Amber inside the last twenty: still sending, but worth planning around.
+		el.classList.toggle('is-low', !q.blocked && left <= 20);
+
+		const when = new Date(q.resets_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
+		$('mailQuotaText').textContent = q.blocked
+			? `Mail quota spent — ${used} of ${q.limit} used. Sending is paused until ${when}. Orders still confirm, but students are not emailed.`
+			: `${left} of ${q.limit} emails left today · resets ${when}`;
+	}
+
 	async function confirmPayment(o: Order) {
 		if (!confirm(`Confirm payment for ${o.order_id}?\n\nThis marks the order paid and emails the student their collection QR.`)) return;
 		try {
-			const res = await adminFetch<{ duplicate_reference?: boolean }>(
+			const res = await adminFetch<{ duplicate_reference?: boolean; email?: MailInfo }>(
 				`/api/admin/orders/${o.order_id}/review`,
 				{ method: 'POST', body: JSON.stringify({ action: 'confirm' }) },
 			);
@@ -829,6 +903,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			// writes no payment row. Surfaced, because only a human can untangle it.
 			if (res.duplicate_reference)
 				alert(`Confirmed — but reference ${o.payment_ref} is already recorded against another order. Check both before handing anything over.`);
+			reportMail(res.email, 'Order confirmed');
 			await loadOrders();
 		} catch (e) {
 			$('ordErr').textContent = (e as Error).message;
@@ -851,11 +926,15 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		const btn = $<HTMLButtonElement>('rejGo');
 		btn.disabled = true;
 		try {
-			await adminFetch(`/api/admin/orders/${pendingReject.order_id}/review`, {
-				method: 'POST',
-				body: JSON.stringify({ action: 'reject', note: $<HTMLTextAreaElement>('rejNote').value }),
-			});
+			const res = await adminFetch<{ email?: MailInfo }>(
+				`/api/admin/orders/${pendingReject.order_id}/review`,
+				{
+					method: 'POST',
+					body: JSON.stringify({ action: 'reject', note: $<HTMLTextAreaElement>('rejNote').value }),
+				},
+			);
 			openModal('rejModal', false);
+			reportMail(res.email, 'Order rejected');
 			pendingReject = null;
 			await loadOrders();
 		} catch (e) {
@@ -943,8 +1022,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	async function loadOrders() {
 		try {
 			$('ordErr').hidden = true;
-			const data = await adminFetch<{ orders: Order[] }>('/api/admin/orders');
+			const data = await adminFetch<{ orders: Order[]; mail_quota?: Quota | null }>('/api/admin/orders');
 			orders = data.orders;
+			// Painted on every load, so the counter is correct the moment the tab opens
+			// and stays correct as other admins work through the queue.
+			paintQuota(data.mail_quota ?? null);
 			renderOrders();
 		} catch (e) {
 			$('ordErr').textContent = (e as Error).message;
@@ -2407,6 +2489,27 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		font-size: 12px; letter-spacing: .02em; color: var(--ink-40);
 	}
 
+
+	/* Mail quota line. Amber while the day is running low, ink-on-accent once it is
+	   spent — the second state has to read as "stop", not as another status. */
+	.mail-quota {
+		display: flex; align-items: center; gap: 9px; margin: 0 0 10px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10.5px; letter-spacing: .04em; color: var(--ink-60);
+	}
+	.mq-dot {
+		flex: none; width: 7px; height: 7px; border-radius: 50%;
+		background: var(--ink-40);
+	}
+	/* Three states, each louder than the last: a quiet count most of the day, a warning
+	   inside the last twenty, and an unmissable line once sending has stopped. */
+	.mail-quota.is-low { color: var(--secondary); }
+	.mail-quota.is-low .mq-dot { background: var(--iris, var(--accent)); }
+	.mail-quota.is-spent { color: var(--secondary); font-weight: 600; }
+	.mail-quota.is-spent .mq-dot {
+		background: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+	}
 
 	/* ---- collections: a filed record ---- */
 	/* Wider than the other dialogs because this one is a production sheet: item, units

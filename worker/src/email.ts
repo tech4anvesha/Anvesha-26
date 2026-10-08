@@ -192,14 +192,95 @@ function text(o: OrderEmail): string {
 }
 
 /**
- * Sends the confirmation. Resolves either way — never throws into the payment path.
- * Returns whether the mail was actually accepted, which is what the tests assert on.
+ * Whether a message went out, and if not, why.
+ *
+ * A boolean was enough while nobody acted on the answer. It is not enough now: the
+ * admin panel has to tell the difference between "the student has their pass" and
+ * "the day's quota is spent, note this one down" — and those are the same `false`.
  */
-export async function sendOrderEmail(env: Env, o: OrderEmail): Promise<boolean> {
+export type MailResult =
+	| { sent: true }
+	| { sent: false; reason: 'no_key' | 'quota' | 'error'; status?: number; detail?: string };
+
+/** Resend's free tier. Override with MAIL_DAILY_LIMIT if the plan changes. */
+const DEFAULT_DAILY_LIMIT = 100;
+
+export interface MailQuota {
+	/** Messages accepted today. */
+	sent: number;
+	/** Messages Resend refused for quota today. */
+	refused: number;
+	limit: number;
+	/** True once Resend has said no, or our own count has reached the limit. */
+	blocked: boolean;
+	/** ISO instant of the next UTC midnight — when Resend's counter rolls over. */
+	resetsAt: string;
+}
+
+/** The next UTC midnight. Resend's day is a UTC calendar day, not a rolling window. */
+function nextUtcMidnight(): string {
+	const d = new Date();
+	d.setUTCHours(24, 0, 0, 0);
+	return d.toISOString();
+}
+
+/**
+ * Today's ledger row, created on first use.
+ *
+ * Read before every send, so a day that Resend has already refused costs no API call
+ * at all — the panel is told "quota" immediately rather than after a round trip.
+ */
+export async function mailQuota(env: Env): Promise<MailQuota> {
+	const limit = Number(env.MAIL_DAILY_LIMIT) || DEFAULT_DAILY_LIMIT;
+	const row = await env.DB.prepare(
+		`SELECT sent, refused, blocked_at FROM mail_quota WHERE utc_day = date('now')`,
+	).first<{ sent: number; refused: number; blocked_at: string | null }>();
+
+	const sent = row?.sent ?? 0;
+	return {
+		sent,
+		refused: row?.refused ?? 0,
+		limit,
+		blocked: Boolean(row?.blocked_at) || sent >= limit,
+		resetsAt: nextUtcMidnight(),
+	};
+}
+
+/** One accepted message. */
+async function countSent(env: Env): Promise<void> {
+	await env.DB.prepare(
+		`INSERT INTO mail_quota (utc_day, sent) VALUES (date('now'), 1)
+		 ON CONFLICT (utc_day) DO UPDATE SET sent = sent + 1`,
+	).run();
+}
+
+/** Resend said no. Authoritative — shuts the day regardless of what we had counted. */
+async function countRefused(env: Env): Promise<void> {
+	await env.DB.prepare(
+		`INSERT INTO mail_quota (utc_day, refused, blocked_at)
+		 VALUES (date('now'), 1, datetime('now'))
+		 ON CONFLICT (utc_day) DO UPDATE SET refused = refused + 1,
+		     blocked_at = COALESCE(blocked_at, datetime('now'))`,
+	).run();
+}
+
+/**
+ * Send, and record what happened.
+ *
+ * Shared by both templates so the ledger cannot miss one. Never throws: a mail problem
+ * must not fail a payment that already went through — it only has to be REPORTED now,
+ * which is the whole change.
+ */
+async function deliver(env: Env, payload: unknown, label: string): Promise<MailResult> {
 	if (!env.RESEND_API_KEY) {
-		// Local dev and CI run without a key; that is not an error worth failing over.
-		console.warn('email: RESEND_API_KEY not set, skipping confirmation for', o.orderId);
-		return false;
+		console.warn('email: RESEND_API_KEY not set, skipping', label);
+		return { sent: false, reason: 'no_key' };
+	}
+
+	const quota = await mailQuota(env).catch(() => null);
+	if (quota?.blocked) {
+		console.warn(`email: daily quota spent (${quota.sent}/${quota.limit}), skipping ${label}`);
+		return { sent: false, reason: 'quota' };
 	}
 
 	try {
@@ -209,34 +290,53 @@ export async function sendOrderEmail(env: Env, o: OrderEmail): Promise<boolean> 
 				Authorization: `Bearer ${env.RESEND_API_KEY}`,
 				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify({
-				from: env.MAIL_FROM || DEFAULT_FROM,
-				// Resend's field is reply_to, not replyTo — it is silently ignored if
-				// misspelled, and a silently ignored Reply-To sends every buyer's question
-				// to a mailbox nobody reads.
-				reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
-				to: [o.to],
-				subject: `Your Anvesha '26 order — ${o.orderId}`,
-				html: html(o),
-				text: text(o),
-				attachments: [
-					{
-						filename: `anvesha-${o.orderId}.png`,
-						content: toBase64(qrPng(o.orderId)),
-					},
-				],
-			}),
+			body: JSON.stringify(payload),
 		});
 
-		if (!res.ok) {
-			console.error('email: resend rejected', res.status, await res.text());
-			return false;
+		if (res.ok) {
+			await countSent(env).catch((e) => console.error('email: could not count a send', e));
+			return { sent: true };
 		}
-		return true;
+
+		const body = await res.text();
+		// 429 is the quota, but Resend also names it in the body — match either, because
+		// a plan change could move the status and the wording is the surer signal.
+		const isQuota = res.status === 429 || /quota|rate.?limit/i.test(body);
+		if (isQuota) {
+			await countRefused(env).catch((e) => console.error('email: could not count a refusal', e));
+			console.error(`email: QUOTA REACHED, ${label} not sent`);
+			return { sent: false, reason: 'quota', status: res.status, detail: body.slice(0, 200) };
+		}
+
+		console.error('email: resend rejected', res.status, body);
+		return { sent: false, reason: 'error', status: res.status, detail: body.slice(0, 200) };
 	} catch (e) {
-		console.error('email: send failed for', o.orderId, e);
-		return false;
+		console.error('email: send failed for', label, e);
+		return { sent: false, reason: 'error', detail: String(e).slice(0, 200) };
 	}
+}
+
+/**
+ * Sends the confirmation. Resolves either way — never throws into the payment path.
+ * Returns whether the mail was actually accepted, which is what the tests assert on.
+ */
+export async function sendOrderEmail(env: Env, o: OrderEmail): Promise<MailResult> {
+	return deliver(
+		env,
+		{
+			from: env.MAIL_FROM || DEFAULT_FROM,
+			// Resend's field is reply_to, not replyTo — it is silently ignored if
+			// misspelled, and a silently ignored Reply-To sends every buyer's question
+			// to a mailbox nobody reads.
+			reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
+			to: [o.to],
+			subject: `Your Anvesha '26 order — ${o.orderId}`,
+			html: html(o),
+			text: text(o),
+			attachments: [{ filename: `anvesha-${o.orderId}.png`, content: toBase64(qrPng(o.orderId)) }],
+		},
+		`confirmation for ${o.orderId}`,
+	);
 }
 
 // ============================================================
@@ -356,38 +456,19 @@ function rejectionText(o: RejectionEmail): string {
  * the admin's review action. An admin pressing REJECT must not see an error because a
  * mail server was slow.
  */
-export async function sendRejectionEmail(env: Env, o: RejectionEmail): Promise<boolean> {
-	if (!env.RESEND_API_KEY) {
-		console.warn('email: RESEND_API_KEY not set, skipping rejection notice for', o.orderId);
-		return false;
-	}
-
-	try {
-		const res = await fetch(RESEND_ENDPOINT, {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${env.RESEND_API_KEY}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				from: env.MAIL_FROM || DEFAULT_FROM,
-				reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
-				to: [o.to],
-				subject: `Action needed on your Anvesha '26 order — ${o.orderId}`,
-				html: rejectionHtml(o),
-				text: rejectionText(o),
-				// No QR: there is nothing to collect yet, and attaching one would be the
-				// single worst thing this mail could do.
-			}),
-		});
-
-		if (!res.ok) {
-			console.error('email: resend rejected (rejection notice)', res.status, await res.text());
-			return false;
-		}
-		return true;
-	} catch (e) {
-		console.error('email: rejection notice failed for', o.orderId, e);
-		return false;
-	}
+export async function sendRejectionEmail(env: Env, o: RejectionEmail): Promise<MailResult> {
+	return deliver(
+		env,
+		{
+			from: env.MAIL_FROM || DEFAULT_FROM,
+			reply_to: [env.MAIL_REPLY_TO || DEFAULT_REPLY_TO],
+			to: [o.to],
+			subject: `Action needed on your Anvesha '26 order — ${o.orderId}`,
+			html: rejectionHtml(o),
+			text: rejectionText(o),
+			// No QR: there is nothing to collect yet, and attaching one would be the
+			// single worst thing this mail could do.
+		},
+		`rejection notice for ${o.orderId}`,
+	);
 }

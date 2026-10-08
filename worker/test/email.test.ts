@@ -41,7 +41,9 @@ async function capture(env: Partial<Env>) {
 describe('order confirmation envelope', () => {
 	it('goes to the address given at checkout, and only there', async () => {
 		const { ok, body } = await capture({});
-		assert.equal(ok, true);
+		// The sender reports a MailResult now, not a bare boolean — the admin panel
+		// has to tell 'delivered' apart from 'the day's quota is spent'.
+		assert.deepEqual(ok, { sent: true });
 		assert.deepEqual(body.to, ['buyer@iisertvm.ac.in']);
 	});
 
@@ -68,6 +70,78 @@ describe('order confirmation envelope', () => {
 	});
 
 	it('with no key it reports failure rather than throwing into the payment path', async () => {
-		assert.equal(await sendOrderEmail({} as Env, ORDER), false);
+		assert.deepEqual(await sendOrderEmail({} as Env, ORDER), { sent: false, reason: 'no_key' });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The daily quota.
+//
+// Resend's free tier is 100 messages per UTC day. On 8 Oct the panel confirmed more
+// orders than that and nobody could say which students got their collection pass,
+// because a failed send looked exactly like a successful one from the outside.
+// These pin the three answers the panel now distinguishes.
+// ---------------------------------------------------------------------------
+
+/** A D1 stand-in holding one ledger row. */
+function fakeDb(row: { sent: number; refused: number; blocked_at: string | null } | null) {
+	const writes: string[] = [];
+	return {
+		writes,
+		prepare(sql: string) {
+			return {
+				bind: () => this,
+				first: async () => (sql.includes('SELECT') ? row : null),
+				run: async () => { writes.push(sql.trim().split('\n')[0]); return { meta: { changes: 1 } }; },
+			};
+		},
+	};
+}
+
+describe('daily mail quota', () => {
+	it('does not call Resend once the day is blocked', async () => {
+		let called = 0;
+		const fake = mock.method(globalThis, 'fetch', async () => { called++; return new Response('{}', { status: 200 }); });
+		const res = await sendOrderEmail(
+			{ RESEND_API_KEY: 'k', DB: fakeDb({ sent: 100, refused: 3, blocked_at: '2026-10-08 18:00:00' }) } as unknown as Env,
+			ORDER,
+		);
+		fake.mock.restore();
+		assert.deepEqual(res, { sent: false, reason: 'quota' });
+		// The point of the ledger: a spent day costs no API call at all.
+		assert.equal(called, 0, 'called Resend despite a blocked day');
+	});
+
+	it('reads a 429 as quota, not as a generic failure', async () => {
+		const fake = mock.method(globalThis, 'fetch', async () =>
+			new Response(JSON.stringify({ name: 'daily_quota_exceeded' }), { status: 429 }));
+		const res = await sendOrderEmail(
+			{ RESEND_API_KEY: 'k', DB: fakeDb({ sent: 4, refused: 0, blocked_at: null }) } as unknown as Env,
+			ORDER,
+		);
+		fake.mock.restore();
+		assert.equal(res.sent, false);
+		assert.equal(res.sent === false && res.reason, 'quota');
+	});
+
+	it('keeps a real failure distinct from a quota one', async () => {
+		// A 500 from Resend is worth retrying later; a quota is not. Conflating them
+		// would have the panel tell the admin to wait until morning over a blip.
+		const fake = mock.method(globalThis, 'fetch', async () => new Response('upstream boom', { status: 500 }));
+		const res = await sendOrderEmail(
+			{ RESEND_API_KEY: 'k', DB: fakeDb({ sent: 4, refused: 0, blocked_at: null }) } as unknown as Env,
+			ORDER,
+		);
+		fake.mock.restore();
+		assert.equal(res.sent === false && res.reason, 'error');
+	});
+
+	it('still sends when the ledger is empty', async () => {
+		const fake = mock.method(globalThis, 'fetch', async () => new Response('{"id":"x"}', { status: 200 }));
+		const res = await sendOrderEmail(
+			{ RESEND_API_KEY: 'k', DB: fakeDb(null) } as unknown as Env, ORDER,
+		);
+		fake.mock.restore();
+		assert.deepEqual(res, { sent: true });
 	});
 });

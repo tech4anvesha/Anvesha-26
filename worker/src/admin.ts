@@ -13,7 +13,7 @@
  */
 
 import { type PricedLine } from './cart.ts';
-import { sendOrderEmail, sendRejectionEmail } from './email.ts';
+import { type MailResult, mailQuota, sendOrderEmail, sendRejectionEmail } from './email.ts';
 import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
 import {
 	ApiError,
@@ -380,6 +380,12 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 
 	return json(
 		{
+			// The mail ledger rides along with the list. Without it the counter could only
+			// appear after a review had already been made — which is exactly too late to
+			// warn anyone that the day is nearly spent.
+			mail_quota: await mailQuota(env)
+				.then((q) => ({ used: q.sent, refused: q.refused, limit: q.limit, blocked: q.blocked, resets_at: q.resetsAt }))
+				.catch(() => null),
 			orders: results.map((o) => {
 				// Counter payments store name/contact/email; a Razorpay entity carries
 				// email and contact but no name. Both are read the same way, and a
@@ -922,6 +928,23 @@ export async function adminOrderProof(
 
 // ============================================================
 // POST /api/admin/orders/:order_id/review — confirm or reject
+/**
+ * What the panel is told about the email.
+ *
+ * The quota numbers come back on EVERY review, not only on failure, so the panel can
+ * show "83 of 100 used today" and the admin sees the wall coming instead of hitting it.
+ * resets_at is an instant, not a formatted time — the browser knows the reader's clock
+ * and the server does not.
+ */
+async function mailReport(env: Env, mail: MailResult) {
+	const q = await mailQuota(env).catch(() => null);
+	return {
+		sent: mail.sent,
+		reason: mail.sent ? null : mail.reason,
+		quota: q && { used: q.sent, refused: q.refused, limit: q.limit, blocked: q.blocked, resets_at: q.resetsAt },
+	};
+}
+
 // ============================================================
 /**
  * The decision that turns evidence into a paid order, or sends it back.
@@ -986,22 +1009,29 @@ export async function adminReviewOrder(
 
 		console.log(`admin: ${session.collegemail} (${session.roll_number}) REJECTED ${orderId}`);
 
-		const after = Promise.all([
-			customer.email
-				? sendRejectionEmail(env, {
-						to: customer.email,
-						name: customer.name,
-						orderId,
-						paymentRef: order.payment_ref ?? '',
-						reason: note,
-					})
-				: Promise.resolve(false),
-			broadcastChange(env, 'orders', `rejected ${orderId}`),
-		]);
-		if (ctx) ctx.waitUntil(after);
-		else await after;
+		// AWAITED, not fired into waitUntil. The reject itself is already committed, so
+		// this cannot cost the admin their action — but its outcome is the one thing the
+		// panel could never see before, and "the quota is spent" has to reach a human
+		// while they are still looking at the order it happened on.
+		const mail: MailResult = customer.email
+			? await sendRejectionEmail(env, {
+					to: customer.email,
+					name: customer.name,
+					orderId,
+					paymentRef: order.payment_ref ?? '',
+					reason: note,
+				})
+			: { sent: false, reason: 'error', detail: 'no email on file' };
 
-		return json({ ok: true, order_id: orderId, review_status: 'rejected' }, {}, cors);
+		const live = broadcastChange(env, 'orders', `rejected ${orderId}`);
+		if (ctx) ctx.waitUntil(live);
+		else await live;
+
+		return json(
+			{ ok: true, order_id: orderId, review_status: 'rejected', email: await mailReport(env, mail) },
+			{},
+			cors,
+		);
 	}
 
 	// ---- confirm ----
@@ -1045,8 +1075,12 @@ export async function adminReviewOrder(
 
 	// Mail on `changes`, not on reaching this line: the check above and this write are
 	// not atomic together, so two admins can both read 'pending' and both arrive.
+	let mail: MailResult = { sent: false, reason: 'error', detail: 'not attempted' };
 	if (flip.meta.changes && customer.email) {
-		const mail = sendOrderEmail(env, {
+		// Awaited for the same reason as the reject path: the order is already paid and
+		// nothing here can undo that, but whether the student actually received their
+		// collection pass is information the admin needs NOW, not in a log nobody reads.
+		mail = await sendOrderEmail(env, {
 			to: customer.email,
 			name: customer.name,
 			orderId,
@@ -1054,8 +1088,6 @@ export async function adminReviewOrder(
 			items: JSON.parse(order.order_info) as PricedLine[],
 			totalPaise: order.total_price_paise,
 		});
-		if (ctx) ctx.waitUntil(mail);
-		else await mail;
 	}
 
 	const live = broadcastChange(env, 'orders', `confirmed ${orderId}`);
@@ -1070,6 +1102,7 @@ export async function adminReviewOrder(
 			transaction_id: txnId,
 			// The panel warns the admin rather than pretending everything landed.
 			duplicate_reference: collided,
+			email: await mailReport(env, mail),
 		},
 		{},
 		cors,
