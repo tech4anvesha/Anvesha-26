@@ -1129,6 +1129,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		// a 5MB upload rather than after one.
 		const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 		const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+
 		let buyerName = '';
 		const processingEl = $('processing'), payProgress = $('payProgress');
 		const segs = [...payProgress.querySelectorAll<HTMLElement>('.seg')];
@@ -1420,11 +1421,38 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 					phone: fPhone.value, email: fEmail.value,
 				}));
 
-				const res = await fetch(`${API}/api/orders/${encodeURIComponent(currentOrder)}/payment`, {
+				/**
+				 * One retry, and ONLY on a network failure.
+				 *
+				 * fetch rejects with a TypeError when the request never completed — the
+				 * wifi dropped, or the page was backgrounded while the student was in
+				 * their banking app. That is transient and a second attempt usually
+				 * works. An HTTP error is not retried: the server having said "that
+				 * reference is too short" twice helps nobody, and a retry on a request
+				 * that DID arrive risks filing the evidence twice.
+				 */
+				// Captured, not read through the closure on each attempt: the retry must
+				// target the order this submission started on, whatever happened since.
+				const oid = currentOrder;
+				const post = () => fetch(`${API}/api/orders/${encodeURIComponent(oid)}/payment`, {
 					method: 'POST',
 					body,
 				});
-				const data = await res.json();
+				let res: Response;
+				try {
+					res = await post();
+				} catch {
+					await new Promise((r) => setTimeout(r, 800));
+					try {
+						res = await post();
+					} catch {
+						throw new Error(
+							'The upload did not finish — check your connection and press SUBMIT again. ' +
+							'Your payment is safe; nothing has been sent twice.',
+						);
+					}
+				}
+				const data = await res.json().catch(() => ({}) as Record<string, string>);
 				if (!res.ok) throw new Error(data.message || data.error || 'Could not submit that payment');
 
 				finishProgress();

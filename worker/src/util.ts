@@ -25,6 +25,8 @@ export interface Env {
 	MAIL_FROM?: string;
 	MAIL_REPLY_TO?: string;
 	MONEY_RL: RateLimit;
+	// Submit-only, and much larger — see wrangler.jsonc for why.
+	SUBMIT_RL: RateLimit;
 	HUB: DurableObjectNamespace<import('./hub.ts').CatalogueHub>;
 }
 
@@ -182,7 +184,13 @@ export const clientIp = (req: Request) => req.headers.get('CF-Connecting-IP') ??
  *  nothing. `route` is folded into the key so checkout and pay don't share one
  *  student's budget — a burst of legitimate checkouts must not lock out paying. */
 export async function requireBudget(env: Env, req: Request, route: string): Promise<void> {
-	const { success } = await env.MONEY_RL.limit({ key: `${route}:${clientIp(req)}` });
+	// Submitting payment proof is the one route a whole campus hits at once, from one
+	// NAT'd IP, each student legitimately doing it once. It gets a 100/min bucket of its
+	// own; everything else — including admin-login, where guessing is the attack — keeps
+	// the tighter 30. Falls back to MONEY_RL so a missing binding degrades to the old
+	// behaviour instead of throwing on every request.
+	const limiter = route === 'submit' ? (env.SUBMIT_RL ?? env.MONEY_RL) : env.MONEY_RL;
+	const { success } = await limiter.limit({ key: `${route}:${clientIp(req)}` });
 	if (!success) throw tooMany();
 }
 
