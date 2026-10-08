@@ -919,8 +919,16 @@ export async function adminOrderProof(
 	const headers = new Headers(cors);
 	object.writeHttpMetadata(headers); // the content-type it was stored with
 	headers.set('etag', object.httpEtag);
-	// Private and uncacheable, everywhere: browser, proxy and edge alike.
-	headers.set('Cache-Control', 'private, no-store');
+	// `private` is the part that matters: it keeps the screenshot out of every SHARED
+	// cache — proxy, CDN, caches.default — which is the whole risk with an image that
+	// sits behind requireAdmin.
+	//
+	// `no-store` additionally forbade the admin's OWN browser from keeping it, which was
+	// not protecting anything: the bytes are already on that machine, on screen, for a
+	// person entitled to see them. All it achieved was re-downloading a 3MB screenshot
+	// every time the same admin opened the same order. Ten minutes is long enough for a
+	// review session and short enough that a shared laptop forgets quickly.
+	headers.set('Cache-Control', 'private, max-age=600');
 
 	return new Response(object.body, { headers });
 }

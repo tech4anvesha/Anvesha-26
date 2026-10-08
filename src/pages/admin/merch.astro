@@ -23,6 +23,7 @@ import iLayers from 'lucide-static/icons/layers.svg?raw';
 import iScan from 'lucide-static/icons/scan-line.svg?raw';
 import iFlame from 'lucide-static/icons/flame.svg?raw';
 import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
+import iShot from 'lucide-static/icons/image.svg?raw';
 ---
 
 <AdminLayout title="Merch — Admin — Anvesha '26">
@@ -786,39 +787,57 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		);
 	}
 
-	// Object URLs are revoked when the table is rebuilt; without that, every live
-	// refresh would leak one blob per row for as long as the panel stays open.
-	let proofUrls: string[] = [];
-	function dropProofUrls() {
-		for (const u of proofUrls) URL.revokeObjectURL(u);
-		proofUrls = [];
-	}
+	/**
+	 * Screenshots, kept once fetched.
+	 *
+	 * These used to be downloaded for every row on every render, then revoked, then
+	 * downloaded again on the next render. With 139 orders averaging a quarter of a
+	 * megabyte that is ~37MB of traffic each time the table redraws — and it redraws on
+	 * every confirm, every reject, every broadcast from another admin and every tab
+	 * focus. That is the "constantly refreshing" and most of the "enormous time".
+	 *
+	 * Now nothing is fetched until someone asks to see one, and what is fetched is kept.
+	 * Bounded, because an admin working a long shift would otherwise hold every
+	 * screenshot of the day in memory at once.
+	 */
+	const proofCache = new Map<string, string>();
+	const PROOF_CACHE_MAX = 24;
 
-	/** Fetches a screenshot with the admin's token and shows it in the cell. */
-	async function loadProof(orderId: string, img: HTMLImageElement) {
-		try {
-			const blob = await adminBlob(`/api/admin/orders/${orderId}/proof`);
-			const url = URL.createObjectURL(blob);
-			proofUrls.push(url);
-			img.src = url;
-		} catch {
-			// The fallback glyph beside it already reads as "nothing to show"; a failed
-			// thumbnail is not worth an error banner over the whole table.
+	function cacheProof(orderId: string, url: string) {
+		proofCache.set(orderId, url);
+		while (proofCache.size > PROOF_CACHE_MAX) {
+			const oldest = proofCache.keys().next().value as string;
+			URL.revokeObjectURL(proofCache.get(oldest)!);
+			proofCache.delete(oldest);
 		}
 	}
 
-	let shotUrl: string | null = null;
+	/** Frees every held screenshot. Called when the panel is torn down. */
+	function dropProofUrls() {
+		for (const u of proofCache.values()) URL.revokeObjectURL(u);
+		proofCache.clear();
+	}
+
 	async function openShot(o: Order) {
 		$('shotId').textContent = o.order_id;
 		$('shotRef').textContent = o.payment_ref || '—';
 		const img = $<HTMLImageElement>('shotImg');
 		img.removeAttribute('src');
+		$('shotErr').hidden = true;
 		openModal('shotModal', true);
+
+		// Already seen this one — show it immediately rather than fetching it twice.
+		const held = proofCache.get(o.order_id);
+		if (held) { img.src = held; return; }
+
+		$('shotErr').textContent = 'Loading the screenshot…';
+		$('shotErr').hidden = false;
 		try {
 			const blob = await adminBlob(`/api/admin/orders/${o.order_id}/proof`);
-			if (shotUrl) URL.revokeObjectURL(shotUrl);
-			shotUrl = URL.createObjectURL(blob);
-			img.src = shotUrl;
+			const url = URL.createObjectURL(blob);
+			cacheProof(o.order_id, url);
+			img.src = url;
+			$('shotErr').hidden = true;
 		} catch (e) {
 			$('shotErr').textContent = (e as Error).message;
 			$('shotErr').hidden = false;
@@ -953,7 +972,6 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	function renderOrders() {
 		const body = $('ordBody');
-		dropProofUrls();
 		body.innerHTML = '';
 
 		// Drafts never reach the table. They are rows the database needs and the
@@ -980,12 +998,13 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				(paid ? '' : `<span class="ord-tag">${escape(o.payment_status)}</span>`) +
 				`</td>` +
 				`<td class="mono">${escape(stamp(o.created_at))}</td>` +
-				// The thumbnail is filled in after render: the bytes need an auth header,
-				// so an <img src> cannot fetch them on its own.
+				// An icon, not the picture. has_proof already says one exists, and a 40px
+				// box could never show a transaction id anyway — so rendering it cost a
+				// full-size download per row and told the reader nothing. Click to view.
 				`<td>${
 					o.has_proof
 						? `<button type="button" class="col-art ord-shot" data-shot aria-label="View payment screenshot">` +
-							`<img alt="" /><span class="col-art-fallback">…</span></button>`
+							`<span class="shot-icon">${iShot}</span></button>`
 						: `<span class="ord-none">—</span>`
 				}</td>` +
 				`<td>${reviewCell(o)}</td>` +
@@ -1003,11 +1022,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			tr.querySelector('[data-del]')!.addEventListener('click', () => openDelete(o));
 			tr.querySelector('[data-ok]')?.addEventListener('click', () => confirmPayment(o));
 			tr.querySelector('[data-no]')?.addEventListener('click', () => openReject(o));
-			const shot = tr.querySelector<HTMLButtonElement>('[data-shot]');
-			if (shot) {
-				void loadProof(o.order_id, shot.querySelector('img')!);
-				shot.addEventListener('click', () => openShot(o));
-			}
+			tr.querySelector('[data-shot]')?.addEventListener('click', () => openShot(o));
 			body.appendChild(tr);
 		}
 	}
@@ -2669,6 +2684,11 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 800; font-size: 19px; letter-spacing: -.01em;
 	}
+
+	/* The cell is a button that opens the picture, not the picture itself. */
+	.shot-icon { display: grid; place-items: center; width: 100%; height: 100%; color: var(--ink-40); }
+	.shot-icon svg { width: 18px; height: 18px; stroke-width: 1.8; }
+	.ord-shot:hover .shot-icon { color: var(--accent); }
 
 	.col-art {
 		display: grid; place-items: center; overflow: hidden;
