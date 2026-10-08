@@ -556,7 +556,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	import iTrash from 'lucide-static/icons/trash-2.svg?raw';
 	import iCheck from 'lucide-static/icons/check.svg?raw';
 	import iNo from 'lucide-static/icons/x.svg?raw';
-	import iShot from 'lucide-static/icons/image.svg?raw';
+	import iShot from 'lucide-static/icons/eye.svg?raw';
 	// Same fallbacks the storefront uses, so the preview degrades identically.
 	import icApparel from 'lucide-static/icons/shirt.svg?raw';
 	import icAccessories from 'lucide-static/icons/shopping-bag.svg?raw';
@@ -1003,8 +1003,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				// full-size download per row and told the reader nothing. Click to view.
 				`<td>${
 					o.has_proof
-						? `<button type="button" class="col-art ord-shot" data-shot aria-label="View payment screenshot">` +
-							`<span class="shot-icon">${iShot}</span></button>`
+						? `<button type="button" class="btn ord-shot" data-shot title="View payment screenshot" aria-label="View payment screenshot">${iShot}</button>`
 						: `<span class="ord-none">—</span>`
 				}</td>` +
 				`<td>${reviewCell(o)}</td>` +
@@ -2425,8 +2424,12 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	}
 	/* A button, not a span: it opens the full-size view, so it has to be reachable by
 	   keyboard and announce itself as something that does anything at all. */
-	.ord-shot { padding: 0; cursor: pointer; }
-	.ord-shot:hover { border-color: var(--accent); }
+	/* Sized and chromed exactly like .ord-ok / .ord-no / .ord-del, because it IS one of
+	   them — a thing you press. The old 40x40 .col-art frame around a picture glyph was
+	   the visual language of an image that failed to load, which is what it looked like. */
+	.ord-shot { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; cursor: pointer; }
+	.ord-shot svg { width: 14px; height: 14px; stroke-width: 2.2; }
+	.ord-shot:hover { color: var(--primary); background: var(--secondary); border-color: var(--secondary); }
 	.ord-pill.bad { color: var(--primary); background: var(--accent); }
 
 	.ov-shot { width: min(560px, 100%); }
@@ -2684,11 +2687,6 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
 		font-weight: 800; font-size: 19px; letter-spacing: -.01em;
 	}
-
-	/* The cell is a button that opens the picture, not the picture itself. */
-	.shot-icon { display: grid; place-items: center; width: 100%; height: 100%; color: var(--ink-40); }
-	.shot-icon svg { width: 18px; height: 18px; stroke-width: 1.8; }
-	.ord-shot:hover .shot-icon { color: var(--accent); }
 
 	.col-art {
 		display: grid; place-items: center; overflow: hidden;
