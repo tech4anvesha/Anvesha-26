@@ -978,6 +978,45 @@ const initialsOf = (name: string) =>
 			if (rows[0]) select(rows[0]);
 		});
 
+		/**
+		 * Open the person named in the URL.
+		 *
+		 * `/teams#IMS22031` lands on that member: the right department opens, their row is
+		 * selected and the card fills in. This is what the printed QR codes point at, so a
+		 * roll that no longer exists must fail quietly — the page simply shows its default
+		 * first member rather than an error, because the person holding the card cannot do
+		 * anything about a roster that changed after it was printed.
+		 *
+		 * The roll is the key: it is already unique, already on the row as data-roll, and
+		 * it is what a human would recognise on a printed badge.
+		 */
+		function openFromHash() {
+			const roll = decodeURIComponent(location.hash.replace(/^#/, '')).trim().toUpperCase();
+			if (!roll) return;
+
+			const row = tree!.querySelector<HTMLElement>(`.titem[data-roll="${CSS.escape(roll)}"]`);
+			if (!row) return;
+
+			// The row lives inside a collapsed department until its header is opened.
+			const kids = row.closest<HTMLElement>('.tkids');
+			const cat = kids && tree!.querySelector<HTMLElement>(`.tcat[data-cat="${kids.dataset.kids}"]`);
+			if (cat) {
+				for (const other of tree!.querySelectorAll<HTMLElement>('.tcat.open'))
+					if (other !== cat) openCat(other, false);
+				openCat(cat, true);
+				// Keep the narrow-screen department picker in step with the rail.
+				if (pick && kids.dataset.kids) pick.value = kids.dataset.kids;
+			}
+
+			select(row);
+			// After the open transition, or the row is still mid-flight when we scroll to it.
+			setTimeout(() => row.scrollIntoView({ block: 'center', behavior: 'smooth' }), 260);
+		}
+
+		openFromHash();
+		// Someone scanning a second code while the page is already open.
+		addEventListener('hashchange', openFromHash);
+
 		tree.addEventListener('click', (e) => {
 			const el = e.target as HTMLElement;
 
