@@ -27,6 +27,8 @@ export interface Env {
 	MONEY_RL: RateLimit;
 	// Submit-only, and much larger — see wrangler.jsonc for why.
 	SUBMIT_RL: RateLimit;
+	// The handout counter, shared by every volunteer on one NAT. See wrangler.jsonc.
+	COUNTER_RL: RateLimit;
 	HUB: DurableObjectNamespace<import('./hub.ts').CatalogueHub>;
 }
 
@@ -189,7 +191,19 @@ export async function requireBudget(env: Env, req: Request, route: string): Prom
 	// own; everything else — including admin-login, where guessing is the attack — keeps
 	// the tighter 30. Falls back to MONEY_RL so a missing binding degrades to the old
 	// behaviour instead of throwing on every request.
-	const limiter = route === 'submit' ? (env.SUBMIT_RL ?? env.MONEY_RL) : env.MONEY_RL;
+	// Three budgets, by who shares them:
+	//   submit  — a whole campus of students, each legitimately submitting once
+	//   dist-*  — the handout desk, every volunteer behind one wifi IP
+	//   the rest — one person doing one thing, including admin-login, where guessing
+	//              is the attack and the tight 30 is the point
+	// Each falls back to MONEY_RL, so a missing binding degrades to the old behaviour
+	// rather than throwing on every request.
+	const limiter =
+		route === 'submit'
+			? (env.SUBMIT_RL ?? env.MONEY_RL)
+			: route.startsWith('dist-')
+				? (env.COUNTER_RL ?? env.MONEY_RL)
+				: env.MONEY_RL;
 	const { success } = await limiter.limit({ key: `${route}:${clientIp(req)}` });
 	if (!success) throw tooMany();
 }

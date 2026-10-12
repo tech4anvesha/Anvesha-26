@@ -45,7 +45,13 @@
 		// at 30 a minute a merch rush throttles people who are only paying once. The other
 		// routes stay at 30 deliberately: admin-login is on MONEY_RL and guessing a shared
 		// password is exactly what that number is there to slow down.
-		{ "name": "SUBMIT_RL", "namespace_id": "1002", "simple": { "limit": 100, "period": 60 } }
+		{ "name": "SUBMIT_RL", "namespace_id": "1002", "simple": { "limit": 100, "period": 60 } },
+		// The merch counter. Every volunteer is behind the same campus wifi NAT, so this
+		// budget is shared by the whole handout desk, not per person — at 30 a minute four
+		// volunteers hit the ceiling at one handover each per 8 seconds, and the failure is
+		// a 429 in a volunteer's hand with students queued in front of them. A handover is
+		// two calls, so 300 leaves room for rescans, retries and a long queue.
+		{ "name": "COUNTER_RL", "namespace_id": "1003", "simple": { "limit": 300, "period": 60 } }
 	],
 	// Fan-out point for live catalogue updates. Workers share no memory, so the list of
 	// connected browsers has to live somewhere single-instance.
@@ -119,7 +125,13 @@
 				// at 30 a minute a merch rush throttles people who are only paying once. The other
 				// routes stay at 30 deliberately: admin-login is on MONEY_RL and guessing a shared
 				// password is exactly what that number is there to slow down.
-				{ "name": "SUBMIT_RL", "namespace_id": "1002", "simple": { "limit": 100, "period": 60 } }
+				{ "name": "SUBMIT_RL", "namespace_id": "1002", "simple": { "limit": 100, "period": 60 } },
+				// The merch counter. Every volunteer is behind the same campus wifi NAT, so this
+				// budget is shared by the whole handout desk, not per person — at 30 a minute four
+				// volunteers hit the ceiling at one handover each per 8 seconds, and the failure is
+				// a 429 in a volunteer's hand with students queued in front of them. A handover is
+				// two calls, so 300 leaves room for rescans, retries and a long queue.
+				{ "name": "COUNTER_RL", "namespace_id": "1003", "simple": { "limit": 300, "period": 60 } }
 			],
 			"durable_objects": {
 				"bindings": [{ "name": "HUB", "class_name": "CatalogueHub" }]
