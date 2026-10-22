@@ -1,6 +1,7 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
 
+import iDownload from 'lucide-static/icons/download.svg?raw';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
@@ -627,6 +628,18 @@ const TICKER = [
 
 				<footer class="sp-foot mono">
 					<span>Partner with us</span>
+					{/* Every logo, each saved as "<sponsor name>.<ext>". The list is built
+					    server-side from the same SPONSORS data the sheet renders, so the two
+					    can never disagree about who has a mark. */}
+					<button class="sp-dl" id="spDownload" type="button"
+					        data-logos={JSON.stringify(
+					          SPONSORS.flatMap((g) => g.of)
+					            .filter((sp) => (sp as { logo?: string }).logo)
+					            .map((sp) => ({ name: sp.name, src: (sp as { logo?: string }).logo })),
+					        )}>
+						<span set:html={iDownload} />
+						<span>Download logos</span>
+					</button>
 					{/* The href keeps the real address; only the label is trimmed. A visible
 					    string that is not a working address is one somebody types out by hand
 					    and never hears back from. */}
@@ -1121,6 +1134,50 @@ const TICKER = [
 
 		open.addEventListener('click', show, { signal });
 		document.getElementById('spClose')?.addEventListener('click', hide, { signal });
+
+		/**
+		 * Saves every sponsor mark, named for the sponsor.
+		 *
+		 * The <a download> attribute renames the file on the way out — and it is only
+		 * honoured for same-origin URLs, which these are, being served out of /public.
+		 * So no fetch and no blob: the anchor does the work.
+		 *
+		 * Staggered, because a browser asked to start thirteen downloads in the same tick
+		 * treats it as a popup storm and silently drops most of them. 150ms apart is slow
+		 * enough to be allowed and fast enough to feel like one action. The first one
+		 * still raises "allow multiple downloads?" — that prompt is the browser's, and
+		 * there is no way to ask for a batch without it.
+		 */
+		const dl = document.getElementById('spDownload');
+		dl?.addEventListener('click', () => {
+			let logos: { name: string; src: string }[] = [];
+			try {
+				logos = JSON.parse(dl.dataset.logos || '[]');
+			} catch {
+				return; // malformed data is a build bug, not something to alert a visitor about
+			}
+			if (!logos.length) return;
+
+			const label = dl.querySelector('span:last-child');
+			const was = label?.textContent;
+			if (label) label.textContent = `Saving ${logos.length}…`;
+
+			logos.forEach((l, i) => {
+				setTimeout(() => {
+					const a = document.createElement('a');
+					a.href = l.src;
+					// The extension comes off the real file, so a .jpeg stays a .jpeg and a
+					// .PNG keeps its case — renaming the container would corrupt nothing but
+					// would make the file lie about what it is.
+					a.download = `${l.name}${l.src.slice(l.src.lastIndexOf('.'))}`;
+					document.body.appendChild(a);
+					a.click();
+					a.remove();
+					if (i === logos.length - 1 && label && was)
+						setTimeout(() => { label.textContent = was; }, 600);
+				}, i * 150);
+			});
+		}, { signal });
 		// Backdrop only: a click that started inside the panel must not close it.
 		sp.addEventListener('click', (e) => { if (e.target === sp) hide(); }, { signal });
 		document.addEventListener('keydown', (e) => {
@@ -1939,16 +1996,34 @@ const TICKER = [
 		font-style: normal; font-size: 8px; letter-spacing: .14em;
 		color: var(--ink-40);
 	}
-	.sp-logo { display: block; max-width: 100%; max-height: 44px; object-fit: contain; }
-	/* The name is the fallback, not a caption: hidden while a logo is showing, and it
-	   takes the cell when there is none. Set by the img's own onerror. */
+	/* Logo above, name below — the cell stacks rather than centring one thing. */
+	.sp-cell { grid-auto-flow: row; gap: 8px; align-content: center; }
+	.sp-logo { display: block; max-width: 100%; max-height: 40px; object-fit: contain; }
+	/* The name is a CAPTION now, shown under every mark. It was previously a fallback,
+	   visible only when there was no logo — which meant the sheet named a sponsor only
+	   when it could not show them. Smaller and quieter than before, because it now sits
+	   alongside the mark instead of standing in for it. */
 	.sp-name {
-		display: none; text-align: center; text-wrap: balance;
+		text-align: center; text-wrap: balance;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 12.5px; line-height: 1.25; letter-spacing: -.01em;
+		font-weight: 700; font-size: 10px; line-height: 1.2; letter-spacing: -.005em;
+		color: var(--ink-60);
 	}
+	/* No mark at all: the name takes the cell, at the old size, and carries it alone. */
 	.sp-cell.is-text .sp-logo { display: none; }
-	.sp-cell.is-text .sp-name { display: block; }
+	.sp-cell.is-text .sp-name { font-size: 12.5px; font-weight: 800; color: var(--secondary); }
+
+	/* Sits in the sheet's footer beside the contact line, so it reads as part of the
+	   record's own furniture rather than a control floating over the list. */
+	.sp-dl {
+		display: inline-flex; align-items: center; gap: 7px;
+		padding: 7px 11px; border: 1.5px solid var(--secondary); border-radius: var(--r);
+		background: var(--primary); color: var(--secondary); cursor: pointer;
+		font: inherit; font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+	}
+	.sp-dl svg { width: 13px; height: 13px; stroke-width: 2.1; }
+	.sp-dl:hover { background: var(--secondary); color: var(--primary); }
+	.sp-dl:focus-visible { outline: var(--stroke) solid var(--accent); outline-offset: 2px; }
 
 	.sp-foot {
 		flex: none;
