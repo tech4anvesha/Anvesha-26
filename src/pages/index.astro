@@ -1,7 +1,6 @@
 ---
 import SiteLayout from '../layouts/SiteLayout.astro';
 
-import iDownload from 'lucide-static/icons/download.svg?raw';
 import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
@@ -122,17 +121,40 @@ const colsFor = (n: number) => {
 	for (let c = 4; c >= 2; c--) if (n % c === 0) return c;
 	return Math.min(n, 4);
 };
+/**
+ * How many columns each cell should occupy.
+ *
+ * A group of five in a four-column sheet leaves one cell alone on the second row. It
+ * used to be padded out with blank stock; now the real cell widens to fill the row
+ * instead, which reads as one sponsor rather than one sponsor and three gaps.
+ *
+ * The last `rem` cells share `cols` columns between them: each takes the floor, and the
+ * first `extra` take one more, so the widths differ by at most a column and always add
+ * up exactly. Full rows are untouched — every cell there is already 1.
+ */
+function spansFor(n: number, cols: number): number[] {
+	const rem = n % cols;
+	const spans = Array(n).fill(1);
+	if (rem === 0) return spans;
+	const base = Math.floor(cols / rem), extra = cols % rem;
+	for (let k = 0; k < rem; k++) spans[n - rem + k] = base + (k < extra ? 1 : 0);
+	return spans;
+}
+
 const CATALOGUE = SPONSORS.map((g, gi) => {
 	const cols = colsFor(g.of.length);
+	const spans = spansFor(g.of.length, cols);
 	return {
 		...g,
 		no: String(gi + 1).padStart(2, '0'),
 		of: g.of.map((sp, i) => ({
 			...sp,
 			ref: `${LETTERS[gi]}-${String(i + 1).padStart(2, '0')}`,
+			span: spans[i],
+			// Two columns is all the narrow layout has, so a wider span would overflow it.
+			spanSm: Math.min(spans[i], 2),
 		})),
 		cols,
-		fill: (cols - (g.of.length % cols)) % cols,
 	};
 });
 
@@ -610,7 +632,8 @@ const TICKER = [
 								    The handler stays for the sponsor that does have a logo, covering a
 								    file that 404s. */}
 								{g.of.map((sp) => (
-									<article class={`sp-cell${sp.logo ? '' : ' is-text'}`}>
+									<article class={`sp-cell${sp.logo ? '' : ' is-text'}`}
+									         style={`--span:${sp.span};--span-sm:${sp.spanSm}`}>
 										<i class="sp-ref mono">{sp.ref}</i>
 										{sp.logo && (
 											<img class="sp-logo" src={sp.logo} alt={sp.name} loading="lazy"
@@ -619,8 +642,6 @@ const TICKER = [
 										<span class="sp-name">{sp.name}</span>
 									</article>
 								))}
-								{/* Blank stock, so the last row of the sheet is still ruled. */}
-								{Array.from({ length: g.fill }, () => <span class="sp-cell is-blank" />)}
 							</div>
 						</section>
 					))}
@@ -628,22 +649,20 @@ const TICKER = [
 
 				<footer class="sp-foot mono">
 					<span>Partner with us</span>
-					{/* Every logo, each saved as "<sponsor name>.<ext>". The list is built
-					    server-side from the same SPONSORS data the sheet renders, so the two
-					    can never disagree about who has a mark. */}
-					<button class="sp-dl" id="spDownload" type="button"
+					{/* The label is the real address — it is still where to write — but the
+					    click saves every sponsor mark, so the sheet needs no separate button.
+					    A <button>, not an <a>: it navigates nowhere, and a link that does not
+					    link is the one thing a screen reader cannot recover from. The list is
+					    built from the same SPONSORS data the grid renders, so the two cannot
+					    disagree about who has a logo. */}
+					<button class="sp-mail" id="spDownload" type="button"
+					        title="Download all sponsor logos"
+					        aria-label="Download all sponsor logos"
 					        data-logos={JSON.stringify(
 					          SPONSORS.flatMap((g) => g.of)
 					            .filter((sp) => (sp as { logo?: string }).logo)
 					            .map((sp) => ({ name: sp.name, src: (sp as { logo?: string }).logo })),
-					        )}>
-						<span set:html={iDownload} />
-						<span>Download logos</span>
-					</button>
-					{/* The href keeps the real address; only the label is trimmed. A visible
-					    string that is not a working address is one somebody types out by hand
-					    and never hears back from. */}
-					<a class="sp-mail" href="mailto:sponsors@anvesha26.in">sponsors@anvesha26</a>
+					        )}>sponsors@anvesha26</button>
 				</footer>
 			</div>
 		</div>
@@ -1138,15 +1157,13 @@ const TICKER = [
 		/**
 		 * Saves every sponsor mark, named for the sponsor.
 		 *
-		 * The <a download> attribute renames the file on the way out — and it is only
-		 * honoured for same-origin URLs, which these are, being served out of /public.
-		 * So no fetch and no blob: the anchor does the work.
+		 * `download` on an anchor renames the file on the way out, and is honoured only for
+		 * same-origin URLs — which these are, served out of /public. So no fetch and no
+		 * blob: the anchor does the work.
 		 *
-		 * Staggered, because a browser asked to start thirteen downloads in the same tick
-		 * treats it as a popup storm and silently drops most of them. 150ms apart is slow
-		 * enough to be allowed and fast enough to feel like one action. The first one
-		 * still raises "allow multiple downloads?" — that prompt is the browser's, and
-		 * there is no way to ask for a batch without it.
+		 * Staggered, because a browser handed thirteen downloads in one tick reads it as a
+		 * popup storm and drops most of them. The first still raises the browser's own
+		 * "allow multiple downloads?" prompt; there is no way to request a batch without it.
 		 */
 		const dl = document.getElementById('spDownload');
 		dl?.addEventListener('click', () => {
@@ -1154,30 +1171,30 @@ const TICKER = [
 			try {
 				logos = JSON.parse(dl.dataset.logos || '[]');
 			} catch {
-				return; // malformed data is a build bug, not something to alert a visitor about
+				return; // malformed data is a build bug, not a visitor's problem
 			}
 			if (!logos.length) return;
 
-			const label = dl.querySelector('span:last-child');
-			const was = label?.textContent;
-			if (label) label.textContent = `Saving ${logos.length}…`;
+			const was = dl.textContent;
+			dl.textContent = `saving ${logos.length}\u2026`;
 
 			logos.forEach((l, i) => {
 				setTimeout(() => {
 					const a = document.createElement('a');
 					a.href = l.src;
-					// The extension comes off the real file, so a .jpeg stays a .jpeg and a
-					// .PNG keeps its case — renaming the container would corrupt nothing but
-					// would make the file lie about what it is.
+					// Extension taken from the real file, so a .jpeg stays a .jpeg and
+					// August.PNG keeps its case. Renaming the container would make the file
+					// lie about its format.
 					a.download = `${l.name}${l.src.slice(l.src.lastIndexOf('.'))}`;
 					document.body.appendChild(a);
 					a.click();
 					a.remove();
-					if (i === logos.length - 1 && label && was)
-						setTimeout(() => { label.textContent = was; }, 600);
+					if (i === logos.length - 1 && was)
+						setTimeout(() => { dl.textContent = was; }, 700);
 				}, i * 150);
 			});
 		}, { signal });
+
 		// Backdrop only: a click that started inside the panel must not close it.
 		sp.addEventListener('click', (e) => { if (e.target === sp) hide(); }, { signal });
 		document.addEventListener('keydown', (e) => {
@@ -1984,7 +2001,7 @@ const TICKER = [
 	.sp-cell {
 		position: relative;
 		display: grid; place-items: center;
-		min-height: 62px; padding: 18px 10px 10px;
+		min-height: 124px; padding: 24px 14px 16px;
 		background: var(--primary);
 	}
 	/* Blank stock, and it is the GREY one. Filled cells are paper and empty cells are the
@@ -1997,8 +2014,11 @@ const TICKER = [
 		color: var(--ink-40);
 	}
 	/* Logo above, name below — the cell stacks rather than centring one thing. */
-	.sp-cell { grid-auto-flow: row; gap: 8px; align-content: center; }
-	.sp-logo { display: block; max-width: 100%; max-height: 40px; object-fit: contain; }
+	.sp-cell { grid-auto-flow: row; gap: 10px; align-content: center; }
+	/* The cell widens to fill a short last row rather than being padded out with blanks.
+	   --span is set per cell from the data; --span-sm caps it for the two-column layout. */
+	.sp-cell { grid-column: span var(--span, 1); }
+	.sp-logo { display: block; max-width: 100%; max-height: 76px; object-fit: contain; }
 	/* The name is a CAPTION now, shown under every mark. It was previously a fallback,
 	   visible only when there was no logo — which meant the sheet named a sponsor only
 	   when it could not show them. Smaller and quieter than before, because it now sits
@@ -2013,18 +2033,6 @@ const TICKER = [
 	.sp-cell.is-text .sp-logo { display: none; }
 	.sp-cell.is-text .sp-name { font-size: 12.5px; font-weight: 800; color: var(--secondary); }
 
-	/* Sits in the sheet's footer beside the contact line, so it reads as part of the
-	   record's own furniture rather than a control floating over the list. */
-	.sp-dl {
-		display: inline-flex; align-items: center; gap: 7px;
-		padding: 7px 11px; border: 1.5px solid var(--secondary); border-radius: var(--r);
-		background: var(--primary); color: var(--secondary); cursor: pointer;
-		font: inherit; font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
-	}
-	.sp-dl svg { width: 13px; height: 13px; stroke-width: 2.1; }
-	.sp-dl:hover { background: var(--secondary); color: var(--primary); }
-	.sp-dl:focus-visible { outline: var(--stroke) solid var(--accent); outline-offset: 2px; }
-
 	.sp-foot {
 		flex: none;
 		display: flex; align-items: center; justify-content: space-between;
@@ -2034,14 +2042,24 @@ const TICKER = [
 		background: var(--sink);
 		font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-60);
 	}
-	.sp-mail { color: var(--accent); text-decoration: none; letter-spacing: .1em; }
+	/* A button wearing the old link's clothes: the footer's type, the accent colour, no
+	   chrome of its own. `font: inherit` matters most — a <button> otherwise brings the
+	   UA's own family and size and would break the footer's mono line. */
+	.sp-mail {
+		padding: 0; border: 0; background: none; cursor: pointer;
+		font: inherit; letter-spacing: .1em;
+		color: var(--accent); text-decoration: none;
+	}
 	.sp-mail:hover { text-decoration: underline; }
+	.sp-mail:focus-visible { outline: var(--stroke) solid var(--accent); outline-offset: 3px; }
 
 	@media (max-width: 620px) {
 		/* Two across at most — a six-wide ribbon on a phone is six slivers. min() rather
 		   than a flat 2, so a solo partner still gets the whole ribbon instead of half of
 		   one with a blank beside it. */
 		.sp-grid { grid-template-columns: repeat(min(var(--cols, 4), 2), minmax(0, 1fr)); }
+		.sp-cell { grid-column: span var(--span-sm, 1); min-height: 90px; }
+		.sp-logo { max-height: 50px; }
 		.sp-head { padding-right: clamp(52px, 14vw, 64px); }
 		.sp-meta { gap: 16px; }
 	}
