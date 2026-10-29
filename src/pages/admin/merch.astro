@@ -244,6 +244,14 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 								<span id="mailQuotaText"></span>
 							</p>
 							<div class="ord-tools">
+								{/* Spot sales. Icon only: it belongs with these three because it is
+								    an orders action, but it is the one a volunteer taps over and
+								    over at the stall, so it reads as a key rather than a label. */}
+								<button class="btn ord-tool ord-tool-sq" id="ordSpot" type="button"
+								        title="Spot sale — a QR for a student at the stall"
+								        aria-label="Spot sale — issue a QR for a student at the stall">
+									<span class="m-add-icon" set:html={iPlus} />
+								</button>
 								<button class="btn ord-tool ord-tool-go" id="ordDistribute" type="button">
 									<span class="m-add-icon" set:html={iScan} />
 									<span>DISTRIBUTION</span>
@@ -384,6 +392,51 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			<div class="ov-foot">
 				<button class="btn a-btn-primary" id="distStart" type="button">START DISTRIBUTION</button>
 				<button class="btn a-btn-secondary" id="distEnd" type="button" hidden>END DISTRIBUTION</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============ SPOT SALE ============
+	     The stall screen. One button, one QR, one student at a time: tap, hand the
+	     screen over to be scanned, and the moment that scan lands the code is spent and
+	     the button comes back for the next person. The student keeps filling in their
+	     details on their own phone, which is why this does not wait for their order. -->
+	<div class="ov" id="spotModal" hidden>
+		<div class="ov-panel ov-narrow" role="dialog" aria-modal="true" aria-labelledby="spotTitle">
+			<div class="ov-head">
+				<span class="ov-title" id="spotTitle">SPOT SALE</span>
+				<button class="btn x" id="spotClose" type="button" aria-label="Close" set:html={iX} />
+			</div>
+
+			<div class="ov-body">
+				<!-- IDLE -->
+				<div id="spotIdle">
+					<p class="dz-note">
+						For a student standing at the stall. Tap below and let them scan the code off
+						this screen — it opens the store on their phone, for one order, and works
+						only once.
+					</p>
+				</div>
+
+				<!-- LIVE: a code is on screen, waiting to be scanned -->
+				<div id="spotLive" hidden>
+					<!-- White plate behind the code: a dark panel around a QR is what makes a
+					     phone camera hunt for it. -->
+					<div class="sp-qr"><canvas id="spotQr" aria-label="Scan this code to open the store"></canvas></div>
+					<p class="sp-state" id="spotState">Waiting for a scan&hellip;</p>
+					<p class="sp-clock mono" id="spotClock">--:--</p>
+					<p class="dz-note">
+						Expires on its own, so a code nobody scans cannot be used later. Tapping
+						again replaces it.
+					</p>
+				</div>
+
+				<p class="a-err" id="spotErr" hidden></p>
+			</div>
+
+			<div class="ov-foot">
+				<button class="btn a-btn-primary" id="spotGo" type="button">PLACE ORDER</button>
+				<button class="btn a-btn-secondary" id="spotDone" type="button">CLOSE</button>
 			</div>
 		</div>
 	</div>
@@ -552,6 +605,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 <script>
 	import { API, SITE, adminBlob, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
+	// The same renderer the storefront draws its collection ticket with, so a stall code
+	// and a collection pass are the same black-on-white, whole-pixel QR.
+	import { drawQR } from '../../lib/ticket';
 	import caretRight from 'lucide-static/icons/chevron-right.svg?raw';
 	import iTrash from 'lucide-static/icons/trash-2.svg?raw';
 	import iCheck from 'lucide-static/icons/check.svg?raw';
@@ -1475,6 +1531,124 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		paintDistribution();
 	}
 
+	// ---- spot sale: the stall screen ----
+	//
+	// One code on screen at a time. The volunteer taps, the student scans it off the
+	// screen, and the moment that scan lands the code is spent and the button comes back
+	// — the student keeps filling in their details on their own phone, so the stall is
+	// never blocked waiting for somebody's UPI app.
+	//
+	// ponytail: the scan is learned by polling every 2.5s while this dialog is open,
+	// rather than over the live socket. The socket is unauthenticated, so a message
+	// naming the pass would hand a live credential to anyone listening, and the dialog is
+	// only open while a volunteer is actually serving someone. Move to a tagged socket if
+	// a second stall ever runs.
+	type Pass = {
+		pass_id: string;
+		issued_at: string;
+		expires_at: string;
+		claimed_at: string | null;
+		used_at: string | null;
+		expired?: boolean;
+	};
+
+	let pass: Pass | null = null;
+	let spotTimer: number | undefined;
+
+	/** The URL in the code. SITE, not location.origin: this opens on the student's phone,
+	 *  and a panel running on localhost would draw a code that resolves on nothing.
+	 *
+	 *  The pass goes in the fragment, same as the counter link: browsers never send that
+	 *  to a server, so the one secret in the URL stays out of access logs and Referer
+	 *  headers — and /spot stays a single static page rather than a dynamic route. */
+	const spotLinkFor = (id: string) => `${SITE}/spot#${id}`;
+
+	function paintSpot() {
+		const live = pass !== null;
+		$('spotIdle').hidden = live;
+		$('spotLive').hidden = !live;
+		$('spotGo').textContent = live ? 'NEW CODE' : 'PLACE ORDER';
+		if (live) drawQR($<HTMLCanvasElement>('spotQr'), spotLinkFor(pass!.pass_id), 300);
+		tickSpot();
+	}
+
+	/** Counts the code down. The student is told the same thing by the store if they take
+	 *  too long, but the volunteer is the one who has to decide whether to reissue. */
+	function tickSpot() {
+		if ($('spotModal').hidden || !pass) return;
+		const left = Math.floor((asDate(pass.expires_at).getTime() - Date.now()) / 1000);
+		if (left <= 0) {
+			// Dead on screen is worse than gone: a volunteer would keep offering it.
+			pass = null;
+			$('spotState').textContent = '';
+			paintSpot();
+			return;
+		}
+		$('spotClock').textContent =
+			`${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+	}
+
+	async function newSpotPass() {
+		const btn = $<HTMLButtonElement>('spotGo');
+		btn.disabled = true;
+		$('spotErr').hidden = true;
+		try {
+			const res = await adminFetch<{ pass: Pass }>('/api/admin/spot', { method: 'POST' });
+			pass = res.pass;
+			$('spotState').textContent = 'Waiting for a scan…';
+			paintSpot();
+		} catch (e) {
+			$('spotErr').textContent = (e as Error).message;
+			$('spotErr').hidden = false;
+		} finally {
+			btn.disabled = false;
+		}
+	}
+
+	/** Has the student scanned it yet? Only the server knows, so this asks. */
+	async function pollSpot() {
+		if (!pass || $('spotModal').hidden) return;
+		try {
+			const res = await adminFetch<{ pass: Pass }>(`/api/admin/spot/${pass.pass_id}`);
+			if (!res.pass.claimed_at && !res.pass.expired) return;
+
+			// Scanned (or timed out). Either way this code is finished with: clearing it
+			// puts PLACE ORDER back for the next student in the queue.
+			$('spotState').textContent = res.pass.claimed_at
+				? 'Scanned — they are ordering now. Tap for the next student.'
+				: 'That code expired. Tap for a new one.';
+			const state = $('spotState').textContent;
+			pass = null;
+			paintSpot();
+			// paintSpot hides the live pane, so the message moves to where it can be seen.
+			$('spotIdle').querySelector('p')!.textContent = state;
+		} catch {
+			// A dropped poll is not worth an error banner: the next one is 2.5s away, and
+			// the code on screen is still perfectly good in the meantime.
+		}
+	}
+
+	function openSpot(on: boolean) {
+		openModal('spotModal', on);
+		clearInterval(spotTimer);
+		if (!on) {
+			// The code is NOT cancelled on close: the student standing there has already
+			// scanned it and is mid-order. Issuing the next one is what retires it.
+			pass = null;
+			return;
+		}
+		$('spotErr').hidden = true;
+		$('spotIdle').querySelector('p')!.textContent =
+			'For a student standing at the stall. Tap below and let them scan the code off ' +
+			'this screen — it opens the store on their phone, for one order, and works only once.';
+		paintSpot();
+		// One timer, two jobs: the countdown every second, the poll every third tick.
+		let beat = 0;
+		spotTimer = setInterval(() => {
+			tickSpot();
+			if (++beat % 3 === 0) pollSpot();
+		}, 1000) as unknown as number;
+	}
 
 	let pendingDelete: Order | null = null;
 
@@ -2191,6 +2365,10 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		$('distCopy').onclick = copyLink;
 
 		// order tools
+		$('ordSpot').onclick = () => openSpot(true);
+		$('spotClose').onclick = () => openSpot(false);
+		$('spotDone').onclick = () => openSpot(false);
+		$('spotGo').onclick = newSpotPass;
 		$('ordDownload').onclick = downloadOrders;
 		$('ordCollections').onclick = openCollections;
 		$('colClose').onclick = () => openModal('colModal', false);
@@ -2208,17 +2386,17 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		$('rejGo').onclick = confirmReject;
 		// Clicking the backdrop dismisses, but only the backdrop — a click that started
 		// inside the panel and drifted out must not close it.
-		// The distribution dialog runs a clock, so it always closes through its own
-		// handler — openModal alone would hide it and leave the interval ticking.
+		// The distribution and spot dialogs run clocks, so they always close through their
+		// own handlers — openModal alone would hide them and leave the interval ticking.
 		const closeOverlay = (id: string) =>
-			id === 'distModal' ? openDistribution(false) : openModal(id, false);
+			id === 'distModal' ? openDistribution(false) : id === 'spotModal' ? openSpot(false) : openModal(id, false);
 
-		for (const id of ['ordModal', 'delModal', 'colModal', 'distModal', 'shotModal', 'rejModal'])
+		for (const id of ['ordModal', 'delModal', 'colModal', 'distModal', 'shotModal', 'rejModal', 'spotModal'])
 			$(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); });
 		// Topmost first: the confirm can open over the others.
 		addEventListener('keydown', (e) => {
 			if (e.key !== 'Escape') return;
-			for (const id of ['rejModal', 'shotModal', 'delModal', 'ordModal', 'colModal', 'distModal']) {
+			for (const id of ['rejModal', 'shotModal', 'delModal', 'ordModal', 'colModal', 'distModal', 'spotModal']) {
 				if (!$(id).hidden) { closeOverlay(id); return; }
 			}
 		});
@@ -2460,6 +2638,34 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	/* ---- distribution ---- */
 	.ord-tool-go { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+
+	/* ---- spot sale ---- */
+	/* Square, because it is a key rather than a label — the one button at the stall that
+	   gets tapped once per student. Height matched to the lettered tools beside it so the
+	   row keeps one baseline. */
+	.ord-tool-sq { width: 40px; padding: 0; justify-content: center; gap: 0; }
+
+	/* White plate under the code. A dark panel around a QR is what makes a phone camera
+	   hunt for it, and this one is read across a counter in daylight. */
+	.sp-qr {
+		display: grid; place-items: center;
+		margin: 0 0 14px; padding: 12px;
+		background: #fff;
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.sp-qr canvas { display: block; width: 100%; max-width: 300px; height: auto; image-rendering: pixelated; }
+
+	.sp-state {
+		margin: 0 0 4px;
+		font-size: 13px; font-weight: 700; line-height: 1.5; color: var(--secondary);
+	}
+	/* Tabular figures, same reason as the distribution clock: a countdown in proportional
+	   digits jitters sideways every second. */
+	.sp-clock {
+		margin: 0 0 12px;
+		font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums;
+		color: var(--ink-40);
+	}
 
 	/* The dialog is a stopwatch, not a form: one big reading, then the link it produced. */
 	.dz-clock {

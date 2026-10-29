@@ -24,7 +24,11 @@ export default defineConfig({
       // noindex, but a URL sitting in a sitemap is a positive request to index it — the
       // three have to agree or the strongest signal wins, and it would be this one.
       filter: (page) =>
-        !page.includes('/admin') && !page.includes('/distribution'),
+        !page.includes('/admin') &&
+        !page.includes('/distribution') &&
+        // The stall gate. Useless without a live code in its fragment, and a crawler
+        // following it would only burn requests on a page that refuses it.
+        !page.includes('/spot'),
     }),
   ],
 });

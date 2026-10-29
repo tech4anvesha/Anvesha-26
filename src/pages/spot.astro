@@ -1,0 +1,106 @@
+---
+/**
+ * Spot sales gate — opened by scanning the QR on the stall's screen, `/spot#<pass>`.
+ *
+ * The store is shut to the internet. This page is the door: it spends nothing, decides
+ * nothing and shows nothing worth looking at — it tells the Worker the code was scanned,
+ * keeps it for the storefront to carry, and sends the student straight to /merch.
+ *
+ * The code lives in the fragment for the same two reasons the counter link does: the
+ * server never receives it, so this stays one plain static page with no dynamic route to
+ * rewrite, and the one secret in the URL stays out of access logs and Referer headers.
+ *
+ * It is claimed from here rather than on arrival at /merch so the stall screen frees up
+ * the instant the student's phone opens the link — the volunteer serves the next person
+ * while this one is still typing their roll number.
+ */
+import Layout from '../layouts/Layout.astro';
+import '../styles/theme.css';
+import '../styles/admin-controls.css';
+---
+
+<Layout title="Opening the store — Anvesha '26" noindex>
+	<main class="sg">
+		<div class="sg-card">
+			<span class="sg-brand">ANVESHA '26</span>
+			<!-- One line, replaced in place. Everything that can go wrong here ends the
+			     same way — go back to the stall — so there is nothing to branch the layout on. -->
+			<p class="sg-state" id="sgState">Opening the store&hellip;</p>
+			<p class="sg-hint" id="sgHint" hidden>Ask at the stall for a new code.</p>
+		</div>
+	</main>
+</Layout>
+
+<script>
+	import { API } from '../lib/api';
+
+	/** Where the storefront looks for it. sessionStorage, not local: it belongs to this
+	 *  one purchase in this one tab, and must not outlive the tab being closed. */
+	const KEY = 'anvesha-spot';
+
+	const state = document.getElementById('sgState')!;
+	const hint = document.getElementById('sgHint')!;
+
+	function fail(msg: string) {
+		state.textContent = msg;
+		hint.hidden = false;
+	}
+
+	async function open() {
+		// The fragment is never sent to a server, so it is read here rather than routed on.
+		const pass = location.hash.replace(/^#/, '').trim();
+		if (!/^SPT_[0-9A-HJKMNP-TV-Z]{26}$/.test(pass)) {
+			fail('That code is not valid.');
+			return;
+		}
+
+		try {
+			// POST from here, not work done on page load: link previews and some scanner
+			// apps fetch a URL before anyone taps it, and a code burnt by a preview is a
+			// student sent back to the counter for nothing.
+			const res = await fetch(`${API}/api/spot/${encodeURIComponent(pass)}/claim`, {
+				method: 'POST',
+			});
+			const data = (await res.json().catch(() => ({}))) as { message?: string };
+			if (!res.ok) {
+				fail(data.message ?? 'That code did not work.');
+				return;
+			}
+
+			sessionStorage.setItem(KEY, pass);
+			// replace, not assign: Back from the store must not land on a gate whose code
+			// has already been claimed and would now refuse it.
+			location.replace('/merch');
+		} catch {
+			// The claim never reached the Worker — nothing is spent, so trying again is safe.
+			fail('No connection. Check the wifi and reload this page.');
+		}
+	}
+
+	open();
+</script>
+
+<style>
+	/* Seen for about half a second. It only has to not look broken. */
+	.sg {
+		min-height: 100vh; min-height: 100dvh;
+		display: grid; place-items: center;
+		padding: 24px;
+		background: var(--secondary);
+	}
+	.sg-card {
+		width: 100%; max-width: 380px;
+		padding: 28px 24px;
+		text-align: center;
+		background: var(--primary);
+		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+	}
+	.sg-brand {
+		display: block; margin-bottom: 14px;
+		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+		font-weight: 900; font-size: 12px; letter-spacing: .2em;
+		color: var(--secondary);
+	}
+	.sg-state { margin: 0; font-size: 15px; font-weight: 700; color: var(--secondary); }
+	.sg-hint { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-60); }
+</style>

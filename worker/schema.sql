@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS orders (
   reviewed_at        TEXT,
   review_note        TEXT,                      -- why it was rejected; shown to the student
   collected_at       TEXT,                      -- set only once collection_status reaches 'collected'
+  -- Sold at the stall: the spot_pass the student scanned to get in. NULL on an ordinary
+  -- online order. Not a boolean — the pass reaches back to who was at the stall and
+  -- when, so "sold at the stall" and "sold by whom" are the same column.
+  spot_pass          TEXT,
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
 );

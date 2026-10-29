@@ -15,6 +15,7 @@
 import { type PricedLine } from './cart.ts';
 import { type MailResult, mailBlock, sendOrderEmail, sendRejectionEmail } from './email.ts';
 import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
+import { PASS_MINUTES, type SpotPass, looksLikeSpotPass, noSuchSpotPass } from './spot.ts';
 import {
 	ApiError,
 	EXT,
@@ -1131,6 +1132,72 @@ export async function adminReviewOrder(
 		{},
 		cors,
 	);
+}
+
+// ============================================================
+// POST /api/admin/spot — issue a stall pass (the screen's PLACE ORDER)
+// ============================================================
+/**
+ * The pass primitives live in spot.ts; these two sit here because they are panel routes
+ * and requireAdmin lives here. See spot.ts for why a pass works the way it does.
+ */
+export async function issueSpotPass(env: Env, req: Request, cors: Cors): Promise<Response> {
+	const admin = await requireAdmin(env, req);
+
+	const passId = randomId('SPT_');
+
+	// Expire first, then issue — batched, so there is never a moment with two live
+	// unscanned QRs on one screen. An unclaimed pass is a code nobody used: the volunteer
+	// tapped twice, or the student changed their mind and walked off. A CLAIMED one is
+	// left alone, because somebody is in the middle of paying against it.
+	await env.DB.batch([
+		env.DB.prepare(
+			`UPDATE spot_pass SET expires_at = datetime('now')
+			  WHERE claimed_at IS NULL AND used_at IS NULL AND expires_at > datetime('now')`,
+		),
+		env.DB.prepare(
+			`INSERT INTO spot_pass (pass_id, expires_at, issued_by_roll, issued_by_name)
+			 VALUES (?, datetime('now', ?), ?, ?)`,
+		).bind(passId, `+${PASS_MINUTES} minutes`, admin.roll_number, admin.name),
+	]);
+
+	// Read back rather than compute: expires_at is SQLite's clock and the screen counts
+	// down against it, so deriving it here would drift by whatever the two clocks differ by.
+	const pass = await env.DB.prepare(
+		`SELECT pass_id, issued_at, expires_at, claimed_at, used_at, order_id
+		   FROM spot_pass WHERE pass_id = ?`,
+	)
+		.bind(passId)
+		.first<SpotPass>();
+
+	console.log(`admin: ${admin.collegemail} (${admin.roll_number}) issued spot pass ${passId}`);
+	return json({ pass }, { status: 201 }, cors);
+}
+
+// ============================================================
+// GET /api/admin/spot/:pass_id — has it been scanned yet?
+// ============================================================
+export async function getSpotPass(
+	env: Env,
+	req: Request,
+	passId: string,
+	cors: Cors,
+): Promise<Response> {
+	await requireAdmin(env, req);
+	if (!looksLikeSpotPass(passId)) throw noSuchSpotPass();
+
+	// Not requireSpotPass: the stall screen asks precisely so it can SAY "scanned" or
+	// "expired", and a gate that throws on both would leave it nothing to display.
+	const pass = await env.DB.prepare(
+		`SELECT pass_id, issued_at, expires_at, claimed_at, used_at, order_id,
+		        (expires_at <= datetime('now')) AS expired
+		   FROM spot_pass WHERE pass_id = ?`,
+	)
+		.bind(passId)
+		.first<SpotPass & { expired: number }>();
+
+	if (!pass) throw noSuchSpotPass();
+	return json({ pass: { ...pass, expired: pass.expired === 1 } }, {}, cors);
 }
 
 /** name / email / phone out of customer_info, blank where the blob is unreadable. */

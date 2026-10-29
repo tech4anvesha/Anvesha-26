@@ -78,3 +78,24 @@ CREATE TABLE IF NOT EXISTS distributions (
 -- and a full index would be almost entirely closed sessions the query never reads.
 CREATE INDEX IF NOT EXISTS idx_distributions_open
   ON distributions (start_time) WHERE end_time IS NULL;
+
+-- ---------- spot sales ----------
+-- The stall's pass. The store is shut to the internet; a student who walks up scans a QR
+-- off the stall's own screen, and that scan is the whole credential. One pass, one order,
+-- twenty minutes. See src/spot.ts for why each column exists.
+--
+-- Deliberately NOT the order id: the order id is also the collection capability the
+-- distribution counter scans, and this one is painted on a screen in a crowd.
+CREATE TABLE IF NOT EXISTS spot_pass (
+  pass_id     TEXT PRIMARY KEY,          -- SPT_ + 128 bits, base32
+  issued_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at  TEXT NOT NULL,             -- absolute; set to now() to revoke early
+  claimed_at  TEXT,                      -- first open; set once, which kills forwarding
+  used_at     TEXT,                      -- an order was submitted under it
+  order_id    TEXT,
+  issued_by_roll TEXT,                   -- copied off the session, same as distributions
+  issued_by_name TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_spot_pass_live
+  ON spot_pass (issued_at) WHERE claimed_at IS NULL AND used_at IS NULL;

@@ -42,7 +42,7 @@ export interface Env {
  */
 export async function broadcastChange(
 	env: Env,
-	type: 'catalogue' | 'orders',
+	type: 'catalogue' | 'orders' | 'spot',
 	reason: string,
 ): Promise<void> {
 	try {

@@ -3,6 +3,7 @@
 import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
 import { type Customer, normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
+import { type SpotPass, consumeSpotPass, requireSpotPass } from './spot.ts';
 import {
 	ApiError,
 	EXT,
@@ -39,6 +40,18 @@ async function readSwitches(env: Env): Promise<{ visible: boolean; selling: bool
 	return { visible: row.activation_status === 1, selling: row.sale_activation === 1 };
 }
 
+/**
+ * The stall's override, for the two routes where money is about to move.
+ *
+ * No pass means "fall through to the switches" — the ordinary online shopper. A pass
+ * that is present but dead throws, because this student is standing at a counter about
+ * to pay and "ask for a new code" is something they can act on.
+ */
+async function spotOverride(env: Env, passId: unknown): Promise<SpotPass | null> {
+	if (passId === undefined || passId === null || passId === '') return null;
+	return await requireSpotPass(env, passId);
+}
+
 // ============================================================
 // 1. GET /api/merch — the catalogue
 // ============================================================
@@ -53,7 +66,11 @@ export async function listMerch(
 	// purged by purgeCatalogue() the moment an admin writes, so the short max-age is
 	// only the ceiling for colos the purge did not reach.
 	const cache = caches.default;
-	const cacheKey = req ? new Request(new URL(req.url).toString(), { method: 'GET' }) : null;
+	// A stall shopper arrives with ?spot=SPT_… and is NOT cached: the key is the whole
+	// URL, so caching would mint one edge entry per pass that purgeCatalogue never
+	// reaches. The stall serves one student at a time, so two D1 round trips is nothing.
+	const spot = req ? new URL(req.url).searchParams.get('spot') : null;
+	const cacheKey = req && !spot ? new Request(new URL(req.url).toString(), { method: 'GET' }) : null;
 	if (cacheKey) {
 		const hit = await cache.match(cacheKey);
 		// The cached copy carries whichever origin's CORS headers filled it, so they are
@@ -72,12 +89,18 @@ export async function listMerch(
 	// Missing row (a deployment that predates the migration) reads as OPEN, so the
 	// switch can never take the shop down by failing to exist.
 	const release = await readSwitches(env);
-	const released = release.visible;
+	// A live stall pass opens the shop for that one shopper, whatever the switches say —
+	// that is the whole point of spot sales: the store is shut to the internet and the
+	// scan is what gets you in. A dead pass simply does not unlock, rather than erroring:
+	// this route is a read, and the student has already been told at /spot why their code
+	// failed. checkout and submitPayment are where a dead pass has to explain itself.
+	const pass = spot ? await requireSpotPass(env, spot).catch(() => null) : null;
+	const released = release.visible || !!pass;
 	// The admin's switch alone. There used to be a second condition — "is a gateway
 	// configured" — but payment is manual now: the student pays in their own app and
 	// submits evidence, so the capability is always there and intent is all that is left
 	// to ask about.
-	const salesOpen = release.selling;
+	const salesOpen = release.selling || !!pass;
 
 	if (!released) {
 		// Cached and headered exactly like the open catalogue below, and purged by the
@@ -236,11 +259,19 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 	// a replayed request could still place an order the store has no way to settle.
 	// There is no third "is a gateway configured" gate any more: payment is manual, so
 	// the capability is always there and sales_open is the admin's switch alone.
-	const release = await readSwitches(env);
-	if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
-	if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
+	//
+	// Both are skipped for a shopper holding a live stall pass — spot sales run with the
+	// switches off by design. A pass that is present but dead throws here rather than
+	// falling through to the switches, so the student is told their code expired instead
+	// of being shown a generic "sales are closed".
+	const body = await readJson<{ cart?: unknown; spot_pass?: unknown }>(req);
+	const pass = await spotOverride(env, body.spot_pass);
+	if (!pass) {
+		const release = await readSwitches(env);
+		if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+		if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
+	}
 
-	const body = await readJson<{ cart?: unknown }>(req);
 	const lines = parseCart(body);
 
 	// One query for every id in the cart. Looping per line would mean N round trips
@@ -784,14 +815,10 @@ export async function submitPayment(
 		// queue would quietly replace the evidence an admin may be looking at right now.
 		if (order.review_status === 'pending')
 			throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
-	} else {
-		// The same two gates checkout applies. This route can be reached without going
-		// through checkout at all, so they have to be re-asserted here or a closed shop
-		// could still have orders pushed into it.
-		const release = await readSwitches(env);
-		if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
-		if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
 	}
+	// The two gates checkout applies are re-asserted further down, once the form is
+	// parsed: this route can be reached without going through checkout at all, and a
+	// stall shopper's pass arrives in that form.
 
 	const form = await req.formData().catch(() => null);
 	if (!form) throw bad('bad_body', 'Expected multipart form data');
@@ -818,7 +845,23 @@ export async function submitPayment(
 	// client sends ids, sizes and quantities, and priceCart looks the money up. That is
 	// the same rule checkout followed, moved to the point where the row is written.
 	let fresh: { priced: PricedCart; customer: Customer } | null = null;
+	let spotPass: SpotPass | null = null;
 	if (!order) {
+		// A live stall pass stands in for both switches — spot sales run with the store
+		// shut to the internet, and the scan is what opened it. A dead pass throws its own
+		// error rather than falling through to "sales are closed", which would tell a
+		// student standing at the counter nothing they can act on.
+		//
+		// Spent after the row exists, not here: a submit that fails on a bad screenshot
+		// must leave the code good enough to try again, rather than sending them back to
+		// the counter for a new one.
+		spotPass = await spotOverride(env, form.get('spot_pass'));
+		if (!spotPass) {
+			const release = await readSwitches(env);
+			if (!release.visible) throw new ApiError(403, 'shop_closed', 'The merch store is not open yet');
+			if (!release.selling) throw new ApiError(403, 'sales_closed', 'Merch sales have not gone live yet');
+		}
+
 		const lines = parseCart({ cart: readField(form, 'cart') });
 		const customer = parseCustomer(readField(form, 'customer'));
 
@@ -859,8 +902,9 @@ export async function submitPayment(
 				.prepare(
 					`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
 					                     collection_status, roll_number, customer_info,
-					                     review_status, payment_ref, payment_proof_path, payment_submitted_at)
-					 VALUES (?, ?, ?, 'unpaid', 'pending', ?, ?, 'pending', ?, ?, datetime('now'))
+					                     review_status, payment_ref, payment_proof_path, payment_submitted_at,
+					                     spot_pass)
+					 VALUES (?, ?, ?, 'unpaid', 'pending', ?, ?, 'pending', ?, ?, datetime('now'), ?)
 					 ON CONFLICT (order_id) DO NOTHING`,
 				)
 				.bind(
@@ -871,6 +915,10 @@ export async function submitPayment(
 					JSON.stringify(fresh.customer),
 					ref,
 					key,
+					// NULL for an ordinary online order. On a stall order it reaches back to
+					// who was at the stall and when, so the marker and the attribution are
+					// one column.
+					spotPass?.pass_id ?? null,
 				)
 				.run()
 		: await env.DB
@@ -885,6 +933,10 @@ export async function submitPayment(
 				.run();
 	if (!res.meta.changes)
 		throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
+
+	// One pass, one order. Spent only now that there is a row to point at, and after the
+	// insert won its race — the loser of a double-tapped SUBMIT already threw above.
+	if (spotPass) await consumeSpotPass(env, spotPass.pass_id, orderId);
 
 	const live = broadcastChange(env, 'orders', `payment submitted ${orderId}`);
 	if (ctx) ctx.waitUntil(live);

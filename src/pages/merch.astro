@@ -461,6 +461,25 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		views?: { label: string; url: string }[];
 	};
 
+	/**
+	 * The stall's code, if this shopper came in by scanning one at the counter.
+	 *
+	 * /spot claimed it and left it here. It travels with the catalogue, the quote and the
+	 * submission, because the store is shut to the internet and this is the only thing
+	 * that opens it. Null for an ordinary online shopper, which is every other visitor.
+	 *
+	 * Wrapped: sessionStorage throws outright in some private-browsing modes, and an
+	 * exception here would take down the whole storefront for a shopper who never
+	 * needed a code in the first place.
+	 */
+	const spotPass = (() => {
+		try {
+			return sessionStorage.getItem('anvesha-spot');
+		} catch {
+			return null;
+		}
+	})();
+
 	const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
 
 	const CATEGORY_ICON: Record<string, string> = {
@@ -489,7 +508,13 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 	 * throw the edge cache away for every visitor.
 	 */
 	async function loadCatalog(bypassCache = false): Promise<{ released: boolean; salesOpen: boolean; cats: Cat[] }> {
-		const url = API + '/api/merch' + (bypassCache ? `?t=${Date.now()}` : '');
+		const q = new URLSearchParams();
+		if (bypassCache) q.set('t', String(Date.now()));
+		// A stall shopper arrived through /spot and carries its code. It is what opens a
+		// store that is shut to everyone else, so it rides on the catalogue request too —
+		// without it the Worker correctly answers "nothing to see here".
+		if (spotPass) q.set('spot', spotPass);
+		const url = API + '/api/merch' + (q.size ? `?${q}` : '');
 		const res = await fetch(url, bypassCache ? { cache: 'no-store' } : undefined);
 		if (!res.ok) throw new Error('Catalogue request failed: ' + res.status);
 		const { merch, released, sales_open } =
@@ -1216,7 +1241,9 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				const res = await fetch(API + '/api/checkout', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ cart: lines }),
+					// The stall code rides along where there is one: it stands in for both
+					// shop switches, which are off while spot sales run.
+					body: JSON.stringify({ cart: lines, ...(spotPass ? { spot_pass: spotPass } : {}) }),
 				});
 				const data = await res.json();
 				if (!res.ok) throw new Error(data.message || data.error || 'Checkout failed');
@@ -1427,6 +1454,10 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 						name: fName.value, roll_number: fRoll.value,
 						phone: fPhone.value, email: fEmail.value,
 					}));
+					// Before the file, with the rest of the metadata: this is the request that
+					// spends the code, and it must not be stranded at the end of a body that
+					// gets truncated. Last of the small parts so it reads next to the cart.
+					if (spotPass) body.append('spot_pass', spotPass);
 					body.append('proof', file);
 					return body;
 				};
@@ -1468,6 +1499,11 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				}
 				const data = await res.json().catch(() => ({}) as Record<string, string>);
 				if (!res.ok) throw new Error(data.message || data.error || 'Could not submit that payment');
+
+				// The code is spent server-side now, so drop the copy: left behind, it would
+				// be sent on the next page load and refused, which looks like a bug rather
+				// than the end of a finished order.
+				try { sessionStorage.removeItem('anvesha-spot'); } catch { /* private mode */ }
 
 				finishProgress();
 				await new Promise((r) => setTimeout(r, 420));

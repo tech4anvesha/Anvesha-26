@@ -6,6 +6,7 @@
  *   POST /api/checkout                  price the cart (a quote — writes nothing)
  *   POST /api/pay                       interim counter payment (no gateway)
  *   GET  /api/orders/:order_id          receipt + QR payload
+ *   POST /api/spot/:pass_id/claim       a stall QR was scanned      [pass in url]
  *   GET  /api/distribution/:id          is this counter link live?
  *   POST /api/distribution/:id/scan     verify a scanned QR      [session in url]
  *   POST /api/distribution/:id/collect  mark handed over         [session in url]
@@ -27,7 +28,10 @@ import {
 	adminLogin,
 	adminLogout,
 	adminUpdateMerch,
+	getSpotPass,
+	issueSpotPass,
 } from './admin.ts';
+import { claimSpotPass } from './spot.ts';
 import {
 	checkSession,
 	endDistribution,
@@ -114,6 +118,14 @@ export default {
 					return await sessionCollect(env, id, req, cors, ctx);
 			}
 
+			// ---- spot sales ----
+			// No Authorization header, same reasoning as a distribution session: the code
+			// in the path IS the credential, and the student who scanned it off the stall
+			// screen has no login to send.
+			const spot = pathname.match(/^\/api\/spot\/([^/]+)\/claim$/);
+			if (method === 'POST' && spot)
+				return await claimSpotPass(env, req, decodeURIComponent(spot[1]), cors, ctx);
+
 			// interim counter payment; 404s unless DIRECT_PAY=1
 			if (method === 'POST' && pathname === '/api/pay') return await directPay(env, req, cors, ctx);
 
@@ -152,6 +164,12 @@ export default {
 				if (method === 'POST') return await startDistribution(env, req, cors);
 				if (method === 'DELETE') return await endDistribution(env, req, cors);
 			}
+
+			// The stall screen: issue a pass, then ask whether it has been scanned yet.
+			if (method === 'POST' && pathname === '/api/admin/spot') return await issueSpotPass(env, req, cors);
+			const adminPass = pathname.match(/^\/api\/admin\/spot\/([^/]+)$/);
+			if (method === 'GET' && adminPass)
+				return await getSpotPass(env, req, decodeURIComponent(adminPass[1]), cors);
 
 			if (method === 'GET' && pathname === '/api/admin/orders') return await adminListOrders(env, req, cors);
 			const adminOrder = pathname.match(/^\/api\/admin\/orders\/([^/]+)$/);
