@@ -110,6 +110,21 @@
 	},
 	// Secrets are NOT set here — see the RAZORPAY_MODE note above for the six names.
 	// For local dev put them in .dev.vars (git-ignored).
+	//
+	// ---------------------------------------------------------------------------
+	// DO NOT DEPLOY WITH `--env production`. Production is the TOP-LEVEL worker.
+	//
+	// This block has no d1_databases and no r2_buckets — bindings are not inherited
+	// into a named environment — but it DOES inherit the top-level `routes`. So
+	// `wrangler deploy --env production` hands merch-api.anvesha26.in to a worker with
+	// no database, and every route that touches D1 answers 500 with
+	// "Cannot read properties of undefined (reading 'prepare')". Admin login is how it
+	// gets noticed. Recovery is one bare `npx wrangler deploy`. Happened 29 Oct 2026.
+	//
+	// It is kept, rather than deleted, as the shape a second environment would take if
+	// merch ever needs a staging deployment: it would need both bindings added and
+	// `"routes": []` so it cannot steal the live domain.
+	// ---------------------------------------------------------------------------
 	"env": {
 		"production": {
 			"vars": {

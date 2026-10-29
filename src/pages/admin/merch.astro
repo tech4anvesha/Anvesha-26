@@ -151,6 +151,23 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 								</div>
 							</div>
 
+							<!-- ---- stock ----
+							     How many are left, which during spot sales is the number
+							     somebody at the stall actually needs to read. Editable
+							     because a count done by hand off a table gets corrected,
+							     and waiting on a developer to run SQL mid-fest is not a
+							     plan. Saved with the rest of the form. -->
+							<aside class="m-cell m-cell-stock">
+								<p class="m-views-head">
+									<span>Stock left</span>
+									<b id="eStockTotal">0</b>
+								</p>
+								<div class="m-stock" id="eStock"></div>
+								<p class="m-views-hint" id="eStockHint">
+									Zero shows as sold out in the store. An empty box counts as zero.
+								</p>
+							</aside>
+
 							<!-- Below the form, wired to it. Extras only — the primary lives
 							     in Details, above. -->
 							<aside class="m-cell m-cell-media m-views-box m-views-below">
@@ -622,6 +639,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	type Item = {
 		id: string; name: string; description: string; designer: string; category: string;
 		r2_path: string; price_paise: number; has_size: boolean; is_active: boolean;
+		// size -> how many are left; '' is the one slot an item without sizes keeps.
+		// An absent key means none, never unlimited — see worker/src/stock.ts.
+		stock: Record<string, number>;
 		image_url: string; has_primary: boolean;
 		views: { label: string; url: string }[];
 	};
@@ -802,6 +822,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		payment_ref: string | null; has_proof: boolean; payment_submitted_at: string | null;
 		reviewed_by_name: string | null; reviewed_at: string | null; review_note: string | null;
 		collection_status: 'pending' | 'partial' | 'collected'; collected_at: string | null; created_at: string;
+		// Sold at the stall, and whether it got its items off the shelf. See the note in
+		// reviewCell for why a false here is worth interrupting someone over.
+		at_stall?: boolean; stock_taken?: boolean;
 	};
 
 	let orders: Order[] = [];
@@ -834,8 +857,21 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			);
 		if (o.review_status !== 'pending') return `<span class="ord-none">—</span>`;
 
+		// The one thing a reviewer must not miss.
+		//
+		// A pending order with stock_taken = 0 was filed against stock that had already
+		// run out — the student paid by UPI before submitting, so the order was recorded
+		// rather than refused (see worker/src/stock.ts). Confirming it promises something
+		// that is not in the box, so it needs a swap or a refund, and only a person can
+		// decide which.
+		const short =
+			o.stock_taken === false
+				? `<span class="ord-pill bad" title="Submitted after this item ran out — nothing was taken off the shelf. Needs a swap or a refund.">NO STOCK</span>`
+				: '';
+
 		// The only state with anything to decide.
 		return (
+			short +
 			`<span class="ord-review">` +
 			`<button type="button" class="btn ord-ok" data-ok aria-label="Confirm payment">${iCheck}</button>` +
 			`<button type="button" class="btn ord-no" data-no aria-label="Reject payment">${iNo}</button>` +
@@ -1754,9 +1790,14 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 					(current?.id === it.id ? ' active' : '') +
 					(it.is_active ? '' : ' inactive');
 				b.setAttribute('role', 'treeitem');
+				// What is left, on the row itself: during spot sales this is the number
+				// somebody reads off the list, and making them click into each item to
+				// find it is the difference between a glance and a job.
+				const left = Object.values(it.stock ?? {}).reduce((n, q) => n + q, 0);
 				b.innerHTML =
 					`<i class="tnum">${pad(ii + 1)}</i>` +
 					`<span class="tname">${escape(it.name)}</span>` +
+					`<b class="tmeta tstock${left ? '' : ' out'}">${left ? `${left} left` : 'SOLD OUT'}</b>` +
 					// A hidden item must be obvious here, or it gets "fixed" twice.
 					(it.is_active
 						? `<b class="tmeta tprice">₹${toRupees(it.price_paise)}</b>`
@@ -1798,6 +1839,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		$('eActive').checked = current.is_active;
 
 		renderShots(current);
+		renderStock(current);
 		pvIdx = 0; // a new item starts on its first view
 		renderPreview();
 		// Switching items must never carry an armed delete across to the new one.
@@ -1807,6 +1849,54 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		// never hidden inside a collapsed branch.
 		openCat = current.category || 'General';
 		renderTree();
+	}
+
+	/** The sizes a stock box is offered for. Must match SIZES in worker/src/cart.ts —
+	 *  the worker refuses a size it does not sell, so a mismatch here is a failed save. */
+	const STOCK_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
+
+	/** One box per size, or a single box for an item without sizes.
+	 *
+	 *  Redrawn when the HAS SIZES toggle flips, because the question changes shape: the
+	 *  one number stops meaning anything the moment an item has sizes to keep apart. */
+	function renderStock(it: Item) {
+		const box = $('eStock');
+		const sized = $('eHasSize').checked;
+
+		box.innerHTML = sized
+			? STOCK_SIZES.map(
+					(sz) =>
+						`<label class="m-stock-box"><span class="m-stock-sz">${sz}</span>` +
+						`<input class="field-input" type="number" min="0" max="9999" step="1" ` +
+						`data-stock="${sz}" value="${it.stock?.[sz] ?? 0}" /></label>`,
+				).join('')
+			: `<label class="m-stock-box m-stock-one"><span class="m-stock-sz">UNITS</span>` +
+				`<input class="field-input" type="number" min="0" max="9999" step="1" ` +
+				`data-stock="" value="${it.stock?.[''] ?? 0}" /></label>`;
+
+		box.querySelectorAll('input').forEach((i) => i.addEventListener('input', stockTotal));
+		stockTotal();
+	}
+
+	/** Reads the boxes, not the item: the heading has to follow what is typed, before
+	 *  anything is saved, or it contradicts the numbers directly beneath it. */
+	function stockTotal() {
+		const boxes = [...$('eStock').querySelectorAll<HTMLInputElement>('[data-stock]')];
+		const total = boxes.reduce((n, i) => n + (Number.parseInt(i.value, 10) || 0), 0);
+		$('eStockTotal').textContent = String(total);
+		// The one state worth calling out: nothing left means the store says sold out.
+		$('eStockHint').textContent = total
+			? 'Zero shows as sold out in the store. An empty box counts as zero.'
+			: 'Nothing left — the store shows this as SOLD OUT and refuses it at checkout.';
+	}
+
+	/** What goes in the PUT. Every box, including the zeros: the worker replaces the whole
+	 *  set for an item, so a size left out would silently keep its old count. */
+	function stockBody(): Record<string, number> {
+		const out: Record<string, number> = {};
+		for (const i of $('eStock').querySelectorAll<HTMLInputElement>('[data-stock]'))
+			out[i.dataset.stock!] = Math.max(0, Number.parseInt(i.value, 10) || 0);
+		return out;
 	}
 
 	async function save(e: Event) {
@@ -1831,6 +1921,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				price_paise: price,
 				has_size: $('eHasSize').checked,
 				is_active: $('eActive').checked,
+				stock: stockBody(),
 			};
 
 			await adminFetch(`/api/admin/merch/${current.id}`, {
@@ -2339,6 +2430,10 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		// reads the form, so it does not care which field moved.
 		formEl.addEventListener('input', renderPreview);
 		formEl.addEventListener('change', renderPreview);
+		// The stock boxes change shape with it: one number stops meaning anything the
+		// moment an item has sizes to keep apart. Re-read from the item, so flipping the
+		// toggle back and forth does not quietly zero what was there.
+		$('eHasSize').addEventListener('change', () => { if (current) renderStock(current); });
 
 		// Carousel controls. Bound once — renderPreview only ever updates their values.
 		const goView = (i: number) => {
@@ -2638,6 +2733,27 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 
 	/* ---- distribution ---- */
 	.ord-tool-go { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+
+	/* ---- stock ---- */
+	.m-cell-stock { display: flex; flex-direction: column; gap: 10px; }
+	/* Seven boxes that must stay legible on a laptop and wrap on anything narrower,
+	   rather than seven columns squeezed to three characters each. */
+	.m-stock { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 8px; }
+	.m-stock-box { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+	.m-stock-one { max-width: 120px; }
+	.m-stock-sz {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.m-stock-box .field-input {
+		padding: 9px 8px; text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* On the tree row, beside the price. Quieter than the price at rest and loud only
+	   when there is nothing left, which is the one state worth interrupting a glance. */
+	.tstock { font-variant-numeric: tabular-nums; color: var(--ink-40); }
+	.tstock.out { color: var(--primary); background: var(--secondary); padding: 1px 5px; }
 
 	/* ---- spot sale ---- */
 	/* Square, because it is a key rather than a label — the one button at the stall that

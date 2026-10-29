@@ -27,6 +27,24 @@ CREATE TABLE IF NOT EXISTS merch (
 -- lets the storefront's view carousel show Front/Back/Detail instead of one picture.
 -- Kept as rows rather than a JSON column so an image can be added or reordered without
 -- rewriting the merch row.
+-- ---------- stock ----------
+-- How many of each thing are left. Per size for anything sized — "4 shirts left" is not
+-- an answer to "have you got a large" — and ONE row with size = '' for anything not.
+-- NULL is never equal to NULL in SQL, so a nullable size column would make the primary
+-- key useless for exactly the rows that need it.
+--
+-- A MISSING ROW READS AS ZERO, never as unlimited: this is the counter that stops money
+-- being taken for a thing that does not exist, so a forgotten item must be unsellable.
+-- The CHECK is the floor under the application's guard — every decrement is written
+-- `WHERE qty >= ?`, and this is what turns a bug past that into an error rather than a
+-- negative counter nobody notices. See src/stock.ts for where it is enforced.
+CREATE TABLE IF NOT EXISTS merch_stock (
+  merch_id TEXT    NOT NULL,
+  size     TEXT    NOT NULL DEFAULT '',
+  qty      INTEGER NOT NULL CHECK (qty >= 0),
+  PRIMARY KEY (merch_id, size)
+);
+
 CREATE TABLE IF NOT EXISTS merch_images (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   merch_id   TEXT    NOT NULL REFERENCES merch (id),
@@ -92,6 +110,10 @@ CREATE TABLE IF NOT EXISTS orders (
   -- online order. Not a boolean — the pass reaches back to who was at the stall and
   -- when, so "sold at the stall" and "sold by whom" are the same column.
   spot_pass          TEXT,
+  -- Did this order take stock off the shelf? Set at submit, cleared when a rejection or
+  -- a delete gives it back, so a restore can never invent inventory. 0 on a pending
+  -- order means it was filed against stock that had already run out — see src/stock.ts.
+  stock_taken        INTEGER NOT NULL DEFAULT 0 CHECK (stock_taken IN (0, 1)),
   created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT
 );

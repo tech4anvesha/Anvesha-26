@@ -451,6 +451,10 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		id: string; name: string; desc: string; designer: string;
 		price_paise: number; has_size: boolean; image_url: string;
 		icon: string; views: View[];
+		// size -> how many are left; '' is the one slot an unsized item keeps. An absent
+		// key means none left, NEVER unlimited — the worker treats a missing row the same
+		// way, so the two cannot disagree about whether something can be sold.
+		stock: Record<string, number>;
 	};
 	type Cat = { id: string; name: string; items: Item[] };
 
@@ -459,6 +463,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		id: string; name: string; description: string; designer: string;
 		category: string; price_paise: number; has_size: boolean; image_url: string;
 		views?: { label: string; url: string }[];
+		stock?: Record<string, number>;
 	};
 
 	/**
@@ -537,6 +542,9 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				designer: m.designer,
 				price_paise: m.price_paise,
 				has_size: m.has_size,
+				// {} rather than undefined, so every read is `stock[size] ?? 0` and an API
+				// that predates the counters sells nothing instead of selling everything.
+				stock: m.stock ?? {},
 				image_url: m.image_url,
 				icon: CATEGORY_ICON[key] ?? pkg,
 				// One view per stored image, primary first. The category icon rides along
@@ -799,11 +807,28 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		const addBtn = $<HTMLButtonElement>('addBtn'), sizesEl = $('sizes');
 		const optEl = $('opt'), mOptEl = $('mOpt');
 
+		/** How many of this slot are left, after what is already in the bag.
+		 *
+		 *  The bag is counted in because the cart lives in this browser and the counter
+		 *  does not: picking the last large twice has to run out on the second pick, not
+		 *  at checkout, and certainly not after the student has paid. */
+		function left(it: Item, s: string | null): number {
+			const onShelf = it.stock?.[s ?? ''] ?? 0;
+			const inBag = cart[cartKey(it.id, s)]?.quantity ?? 0;
+			return Math.max(0, onShelf - inBag);
+		}
+
+		/** Nothing left in any slot — the item is gone, not just one of its sizes. */
+		const soldOut = (it: Item) =>
+			(it.has_size ? SIZES : [null]).every((s) => (it.stock?.[s ?? ''] ?? 0) === 0);
+
 		function selectItem(it: Item) {
 			item = it; viewIdx = 0;
 			catId = catalog.find((c) => c.items.some((x) => x.id === it.id))!.id;
 			openCat = catId; // selecting inside a closed branch opens it, closing the others
-			size = it.has_size ? SIZES[0] : null;
+			// The first size that is actually there, not simply the first size. Landing on
+			// a sold-out XS and having ADD TO BAG refuse reads as a broken page.
+			size = it.has_size ? (SIZES.find((s) => left(it, s) > 0) ?? SIZES[0]) : null;
 			syncTree(); renderHero(); renderSizes(); renderViews();
 			animateSelect();
 		}
@@ -824,7 +849,7 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			pDescEl.textContent = item.desc;
 			pDesignerEl.innerHTML = `Design <b>${item.designer}</b>`;
 			pPriceEl.textContent = rupees(item.price_paise);
-			addBtn.disabled = false;
+			paintAvail();
 			// the size row only exists for items the catalogue says are sized
 			optEl.hidden = !item.has_size;
 			mOptEl.hidden = !item.has_size;
@@ -845,6 +870,27 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		// ponytail: desktop and mobile are two views of ONE state. Rendering into both
 		// hosts costs a loop; keeping two parallel state machines in sync would cost far
 		// more, and would drift the moment either side changed.
+		/**
+		 * Both ADD buttons, against the counter.
+		 *
+		 * Its own function rather than part of renderHero because it has to run again
+		 * every time the bag changes, and renderHero redraws the artwork and replays its
+		 * entrance animation — which is not what adding a second sticker should look like.
+		 *
+		 * textContent on the label span, never on the button: the button holds an arrow,
+		 * a dot and the price as well, and writing to it would delete all three.
+		 */
+		function paintAvail() {
+			if (!item) return;
+			const n = left(item, size);
+			const label = soldOut(item) ? 'SOLD OUT' : n === 0 ? 'SIZE SOLD OUT' : 'ADD TO BAG';
+			for (const btn of [addBtn, mAdd as HTMLButtonElement]) {
+				btn.disabled = n === 0;
+				const span = btn.querySelector('.buy-label');
+				if (span) span.textContent = label;
+			}
+		}
+
 		const sizeHosts = [sizesEl, mSizes];
 		function renderSizes() {
 			const list = item?.has_size ? SIZES : []; // has_size is the catalogue's call, not ours
@@ -852,10 +898,16 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 				host.innerHTML = '';
 				for (const s of list) {
 					const b = document.createElement('button');
-					b.className = 'btn size' + (s === size ? ' active' : '');
+					// Shown and struck through rather than hidden: "we do not have your
+					// size" is information, and a row that silently loses XS looks like a
+					// page that failed to load.
+					const n = item ? left(item, s) : 0;
+					b.className = 'btn size' + (s === size ? ' active' : '') + (n ? '' : ' gone');
 					b.textContent = s;
+					b.disabled = n === 0;
+					b.title = n ? `${n} left` : 'Sold out';
 					b.setAttribute('aria-pressed', String(s === size));
-					b.onclick = () => { size = s; renderSizes(); };
+					b.onclick = () => { size = s; renderSizes(); paintAvail(); };
 					host.appendChild(b);
 				}
 			}
@@ -1011,6 +1063,9 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			// Adding an item only bumps the counter — it does not yank the shopper into
 			// the bag. They open it deliberately, via the bag button, when ready.
 			saveCart(); renderCart();
+			// The bag counts against the shelf, so adding the last large has to grey the
+			// size out on this very click rather than at checkout.
+			renderSizes(); paintAvail();
 			flyToBag(from);
 			// Delayed to land with the chip: the counter jumping before anything has
 			// visibly arrived reads as two unrelated events rather than one.
@@ -1072,9 +1127,18 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 			const t = (e.target as HTMLElement).closest('button');
 			if (!t) return;
 			const id = t.dataset.id!;
-			if (t.dataset.act === 'inc') cart[id].quantity++;
-			else if (--cart[id].quantity <= 0) delete cart[id];
+			if (t.dataset.act === 'inc') {
+				// The + in the bag is a second way to ask for one more, and it has to meet
+				// the same counter the ADD button does — otherwise the shelf is enforced on
+				// one path and not the other, and checkout refuses a bag the page built.
+				const line = cart[id];
+				const it = itemById(line.merch_id);
+				if (it && left(it, line.size) <= 0) return;
+				line.quantity++;
+			} else if (--cart[id].quantity <= 0) delete cart[id];
 			saveCart(); renderCart();
+			// Freeing a size by taking it out of the bag has to put it back on the row.
+			renderSizes(); paintAvail();
 		});
 
 		let cartOpen = false;
@@ -1838,6 +1902,14 @@ const UPI_ID = 'sbibhim.022211900804305-ym662729@sbipay';
 		padding: 7px 8px; min-width: 34px;
 	}
 	.size.active { background: var(--secondary); color: var(--primary); }
+	/* Struck through rather than removed. "We have not got your size" is information a
+	   shopper needs; a row that silently loses XS looks like a page that half loaded.
+	   not(.active) so the one selected size never reads as both chosen and gone. */
+	.size.gone:not(.active) {
+		color: var(--ink-40); border-color: var(--hair);
+		text-decoration: line-through; cursor: not-allowed;
+	}
+	.size.gone:not(.active):hover { box-shadow: none; transform: none; }
 
 	/* arrow · label · dot · price, centred on one black bar.
 	   ponytail: no resting shadow and no hover fill — the chassis supplies the shadow on

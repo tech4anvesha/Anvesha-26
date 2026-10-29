@@ -12,10 +12,11 @@
  *      already inside with full access.
  */
 
-import { type PricedLine } from './cart.ts';
+import { SIZES, type PricedLine } from './cart.ts';
 import { type MailResult, mailBlock, sendOrderEmail, sendRejectionEmail } from './email.ts';
 import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
 import { PASS_MINUTES, type SpotPass, looksLikeSpotPass, noSuchSpotPass } from './spot.ts';
+import { type StockMap, linesOf, readStock, returnStock } from './stock.ts';
 import {
 	ApiError,
 	EXT,
@@ -252,6 +253,10 @@ export async function adminListMerch(env: Env, req: Request, cors: Cors): Promis
 	// a second round trip on every panel load to answer one boolean.
 	const release = await readRelease(env);
 
+	// The counters, for the same reason: the panel is where somebody looks to find out
+	// how many larges are left, and that must not be a second request.
+	const stock: StockMap = await readStock(env);
+
 	return json(
 		{
 			release,
@@ -259,6 +264,9 @@ export async function adminListMerch(env: Env, req: Request, cors: Cors): Promis
 				const labels = viewsFor.get(m.id) ?? [];
 				return {
 					...m,
+					// size -> how many are left, with '' the single slot an item without
+					// sizes keeps. An empty object means no stock, never unlimited.
+					stock: stock[m.id] ?? {},
 					has_size: m.has_size === 1,
 					is_active: m.is_active === 1,
 					image_url: `/api/merch/${m.id}/image`,
@@ -312,6 +320,36 @@ export async function adminUpdateMerch(
 	const hasSize = body.has_size ? 1 : 0;
 	const isActive = body.is_active ? 1 : 0;
 
+	// ---- the counters ----
+	// Edited here rather than through a route of their own: a recount is a fact about an
+	// item, it is typed on the same form as the item's price, and one PUT means the two
+	// cannot be saved half way.
+	//
+	// ABSENT means "leave them alone". Only a body that actually carries `stock` touches
+	// them, so every existing caller — and any older build still deployed — keeps working
+	// and cannot blank a shelf by omission.
+	//
+	// What IS sent replaces the lot for this item: a size left out of the object is a size
+	// with none left, which is how a sold-out label is removed as well as added. Anything
+	// unparseable is refused rather than rounded, because this number decides whether
+	// money may be taken.
+	const stockEdit = body.stock;
+	let stockRows: [string, number][] | null = null;
+	if (stockEdit !== undefined) {
+		if (typeof stockEdit !== 'object' || stockEdit === null || Array.isArray(stockEdit))
+			throw bad('bad_stock', 'stock must be an object of size to quantity');
+		stockRows = [];
+		for (const [size, qty] of Object.entries(stockEdit as Record<string, unknown>)) {
+			// '' is the one slot an item without sizes keeps; otherwise it must be a size
+			// the storefront actually offers, or nobody could ever pick it.
+			if (size !== '' && !(SIZES as readonly string[]).includes(size))
+				throw bad('bad_stock_size', `${size} is not a size this store sells`);
+			if (!Number.isInteger(qty) || (qty as number) < 0 || (qty as number) > 9999)
+				throw bad('bad_stock_qty', `Stock for ${size || 'this item'} must be a whole number, 0 or more`);
+			stockRows.push([size, qty as number]);
+		}
+	}
+
 	await env.DB.prepare(
 		`UPDATE merch
 		    SET name = ?, description = ?, designer = ?, category = ?,
@@ -320,6 +358,25 @@ export async function adminUpdateMerch(
 	)
 		.bind(name, description, designer, category, price, hasSize, isActive, id)
 		.run();
+
+	if (stockRows) {
+		// Delete then insert, in one batch, so the result is exactly what was sent and a
+		// size dropped from the form does not linger with its old count. One transaction,
+		// so the shelf is never momentarily empty.
+		await env.DB.batch([
+			env.DB.prepare(`DELETE FROM merch_stock WHERE merch_id = ?`).bind(id),
+			...stockRows.map(([size, qty]) =>
+				env.DB
+					.prepare(`INSERT INTO merch_stock (merch_id, size, qty) VALUES (?, ?, ?)`)
+					.bind(id, size, qty),
+			),
+		]);
+		// Counted by hand off a table, so the number itself is worth a trace.
+		console.log(
+			`admin: ${session.collegemail} (${session.roll_number}) set stock ${id} ` +
+				stockRows.map(([sz, q]) => `${sz || '-'}:${q}`).join(' '),
+		);
+	}
 
 	// Who changed what — the shared password means this log is the only attribution.
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) updated ${id}`);
@@ -354,6 +411,7 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 		        o.collection_status, o.roll_number, o.collected_at, o.created_at,
 		        o.customer_info, o.review_status, o.payment_ref, o.payment_proof_path,
 		        o.payment_submitted_at, o.reviewed_by_name, o.reviewed_at, o.review_note,
+		        o.spot_pass, o.stock_taken,
 		        p.razorpay_transaction_id, p.transaction_info
 		   FROM orders o
 		   LEFT JOIN payments p ON p.order_id = o.order_id
@@ -361,6 +419,8 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 	).all<{
 		order_id: string;
 		order_info: string;
+		spot_pass: string | null;
+		stock_taken: number;
 		total_price_paise: number;
 		payment_status: string;
 		collection_status: CollectionStatus;
@@ -442,6 +502,11 @@ export async function adminListOrders(env: Env, req: Request, cors: Cors): Promi
 					reviewed_by_name: o.reviewed_by_name,
 					reviewed_at: o.reviewed_at,
 					review_note: o.review_note,
+					// Sold at the stall, and whether it got what it ordered off the shelf.
+					// stock_taken = 0 on a pending order means it was filed against stock
+					// that had run out — the panel says so, because only a person can fix it.
+					at_stall: Boolean(o.spot_pass),
+					stock_taken: o.stock_taken === 1,
 					collection_status: o.collection_status,
 					collected_at: o.collected_at,
 					created_at: o.created_at,
@@ -505,11 +570,20 @@ export async function adminDeleteOrder(
 	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
 
 	const row = await env.DB.prepare(
-		`SELECT order_id, payment_proof_path FROM orders WHERE order_id = ?`,
+		`SELECT order_id, payment_proof_path, order_info, stock_taken FROM orders WHERE order_id = ?`,
 	)
 		.bind(orderId)
-		.first<{ order_id: string; payment_proof_path: string | null }>();
+		.first<{
+			order_id: string;
+			payment_proof_path: string | null;
+			order_info: string;
+			stock_taken: number;
+		}>();
 	if (!row) throw new ApiError(404, 'not_found', 'No such order');
+
+	// Before the row goes, because afterwards there is nothing left to read the items
+	// from. Same rule as a rejection: only stock this order actually took.
+	if (row.stock_taken === 1) await returnStock(env, linesOf(row.order_info));
 
 	// Payments first: the row references the order, and one batch means a half-deleted
 	// order can never exist.
@@ -567,6 +641,9 @@ export async function adminDeleteMerch(
 	// pointing at images that no longer exist.
 	await env.DB.batch([
 		env.DB.prepare(`DELETE FROM merch_images WHERE merch_id = ?`).bind(id),
+		// Its counters go with it. There is no foreign key to cascade for us, and a left
+		// behind row would be stock for an item nobody can buy.
+		env.DB.prepare(`DELETE FROM merch_stock WHERE merch_id = ?`).bind(id),
 		env.DB.prepare(`DELETE FROM merch WHERE id = ?`).bind(id),
 	]);
 
@@ -983,7 +1060,7 @@ export async function adminReviewOrder(
 
 	const order = await env.DB.prepare(
 		`SELECT order_id, order_info, total_price_paise, payment_status, review_status,
-		        payment_ref, customer_info
+		        payment_ref, customer_info, stock_taken
 		   FROM orders WHERE order_id = ?`,
 	)
 		.bind(orderId)
@@ -995,6 +1072,7 @@ export async function adminReviewOrder(
 			review_status: string | null;
 			payment_ref: string | null;
 			customer_info: string | null;
+			stock_taken: number;
 		}>();
 	if (!order) throw notFound('No such order');
 	if (order.payment_status === 'paid')
@@ -1031,6 +1109,17 @@ export async function adminReviewOrder(
 		)
 			.bind(note || null, session.name, session.roll_number, orderId)
 			.run();
+
+		// Back on the shelf, and only if this order ever took it off — stock_taken = 0
+		// means it was filed against stock that had already run out, and adding to the
+		// counter here would invent inventory. Cleared in the same breath so a second
+		// rejection (or a delete afterwards) cannot restore it twice.
+		if (order.stock_taken === 1) {
+			await returnStock(env, linesOf(order.order_info));
+			await env.DB.prepare(`UPDATE orders SET stock_taken = 0 WHERE order_id = ?`)
+				.bind(orderId)
+				.run();
+		}
 
 		console.log(`admin: ${session.collegemail} (${session.roll_number}) REJECTED ${orderId}`);
 

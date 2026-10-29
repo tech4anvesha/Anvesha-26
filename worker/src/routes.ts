@@ -4,6 +4,7 @@ import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, 
 import { type Customer, normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
 import { type SpotPass, consumeSpotPass, requireSpotPass } from './spot.ts';
+import { readStock, requireStock, returnStock, takeStock } from './stock.ts';
 import {
 	ApiError,
 	EXT,
@@ -127,6 +128,11 @@ export async function listMerch(
 		  ORDER BY mi.merch_id, mi.sort, mi.id`,
 	).all<{ merch_id: string; label: string }>();
 
+	// Same one-query-for-the-whole-catalogue rule as the views above. A sold-out size has
+	// to be greyed out before anyone picks it, which means the counters travel with the
+	// catalogue rather than being asked for per item.
+	const stock = await readStock(env);
+
 	const viewsFor = new Map<string, string[]>();
 	for (const e of extras) (viewsFor.get(e.merch_id) ?? viewsFor.set(e.merch_id, []).get(e.merch_id)!).push(e.label);
 
@@ -147,6 +153,9 @@ export async function listMerch(
 					category: m.category,
 					price_paise: m.price_paise,
 					has_size: m.has_size === 1,
+					// size -> how many are left; '' is the single slot an item with no sizes
+					// keeps. Absent from the map means none, never unlimited — see stock.ts.
+					stock: stock[m.id] ?? {},
 					// URLs, not bytes. Inlining images as base64 in this JSON would bloat
 					// the payload ~33% and make it uncacheable as a whole; the browser
 					// fetches each image separately and caches it on its own.
@@ -286,6 +295,11 @@ export async function checkout(env: Env, req: Request, cors: Cors): Promise<Resp
 		.all<MerchRow>();
 
 	const priced: PricedCart = priceCart(lines, rows);
+
+	// The last point where "that size is gone" costs nobody anything: the student has not
+	// opened their banking app yet. submitPayment deliberately does NOT refuse — see
+	// stock.ts for why — so this is where a cart that cannot be filled has to stop.
+	await requireStock(env, priced.lines);
 
 	// A QUOTE, not an order. Nothing is written here on purpose: most people who click
 	// CHECKOUT never pay, and a row per click filled the admin queue with carts that
@@ -893,6 +907,16 @@ export async function submitPayment(
 			console.error('proof: could not delete superseded object', stale, e),
 		);
 
+	// Off the shelf BEFORE the row is written, so the row can record truthfully whether it
+	// got what it ordered. Never a refusal: the student paid by UPI minutes ago, and
+	// turning them away now would leave them out of pocket with no record of the payment
+	// anywhere. A false here files the order flagged instead, for a human to settle.
+	//
+	// Only on the create path. A resubmission after a rejection is the same order wanting
+	// the same items, and its stock was given back when it was rejected — so it takes
+	// stock again, which is handled by the rejection restoring it, not by a second take.
+	const stockOk = fresh ? await takeStock(env, fresh.priced.lines) : true;
+
 	// ON CONFLICT DO NOTHING rather than a plain INSERT: two submissions racing on one id
 	// (a double-tapped SUBMIT) must not become a 500, and the loser must not overwrite
 	// the evidence the winner just filed. Zero changes means someone else got there, and
@@ -903,8 +927,8 @@ export async function submitPayment(
 					`INSERT INTO orders (order_id, order_info, total_price_paise, payment_status,
 					                     collection_status, roll_number, customer_info,
 					                     review_status, payment_ref, payment_proof_path, payment_submitted_at,
-					                     spot_pass)
-					 VALUES (?, ?, ?, 'unpaid', 'pending', ?, ?, 'pending', ?, ?, datetime('now'), ?)
+					                     spot_pass, stock_taken)
+					 VALUES (?, ?, ?, 'unpaid', 'pending', ?, ?, 'pending', ?, ?, datetime('now'), ?, ?)
 					 ON CONFLICT (order_id) DO NOTHING`,
 				)
 				.bind(
@@ -919,6 +943,10 @@ export async function submitPayment(
 					// who was at the stall and when, so the marker and the attribution are
 					// one column.
 					spotPass?.pass_id ?? null,
+					// 0 means this order was filed against stock that had already run out.
+					// It is what stops a later rejection handing back stock nobody took,
+					// and what the panel shows the admin so somebody deals with it.
+					stockOk ? 1 : 0,
 				)
 				.run()
 		: await env.DB
@@ -931,8 +959,12 @@ export async function submitPayment(
 				)
 				.bind(ref, key, orderId)
 				.run();
-	if (!res.meta.changes)
+	if (!res.meta.changes) {
+		// The insert lost a race (a double-tapped SUBMIT) but the shelf was already
+		// decremented, so put it back — otherwise one order would consume stock twice.
+		if (fresh && stockOk) await returnStock(env, fresh.priced.lines);
 		throw new ApiError(409, 'already_submitted', 'This order is already waiting to be confirmed');
+	}
 
 	// One pass, one order. Spent only now that there is a row to point at, and after the
 	// insert won its race — the loser of a double-tapped SUBMIT already threw above.

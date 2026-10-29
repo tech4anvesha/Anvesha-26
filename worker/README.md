@@ -315,10 +315,28 @@ button sends). A line already collected cannot be un-collected through this endp
 4. **Razorpay** — Dashboard → Webhooks → add
    `https://<worker>/api/webhooks/razorpay`, subscribe to `payment.captured` and
    `payment.failed`, and use the same secret as `RAZORPAY_WEBHOOK_SECRET`.
-5. **Remove the stub.** Delete `RAZORPAY_STUB` from `wrangler.jsonc` vars, or deploy
-   with `--env production` where it is already absent. The worker refuses to stub when
-   `ENVIRONMENT=production`, but do not rely on that as the only guard.
-6. `npx wrangler deploy --env production`
+5. **Remove the stub.** Delete `RAZORPAY_STUB` from `wrangler.jsonc` vars. The worker
+   refuses to stub when `ENVIRONMENT=production`, but do not rely on that as the only
+   guard.
+6. ```bash
+   npx wrangler deploy        # NO --env. See below.
+   ```
+
+### Never deploy with `--env production`
+
+It reads as the safe, obvious thing and it takes the site down.
+
+`env.production` in `wrangler.jsonc` carries vars, ratelimits and the Durable Object —
+but **not** `d1_databases` or `r2_buckets`, because bindings are not inherited into a
+named environment. It *does* inherit the top-level `routes`, so deploying it moves the
+custom domain `merch-api.anvesha26.in` onto a worker with no database. Every route that
+touches D1 then throws `Cannot read properties of undefined (reading 'prepare')` and
+answers 500 `internal_error` — admin login included, which is how it gets noticed.
+
+Production is the TOP-LEVEL worker, `anvesha-merch-api`, deployed with a bare
+`npx wrangler deploy` (that is what `npm run deploy` runs). Recovering from a
+`--env production` deploy is one bare `npx wrangler deploy`, which reclaims the domain.
+Happened on 29 Oct 2026.
 
 ---
 
