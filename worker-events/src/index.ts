@@ -14,11 +14,11 @@
  *   DELETE /api/events/:id/poster   remove a poster                  [admin]
  *   GET    /api/live                live updates socket              [public]
  *
- *   GET    /api/ideation           next ideation meetings           [public]
- *   GET    /api/ideation?all=1     including ones already held      [admin]
- *   POST   /api/ideation           schedule one                     [admin]
- *   PUT    /api/ideation/:id       move or rename one               [admin]
- *   DELETE /api/ideation/:id       drop one                         [admin]
+ *   GET    /api/projects           every expo project               [public]
+ *   POST   /api/projects           add one (multipart, + image)     [admin]
+ *   PUT    /api/projects/:id       edit one (multipart, + image)    [admin]
+ *   DELETE /api/projects/:id       drop one and its image           [admin]
+ *   GET    /api/projects/:id/image its photo, streamed from R2      [public]
  *
  * Separate deployment from the merch Worker, same D1 database. It shares nothing with
  * merch but the admin_login table — signing in on the existing admin panel has to let
@@ -35,7 +35,7 @@
 
 export interface Env {
 	DB: D1Database;
-	// The merch bucket. Posters live under the `events/` prefix inside it.
+	// The merch bucket. Posters live under `events/`, project photos under `projects/`.
 	MEDIA: R2Bucket;
 	HUB: DurableObjectNamespace<import('./hub.ts').EventsHub>;
 	ALLOWED_ORIGINS: string;
@@ -65,9 +65,8 @@ const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: no I, L, O, U
 /**
  * A prefix + 40 bits of randomness. Public data, so it only has to be unique.
  *
- * The prefix is an argument with a default rather than a second copy of this function:
- * ideation meetings need their own ids and the alphabet, the bit-packing and the
- * length are not what differs between them.
+ * The prefix is an argument with a default so another kind of row can mint its own
+ * ids without a second copy of the alphabet and the bit-packing.
  */
 export function newEventId(prefix = 'EVT_'): string {
 	const raw = crypto.getRandomValues(new Uint8Array(5));
@@ -82,9 +81,6 @@ export function newEventId(prefix = 'EVT_'): string {
 
 export const looksLikeEventId = (v: unknown): v is string =>
 	typeof v === 'string' && /^EVT_[0-9A-HJKMNP-TV-Z]{8}$/.test(v);
-
-export const looksLikeMeetingId = (v: unknown): v is string =>
-	typeof v === 'string' && /^IDE_[0-9A-HJKMNP-TV-Z]{8}$/.test(v);
 
 class ApiError extends Error {
 	status: number;
@@ -145,8 +141,7 @@ export interface AdminIdentity {
  * Throws 401 unless the Bearer token is a live admin session; returns who it belongs to.
  *
  * The identity comes back from the query that was already being run — callers that do
- * not need it simply ignore the return, which is every caller that existed before the
- * ideation table needed to record an author.
+ * not need it simply ignore the return; the projects table stamps its rows with it.
  */
 async function requireAdmin(env: Env, req: Request): Promise<AdminIdentity> {
 	const header = req.headers.get('Authorization') ?? '';
@@ -258,7 +253,7 @@ function parseEvent(body: EventBody) {
 async function broadcast(env: Env, reason: string, type = 'events'): Promise<void> {
 	try {
 		// One well-known name = one object = every viewer on the same fan-out point.
-		// `type` so the expo page can listen for ideation changes without refetching the
+		// `type` so /projects can listen for project changes without refetching the
 		// whole schedule every time an event is edited, and vice versa.
 		const hub = env.HUB.get(env.HUB.idFromName('events'));
 		await hub.broadcast(JSON.stringify({ type, reason, at: Date.now() }));
@@ -278,7 +273,7 @@ const IMAGE_TYPES: Record<string, string> = {
 	'image/webp': 'webp',
 	'image/avif': 'avif',
 };
-const MAX_POSTER_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
 /** Which table holds this id, and what its poster key is. One round trip, not two. */
 async function findEvent(env: Env, id: string) {
@@ -357,7 +352,7 @@ async function putPoster(env: Env, req: Request, id: string, cors: Cors): Promis
 
 	const ext = IMAGE_TYPES[file.type];
 	if (!ext) throw bad('bad_image_type', `Unsupported image type ${file.type || 'unknown'}`);
-	if (file.size > MAX_POSTER_BYTES) throw bad('image_too_large', 'The poster must be 6MB or smaller');
+	if (file.size > MAX_IMAGE_BYTES) throw bad('image_too_large', 'The poster must be 6MB or smaller');
 
 	// Keyed by id AND extension, so replacing a PNG with a JPEG writes a new object
 	// rather than leaving a .png key holding JPEG bytes. The old one is deleted after
@@ -577,93 +572,227 @@ async function deleteDone(env: Env, req: Request, id: string, cors: Cors): Promi
 }
 
 // ============================================================
-// entry points
-// ============================================================
-// ideation meetings
+// expo projects
 // ============================================================
 
 /**
- * How long after it starts a meeting still counts as "next".
- *
- * These rows have no end time, so without a grace window the section on the expo page
- * would go blank at the exact moment people were walking into the room. Two hours is
- * longer than any of these has ever run and short enough that yesterday's meeting is
- * never the one being advertised.
+ * The six subjects, by the three-letter code the floor uses (BIO-01, PHY-03 …).
+ * Must match `code` on HALLS in src/lib/expo.ts — that file names and draws them,
+ * this list is what the database will accept.
  */
-const MEETING_GRACE_MIN = 120;
+export const SUBJECTS = ['BIO', 'PHY', 'CHE', 'MAT', 'DAT', 'EES'] as const;
+type Subject = (typeof SUBJECTS)[number];
 
-interface MeetingBody { subject?: unknown; starts_at?: unknown; venue?: unknown }
+const MAX_TEAM = 12;
 
-function parseMeeting(body: MeetingBody) {
+/** 'BIO', 3, 'jpg' -> 'projects/BIO_03.jpg' — the photo is named after the exhibit. */
+export const projectImageKey = (subject: string, no: number, ext: string) =>
+	`projects/${subject}_${String(no).padStart(2, '0')}.${ext}`;
+
+/**
+ * Everything a project row holds that an admin types, validated. Shared by create and
+ * update, and read straight off the multipart body: the photo travels in the same
+ * request, so the fields have to as well. `team` is one form entry per member.
+ */
+export function parseProject(form: FormData) {
+	const subject = String(form.get('subject') ?? '').trim().toUpperCase();
+	if (!SUBJECTS.includes(subject as Subject)) throw bad('bad_subject', 'Pick a subject');
+
+	const team = form.getAll('team').map((m) => str(m, 'team member', 80, false)).filter(Boolean);
+	if (!team.length) throw bad('missing_field', 'Add at least one team member');
+	if (team.length > MAX_TEAM) throw bad('field_too_long', `At most ${MAX_TEAM} team members`);
+
 	return {
-		subject: str(body.subject, 'subject', 200),
-		starts_at: stamp(body.starts_at, 'starts_at'),
-		venue: str(body.venue, 'venue', 160),
+		subject: subject as Subject,
+		title: str(form.get('title'), 'title', 160),
+		description: str(form.get('description'), 'description', 2000),
+		team,
 	};
 }
 
+/** The photo, if one was sent, checked the same way a poster is. */
+function projectImage(form: FormData): { file: File; ext: string } | null {
+	const file = form.get('image');
+	if (!(file instanceof File) || file.size === 0) return null;
+	const ext = IMAGE_TYPES[file.type];
+	if (!ext) throw bad('bad_image_type', `Unsupported image type ${file.type || 'unknown'}`);
+	if (file.size > MAX_IMAGE_BYTES) throw bad('image_too_large', 'The photo must be 6MB or smaller');
+	return { file, ext };
+}
+
+async function readForm(req: Request): Promise<FormData> {
+	const form = await req.formData().catch(() => null);
+	if (!form) throw bad('bad_body', 'Expected multipart form data');
+	return form;
+}
+
+const putImage = (env: Env, key: string, file: File) =>
+	env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+
+interface ProjectRow {
+	project_id: number; subject: string; project_no: number; title: string;
+	description: string; team: string; has_image: number; v: string;
+}
+
 /**
- * Upcoming by default; everything ever with ?all=1, which needs an admin.
- *
- * One route rather than two: the difference is a WHERE clause and who is allowed to
- * drop it, and a second path would have duplicated the SELECT to say so.
+ * Every project, in floor order. `team` is unpacked here so the page gets an array,
+ * and `v` (when the row last changed) rides along so the page can put it on the image
+ * URL — a replaced photo is then a new URL, and no cache anywhere serves the old one.
  */
-async function listIdeation(env: Env, req: Request, cors: Cors, all: boolean): Promise<Response> {
-	if (all) await requireAdmin(env, req);
-	const cols = `meeting_id, subject, starts_at, venue,
-	              created_by_name, created_by_roll, created_at,
-	              updated_by_name, updated_by_roll, updated_at`;
-	const stmt = all
-		? env.DB.prepare(`SELECT ${cols} FROM ideation_meetings ORDER BY starts_at DESC`)
-		: env.DB.prepare(`SELECT ${cols} FROM ideation_meetings WHERE starts_at > ? ORDER BY starts_at ASC`)
-			.bind(istStamp(Date.now() - MEETING_GRACE_MIN * 60_000));
-	const { results } = await stmt.all();
-	return json({ meetings: results }, {}, cors);
+async function listProjects(env: Env, cors: Cors): Promise<Response> {
+	const { results } = await env.DB.prepare(
+		`SELECT project_id, subject, project_no, title, description, team,
+		        image_path IS NOT NULL AS has_image, COALESCE(updated_at, created_at) AS v
+		   FROM projects ORDER BY subject, project_no`,
+	).all<ProjectRow>();
+	const projects = results.map((r) => {
+		let team: string[] = [];
+		try { team = JSON.parse(r.team); } catch { /* a hand-edited row should not take the page down */ }
+		return { ...r, has_image: Boolean(r.has_image), team };
+	});
+	return json({ projects }, {}, cors);
 }
 
-async function createMeeting(env: Env, req: Request, cors: Cors): Promise<Response> {
+async function createProject(env: Env, req: Request, cors: Cors): Promise<Response> {
 	const who = await requireAdmin(env, req);
-	const m = parseMeeting(await readJson<MeetingBody>(req));
-	const meeting_id = newEventId('IDE_');
-	await env.DB.prepare(
-		`INSERT INTO ideation_meetings
-		   (meeting_id, subject, starts_at, venue, created_by_name, created_by_roll, created_by_email)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	const form = await readForm(req);
+	const p = parseProject(form);
+	// Validated before the insert, so a bad file never leaves a row behind without it.
+	const img = projectImage(form);
+
+	// The number is worked out inside the INSERT, not read first and written second:
+	// two admins saving at once would otherwise both read 3 and both claim BIO-04. The
+	// UNIQUE (subject, project_no) is the backstop if it ever does happen.
+	const row = await env.DB.prepare(
+		`INSERT INTO projects
+		   (subject, project_no, title, description, team, created_by_name, created_by_roll, created_by_email)
+		 SELECT ?, COALESCE(MAX(project_no), 0) + 1, ?, ?, ?, ?, ?, ?
+		   FROM projects WHERE subject = ?
+		 RETURNING project_id, project_no`,
 	)
-		.bind(meeting_id, m.subject, m.starts_at, m.venue, who.name, who.roll_number, who.collegemail)
-		.run();
-	await broadcast(env, 'created', 'ideation');
-	return json({ meeting_id, ...m, created_by_name: who.name, created_by_roll: who.roll_number }, { status: 201 }, cors);
+		.bind(p.subject, p.title, p.description, JSON.stringify(p.team),
+			who.name, who.roll_number, who.collegemail, p.subject)
+		.first<{ project_id: number; project_no: number }>();
+	if (!row) throw new ApiError(500, 'server_error', 'The project was not saved');
+
+	let image_path: string | null = null;
+	if (img) {
+		image_path = projectImageKey(p.subject, row.project_no, img.ext);
+		await putImage(env, image_path, img.file);
+		await env.DB.prepare(`UPDATE projects SET image_path = ? WHERE project_id = ?`)
+			.bind(image_path, row.project_id).run();
+	}
+
+	await broadcast(env, 'created', 'projects');
+	return json({ ...row, ...p, has_image: Boolean(image_path) }, { status: 201 }, cors);
 }
 
-async function updateMeeting(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+/**
+ * Edits a project, and with it the photo: a new file replaces it, `remove_image=1`
+ * drops it, and neither leaves it as it was.
+ *
+ * Moving a project to another subject gives it the next number THERE — BIO-03 becomes
+ * PHY-05, not PHY-03, which may already exist. Its photo is renamed to match, because
+ * the R2 key is the exhibit code and a stale one would be a second name for it.
+ */
+async function updateProject(env: Env, req: Request, id: number, cors: Cors): Promise<Response> {
 	const who = await requireAdmin(env, req);
-	if (!looksLikeMeetingId(id)) throw notFound('No such meeting');
-	const m = parseMeeting(await readJson<MeetingBody>(req));
-	// created_by_* is deliberately untouched: it says who called the meeting, and an
-	// edit by someone else is a different fact, which is what updated_by_* is for.
-	const res = await env.DB.prepare(
-		`UPDATE ideation_meetings
-		    SET subject = ?, starts_at = ?, venue = ?,
+	const form = await readForm(req);
+	const p = parseProject(form);
+	const img = projectImage(form);
+	const removeImage = form.get('remove_image') === '1';
+
+	const old = await env.DB.prepare(
+		`SELECT subject, project_no, image_path FROM projects WHERE project_id = ?`,
+	).bind(id).first<{ subject: string; project_no: number; image_path: string | null }>();
+	if (!old) throw notFound('No such project');
+
+	// Every SET reads the row as it was, so `subject` inside the CASE is the OLD one.
+	const row = await env.DB.prepare(
+		`UPDATE projects
+		    SET project_no = CASE WHEN subject = ? THEN project_no
+		                          ELSE (SELECT COALESCE(MAX(q.project_no), 0) + 1 FROM projects q WHERE q.subject = ?)
+		                     END,
+		        subject = ?, title = ?, description = ?, team = ?,
 		        updated_by_name = ?, updated_by_roll = ?, updated_at = datetime('now')
-		  WHERE meeting_id = ?`,
+		  WHERE project_id = ?
+		 RETURNING project_no`,
 	)
-		.bind(m.subject, m.starts_at, m.venue, who.name, who.roll_number, id)
-		.run();
-	if (!res.meta.changes) throw notFound('No such meeting');
-	await broadcast(env, 'updated', 'ideation');
-	return json({ meeting_id: id, ...m }, {}, cors);
+		.bind(p.subject, p.subject, p.subject, p.title, p.description, JSON.stringify(p.team),
+			who.name, who.roll_number, id)
+		.first<{ project_no: number }>();
+	if (!row) throw notFound('No such project');
+
+	// Work out where the photo should be now, then make R2 agree. Writes happen before
+	// the old object is deleted: losing the delete costs storage, losing the write would
+	// leave the row pointing at nothing.
+	let image_path = old.image_path;
+	if (img) {
+		image_path = projectImageKey(p.subject, row.project_no, img.ext);
+		await putImage(env, image_path, img.file);
+	} else if (removeImage) {
+		image_path = null;
+	} else if (old.image_path) {
+		const ext = old.image_path.split('.').pop()!;
+		const moved = projectImageKey(p.subject, row.project_no, ext);
+		if (moved !== old.image_path) {
+			const obj = await env.MEDIA.get(old.image_path);
+			if (obj) {
+				await env.MEDIA.put(moved, obj.body, { httpMetadata: obj.httpMetadata });
+				image_path = moved;
+			} else {
+				image_path = null; // already gone from storage; stop pointing at it
+			}
+		}
+	}
+
+	if (image_path !== old.image_path) {
+		await env.DB.prepare(`UPDATE projects SET image_path = ? WHERE project_id = ?`)
+			.bind(image_path, id).run();
+		if (old.image_path) {
+			await env.MEDIA.delete(old.image_path).catch((e) => console.error('projects: image delete failed', e));
+		}
+	}
+
+	await broadcast(env, 'updated', 'projects');
+	return json({ project_id: id, project_no: row.project_no, ...p, has_image: Boolean(image_path) }, {}, cors);
 }
 
-async function deleteMeeting(env: Env, req: Request, id: string, cors: Cors): Promise<Response> {
+async function deleteProject(env: Env, req: Request, id: number, cors: Cors): Promise<Response> {
 	await requireAdmin(env, req);
-	if (!looksLikeMeetingId(id)) throw notFound('No such meeting');
-	const res = await env.DB.prepare(`DELETE FROM ideation_meetings WHERE meeting_id = ?`).bind(id).run();
-	if (!res.meta.changes) throw notFound('No such meeting');
-	await broadcast(env, 'deleted', 'ideation');
+	// RETURNING hands back the key the row held, so the photo can follow it out — once
+	// the row is gone nothing else says which object was its.
+	const row = await env.DB.prepare(`DELETE FROM projects WHERE project_id = ? RETURNING image_path`)
+		.bind(id).first<{ image_path: string | null }>();
+	if (!row) throw notFound('No such project');
+	if (row.image_path) {
+		await env.MEDIA.delete(row.image_path).catch((e) => console.error('projects: image delete failed', e));
+	}
+	await broadcast(env, 'deleted', 'projects');
 	return json({ ok: true }, {}, cors);
 }
 
+/**
+ * The photo, through the Worker rather than a public bucket URL so it carries this
+ * Worker's CORS. Cached for a year: the page asks for it with `?v=<last change>`, so a
+ * replaced photo is a different URL and the long cache can never serve a stale one.
+ */
+async function getProjectImage(env: Env, id: number, cors: Cors): Promise<Response> {
+	const row = await env.DB.prepare(`SELECT image_path FROM projects WHERE project_id = ?`)
+		.bind(id).first<{ image_path: string | null }>();
+	if (!row?.image_path) throw notFound('No photo for this project');
+	const object = await env.MEDIA.get(row.image_path);
+	if (!object) throw notFound('Photo missing from storage');
+
+	const headers = new Headers(cors);
+	object.writeHttpMetadata(headers);
+	headers.set('etag', object.httpEtag);
+	headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+	return new Response(object.body, { headers });
+}
+
+// ============================================================
+// entry points
 // ============================================================
 
 // The Durable Object class must be exported from the entry point for the runtime to
@@ -690,16 +819,18 @@ export default {
 				return json({ moved }, {}, cors);
 			}
 
-			if (method === 'GET' && pathname === '/api/ideation') {
-				return await listIdeation(env, req, cors, url.searchParams.get('all') === '1');
-			}
-			if (method === 'POST' && pathname === '/api/ideation') return await createMeeting(env, req, cors);
+			if (method === 'GET' && pathname === '/api/projects') return await listProjects(env, cors);
+			if (method === 'POST' && pathname === '/api/projects') return await createProject(env, req, cors);
 
-			const meeting = pathname.match(/^\/api\/ideation\/([^/]+)$/);
-			if (meeting) {
-				const id = decodeURIComponent(meeting[1]);
-				if (method === 'PUT') return await updateMeeting(env, req, id, cors);
-				if (method === 'DELETE') return await deleteMeeting(env, req, id, cors);
+			const project = pathname.match(/^\/api\/projects\/(\d+)(\/image)?$/);
+			if (project) {
+				const id = Number(project[1]);
+				if (project[2]) {
+					if (method === 'GET') return await getProjectImage(env, id, cors);
+				} else {
+					if (method === 'PUT') return await updateProject(env, req, id, cors);
+					if (method === 'DELETE') return await deleteProject(env, req, id, cors);
+				}
 			}
 
 			// The socket itself. No CORS headers: a WebSocket upgrade is not a CORS

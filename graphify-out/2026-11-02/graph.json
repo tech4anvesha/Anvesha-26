@@ -4,32 +4,6 @@
   "graph": {},
   "nodes": [
     {
-      "label": "Hall",
-      "file_type": "code",
-      "source_file": "src/lib/expo.ts",
-      "source_location": "L21",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "src_lib_expo_hall",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "hall"
-    },
-    {
-      "label": "Project",
-      "file_type": "code",
-      "source_file": "src/lib/expo.ts",
-      "source_location": "L13",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "src_lib_expo_project",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "project"
-    },
-    {
       "label": "CartLineInput",
       "file_type": "code",
       "source_file": "worker/src/cart.ts",
@@ -342,19 +316,6 @@
       "norm_label": "apierror"
     },
     {
-      "label": "Env",
-      "file_type": "code",
-      "source_file": "worker/src/util.ts",
-      "source_location": "L3",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "id": "worker_src_util_env",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "env"
-    },
-    {
       "label": "razorpayMode",
       "file_type": "code",
       "source_file": "worker/src/util.ts",
@@ -418,6 +379,19 @@
       "community": 21,
       "community_name": "lib/admin.ts",
       "norm_label": "adminsession"
+    },
+    {
+      "label": "ReceiptData",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L12",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_receiptdata",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "receiptdata"
     },
     {
       "label": "CatalogueHub",
@@ -572,7 +546,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_paymententity",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "paymententity"
     },
     {
@@ -585,7 +559,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_razorpayorder",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "razorpayorder"
     },
     {
@@ -598,8 +572,21 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_webhookevent",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "webhookevent"
+    },
+    {
+      "label": "Env",
+      "file_type": "code",
+      "source_file": "worker/src/util.ts",
+      "source_location": "L3",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "worker_src_util_env",
+      "community": 40,
+      "community_name": "Env",
+      "norm_label": "env"
     },
     {
       "label": "razorpayKeys",
@@ -611,7 +598,7 @@
       "_origin": "ast",
       "id": "worker_src_util_razorpaykeys",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "razorpaykeys"
     },
     {
@@ -628,17 +615,30 @@
       "norm_label": "gate"
     },
     {
-      "label": "ReceiptData",
+      "label": "Hall",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L12",
+      "source_file": "src/lib/expo.ts",
+      "source_location": "L21",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_receiptdata",
+      "id": "src_lib_expo_hall",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "receiptdata"
+      "community_name": "projects.astro",
+      "norm_label": "hall"
+    },
+    {
+      "label": "Project",
+      "file_type": "code",
+      "source_file": "src/lib/expo.ts",
+      "source_location": "L13",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "src_lib_expo_project",
+      "community": 6,
+      "community_name": "projects.astro",
+      "norm_label": "project"
     },
     {
       "label": "angleAt()",
@@ -689,18 +689,6 @@
       "norm_label": "showview()"
     },
     {
-      "label": "shot()",
-      "file_type": "code",
-      "source_file": "src/lib/expo.ts",
-      "source_location": "L40",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_lib_expo_shot",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "shot()"
-    },
-    {
       "label": "spansFor()",
       "file_type": "code",
       "source_file": "src/pages/index.astro",
@@ -723,18 +711,6 @@
       "community": 12,
       "community_name": "SiteLayout.astro",
       "norm_label": "var()"
-    },
-    {
-      "label": "barcode()",
-      "file_type": "code",
-      "source_file": "src/pages/projects.astro",
-      "source_location": "L30",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_pages_projects_barcode",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "barcode()"
     },
     {
       "label": "sampleInk()",
@@ -989,30 +965,6 @@
       "norm_label": "torupees()"
     },
     {
-      "label": "fail()",
-      "file_type": "code",
-      "source_file": "src/pages/spot.astro",
-      "source_location": "L44",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_pages_spot_fail",
-      "community": 13,
-      "community_name": "distribution.astro",
-      "norm_label": "fail()"
-    },
-    {
-      "label": "open()",
-      "file_type": "code",
-      "source_file": "src/pages/spot.astro",
-      "source_location": "L49",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_pages_spot_open",
-      "community": 13,
-      "community_name": "distribution.astro",
-      "norm_label": "open()"
-    },
-    {
       "label": "formatRupees()",
       "file_type": "code",
       "source_file": "worker/src/cart.ts",
@@ -1023,6 +975,18 @@
       "community": 14,
       "community_name": "email.ts",
       "norm_label": "formatrupees()"
+    },
+    {
+      "label": "parseCart()",
+      "file_type": "code",
+      "source_file": "worker/src/cart.ts",
+      "source_location": "L58",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_src_cart_parsecart",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "parsecart()"
     },
     {
       "label": "deliver()",
@@ -1241,6 +1205,18 @@
       "norm_label": "zlibstored()"
     },
     {
+      "label": "looksLikeMerchId()",
+      "file_type": "code",
+      "source_file": "worker/src/util.ts",
+      "source_location": "L126",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_src_util_lookslikemerchid",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "lookslikemerchid()"
+    },
+    {
       "label": "parse()",
       "file_type": "code",
       "source_file": "worker/test/cart.test.ts",
@@ -1263,6 +1239,42 @@
       "community": 14,
       "community_name": "email.ts",
       "norm_label": "price()"
+    },
+    {
+      "label": "fakeEnv()",
+      "file_type": "code",
+      "source_file": "worker/test/collect.test.ts",
+      "source_location": "L30",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_test_collect_test_fakeenv",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "fakeenv()"
+    },
+    {
+      "label": "line()",
+      "file_type": "code",
+      "source_file": "worker/test/collect.test.ts",
+      "source_location": "L17",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_test_collect_test_line",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "line()"
+    },
+    {
+      "label": "statusOf()",
+      "file_type": "code",
+      "source_file": "worker/test/collect.test.ts",
+      "source_location": "L63",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_test_collect_test_statusof",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "statusof()"
     },
     {
       "label": "capture()",
@@ -1299,6 +1311,54 @@
       "community": 14,
       "community_name": "email.ts",
       "norm_label": "chunks()"
+    },
+    {
+      "label": "check()",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L42",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_check",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "check()"
+    },
+    {
+      "label": "post()",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L64",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_post",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "post()"
+    },
+    {
+      "label": "req()",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L53",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_req",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "req()"
+    },
+    {
+      "label": "section()",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L51",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_section",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "section()"
     },
     {
       "label": "ask()",
@@ -1839,18 +1899,6 @@
       "community": 2,
       "community_name": "src/admin.ts",
       "norm_label": "unhex()"
-    },
-    {
-      "label": "parseCart()",
-      "file_type": "code",
-      "source_file": "worker/src/cart.ts",
-      "source_location": "L58",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_src_cart_parsecart",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "parsecart()"
     },
     {
       "label": "priceCart()",
@@ -2405,18 +2453,6 @@
       "norm_label": "clientip()"
     },
     {
-      "label": "corsHeaders()",
-      "file_type": "code",
-      "source_file": "worker/src/util.ts",
-      "source_location": "L137",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_src_util_corsheaders",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "corsheaders()"
-    },
-    {
       "label": "json()",
       "file_type": "code",
       "source_file": "worker/src/util.ts",
@@ -2439,18 +2475,6 @@
       "community": 2,
       "community_name": "src/admin.ts",
       "norm_label": "lookslikeimage()"
-    },
-    {
-      "label": "looksLikeMerchId()",
-      "file_type": "code",
-      "source_file": "worker/src/util.ts",
-      "source_location": "L126",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_src_util_lookslikemerchid",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "lookslikemerchid()"
     },
     {
       "label": "looksLikeOrderId()",
@@ -2607,54 +2631,6 @@
       "community": 2,
       "community_name": "src/admin.ts",
       "norm_label": "unauthorized()"
-    },
-    {
-      "label": "fakeEnv()",
-      "file_type": "code",
-      "source_file": "worker/test/collect.test.ts",
-      "source_location": "L30",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_test_collect_test_fakeenv",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "fakeenv()"
-    },
-    {
-      "label": "line()",
-      "file_type": "code",
-      "source_file": "worker/test/collect.test.ts",
-      "source_location": "L17",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_test_collect_test_line",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "line()"
-    },
-    {
-      "label": "statusOf()",
-      "file_type": "code",
-      "source_file": "worker/test/collect.test.ts",
-      "source_location": "L63",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_test_collect_test_statusof",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "statusof()"
-    },
-    {
-      "label": "headersFor()",
-      "file_type": "code",
-      "source_file": "worker/test/cors.test.ts",
-      "source_location": "L17",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_test_cors_test_headersfor",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "headersfor()"
     },
     {
       "label": "dbWith()",
@@ -3113,6 +3089,66 @@
       "norm_label": "verify()"
     },
     {
+      "label": "buildReceiptCard()",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L51",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_buildreceiptcard",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "buildreceiptcard()"
+    },
+    {
+      "label": "drawQR()",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L25",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_drawqr",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "drawqr()"
+    },
+    {
+      "label": "receiptFilename()",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L198",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_receiptfilename",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "receiptfilename()"
+    },
+    {
+      "label": "rupees()",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L22",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_rupees",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "rupees()"
+    },
+    {
+      "label": "saveReceipt()",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L211",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_lib_ticket_savereceipt",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "savereceipt()"
+    },
+    {
       "label": "artHTML()",
       "file_type": "code",
       "source_file": "src/pages/merch.astro",
@@ -3183,6 +3219,18 @@
       "community": 24,
       "community_name": "pages/merch.astro",
       "norm_label": "synctree()"
+    },
+    {
+      "label": "initOrder()",
+      "file_type": "code",
+      "source_file": "src/pages/order.astro",
+      "source_location": "L224",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_pages_order_initorder",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "initorder()"
     },
     {
       "label": ".broadcast()",
@@ -3591,54 +3639,6 @@
       "community": 32,
       "community_name": "teams.astro",
       "norm_label": "var()"
-    },
-    {
-      "label": "check()",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L42",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_check",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "check()"
-    },
-    {
-      "label": "post()",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L64",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_post",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "post()"
-    },
-    {
-      "label": "req()",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L53",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_req",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "req()"
-    },
-    {
-      "label": "section()",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L51",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_section",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "section()"
     },
     {
       "label": "resolve()",
@@ -4393,7 +4393,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_createrazorpayorder",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "createrazorpayorder()"
     },
     {
@@ -4405,7 +4405,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_fetchpayment",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "fetchpayment()"
     },
     {
@@ -4417,7 +4417,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_hmachex",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "hmachex()"
     },
     {
@@ -4429,7 +4429,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_paymentfromevent",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "paymentfromevent()"
     },
     {
@@ -4441,7 +4441,7 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_verifycheckoutsignature",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "verifycheckoutsignature()"
     },
     {
@@ -4453,8 +4453,20 @@
       "_origin": "ast",
       "id": "worker_src_razorpay_verifywebhooksignature",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "verifywebhooksignature()"
+    },
+    {
+      "label": "corsHeaders()",
+      "file_type": "code",
+      "source_file": "worker/src/util.ts",
+      "source_location": "L137",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_src_util_corsheaders",
+      "community": 40,
+      "community_name": "Env",
+      "norm_label": "corsheaders()"
     },
     {
       "label": "timingSafeEqual()",
@@ -4465,8 +4477,20 @@
       "_origin": "ast",
       "id": "worker_src_util_timingsafeequal",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "timingsafeequal()"
+    },
+    {
+      "label": "headersFor()",
+      "file_type": "code",
+      "source_file": "worker/test/cors.test.ts",
+      "source_location": "L17",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "worker_test_cors_test_headersfor",
+      "community": 40,
+      "community_name": "Env",
+      "norm_label": "headersfor()"
     },
     {
       "label": "sign()",
@@ -4477,8 +4501,32 @@
       "_origin": "ast",
       "id": "worker_test_razorpay_test_sign",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "sign()"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "src/pages/spot.astro",
+      "source_location": "L44",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_pages_spot_fail",
+      "community": 41,
+      "community_name": "spot.astro",
+      "norm_label": "fail()"
+    },
+    {
+      "label": "open()",
+      "file_type": "code",
+      "source_file": "src/pages/spot.astro",
+      "source_location": "L49",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "src_pages_spot_open",
+      "community": 41,
+      "community_name": "spot.astro",
+      "norm_label": "open()"
     },
     {
       "label": "identityFor()",
@@ -4517,76 +4565,64 @@
       "norm_label": "stillin()"
     },
     {
-      "label": "buildReceiptCard()",
+      "label": "shot()",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L51",
+      "source_file": "src/lib/expo.ts",
+      "source_location": "L40",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_buildreceiptcard",
+      "id": "src_lib_expo_shot",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "buildreceiptcard()"
+      "community_name": "projects.astro",
+      "norm_label": "shot()"
     },
     {
-      "label": "drawQR()",
+      "label": "barcode()",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L25",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L30",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_drawqr",
+      "id": "src_pages_projects_barcode",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "drawqr()"
+      "community_name": "projects.astro",
+      "norm_label": "barcode()"
     },
     {
-      "label": "receiptFilename()",
+      "label": "select()",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L198",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L232",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_receiptfilename",
+      "id": "src_pages_projects_select",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "receiptfilename()"
+      "community_name": "projects.astro",
+      "norm_label": "select()"
     },
     {
-      "label": "rupees()",
+      "label": "setOpen()",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L22",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L321",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_rupees",
+      "id": "src_pages_projects_setopen",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "rupees()"
+      "community_name": "projects.astro",
+      "norm_label": "setopen()"
     },
     {
-      "label": "saveReceipt()",
+      "label": "show()",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
-      "source_location": "L211",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L293",
       "_callable": true,
       "_origin": "ast",
-      "id": "src_lib_ticket_savereceipt",
+      "id": "src_pages_projects_show",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "savereceipt()"
-    },
-    {
-      "label": "initOrder()",
-      "file_type": "code",
-      "source_file": "src/pages/order.astro",
-      "source_location": "L224",
-      "_callable": true,
-      "_origin": "ast",
-      "id": "src_pages_order_initorder",
-      "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "initorder()"
+      "community_name": "projects.astro",
+      "norm_label": "show()"
     },
     {
       "label": "tsconfig.json",
@@ -5667,39 +5703,6 @@
       "norm_label": "lucide-static/icons/arrow-right.svg?raw"
     },
     {
-      "label": "lucide-static/icons/arrow-up-right.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/arrow-up-right.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "arrow_up_right_svg_raw",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "lucide-static/icons/arrow-up-right.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/calendar-days.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/calendar-days.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "calendar_days_svg_raw",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "lucide-static/icons/calendar-days.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/camera.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/camera.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "camera_svg_raw",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "lucide-static/icons/camera.svg?raw"
-    },
-    {
       "label": "lucide-static/icons/chevron-down.svg?raw",
       "file_type": "code",
       "source_file": "lucide-static/icons/chevron-down.svg?raw",
@@ -5709,6 +5712,28 @@
       "community": 12,
       "community_name": "SiteLayout.astro",
       "norm_label": "lucide-static/icons/chevron-down.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/chevron-left.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/chevron-left.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "chevron_left_svg_raw",
+      "community": 12,
+      "community_name": "SiteLayout.astro",
+      "norm_label": "lucide-static/icons/chevron-left.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/chevron-right.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/chevron-right.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "chevron_right_svg_raw",
+      "community": 12,
+      "community_name": "SiteLayout.astro",
+      "norm_label": "lucide-static/icons/chevron-right.svg?raw"
     },
     {
       "label": "lucide-static/icons/clock.svg?raw",
@@ -5887,17 +5912,6 @@
       "norm_label": "lucide-static/icons/users.svg?raw"
     },
     {
-      "label": "lucide-static/icons/x.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/x.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "x_svg_raw",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "lucide-static/icons/x.svg?raw"
-    },
-    {
       "label": "SiteLayout.astro",
       "file_type": "code",
       "source_file": "src/layouts/SiteLayout.astro",
@@ -5907,39 +5921,6 @@
       "community": 12,
       "community_name": "SiteLayout.astro",
       "norm_label": "sitelayout.astro"
-    },
-    {
-      "label": "expo.ts",
-      "file_type": "code",
-      "source_file": "src/lib/expo.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_lib_expo",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "expo.ts"
-    },
-    {
-      "label": "HALLS",
-      "file_type": "code",
-      "source_file": "src/lib/expo.ts",
-      "source_location": "L42",
-      "_origin": "ast",
-      "id": "src_lib_expo_halls",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "halls"
-    },
-    {
-      "label": "pages/expo.astro",
-      "file_type": "code",
-      "source_file": "src/pages/expo.astro",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_pages_expo",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "pages/expo.astro"
     },
     {
       "label": "pages/index.astro",
@@ -5962,17 +5943,6 @@
       "community": 12,
       "community_name": "SiteLayout.astro",
       "norm_label": "outreach.astro"
-    },
-    {
-      "label": "projects.astro",
-      "file_type": "code",
-      "source_file": "src/pages/projects.astro",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_pages_projects",
-      "community": 12,
-      "community_name": "SiteLayout.astro",
-      "norm_label": "projects.astro"
     },
     {
       "label": "ink.ts",
@@ -6050,72 +6020,6 @@
       "community": 13,
       "community_name": "distribution.astro",
       "norm_label": "session"
-    },
-    {
-      "label": "spot.astro",
-      "file_type": "code",
-      "source_file": "src/pages/spot.astro",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_pages_spot",
-      "community": 13,
-      "community_name": "distribution.astro",
-      "norm_label": "spot.astro"
-    },
-    {
-      "label": "hint",
-      "file_type": "code",
-      "source_file": "src/pages/spot.astro",
-      "source_location": "L42",
-      "_origin": "ast",
-      "id": "src_pages_spot_hint",
-      "community": 13,
-      "community_name": "distribution.astro",
-      "norm_label": "hint"
-    },
-    {
-      "label": "state",
-      "file_type": "code",
-      "source_file": "src/pages/spot.astro",
-      "source_location": "L41",
-      "_origin": "ast",
-      "id": "src_pages_spot_state",
-      "community": 13,
-      "community_name": "distribution.astro",
-      "norm_label": "state"
-    },
-    {
-      "label": "lucide-static/icons/id-card.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/id-card.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "id_card_svg_raw",
-      "community": 14,
-      "community_name": "email.ts",
-      "norm_label": "lucide-static/icons/id-card.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/pen-line.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/pen-line.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "pen_line_svg_raw",
-      "community": 14,
-      "community_name": "email.ts",
-      "norm_label": "lucide-static/icons/pen-line.svg?raw"
-    },
-    {
-      "label": "apply.astro",
-      "file_type": "code",
-      "source_file": "src/pages/apply.astro",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_pages_apply",
-      "community": 14,
-      "community_name": "email.ts",
-      "norm_label": "apply.astro"
     },
     {
       "label": "cart.ts",
@@ -6215,6 +6119,28 @@
       "community": 14,
       "community_name": "email.ts",
       "norm_label": "catalogue"
+    },
+    {
+      "label": "collect.test.ts",
+      "file_type": "code",
+      "source_file": "worker/test/collect.test.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "worker_test_collect_test",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "collect.test.ts"
+    },
+    {
+      "label": "ORDER",
+      "file_type": "code",
+      "source_file": "worker/test/collect.test.ts",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "worker_test_collect_test_order",
+      "community": 14,
+      "community_name": "email.ts",
+      "norm_label": "order"
     },
     {
       "label": "email.test.ts",
@@ -6690,6 +6616,61 @@
       "norm_label": "rate limiting"
     },
     {
+      "label": "smoke.mjs",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "worker_scripts_smoke",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "smoke.mjs"
+    },
+    {
+      "label": "AUTH",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L67",
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_auth",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "auth"
+    },
+    {
+      "label": "sized",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L79",
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_sized",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "sized"
+    },
+    {
+      "label": "unsized",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L80",
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_unsized",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "unsized"
+    },
+    {
+      "label": "vars",
+      "file_type": "code",
+      "source_file": "worker/scripts/smoke.mjs",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "worker_scripts_smoke_vars",
+      "community": 18,
+      "community_name": "smoke.mjs",
+      "norm_label": "vars"
+    },
+    {
       "label": "switch.mjs",
       "file_type": "code",
       "source_file": "worker/scripts/switch.mjs",
@@ -6776,6 +6757,17 @@
       "community": 2,
       "community_name": "src/admin.ts",
       "norm_label": "distribution.ts"
+    },
+    {
+      "label": "worker/src/hub.ts",
+      "file_type": "code",
+      "source_file": "worker/src/hub.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "worker_src_hub",
+      "community": 2,
+      "community_name": "src/admin.ts",
+      "norm_label": "worker/src/hub.ts"
     },
     {
       "label": "worker/src/index.ts",
@@ -6897,50 +6889,6 @@
       "community": 2,
       "community_name": "src/admin.ts",
       "norm_label": "max_image_bytes"
-    },
-    {
-      "label": "collect.test.ts",
-      "file_type": "code",
-      "source_file": "worker/test/collect.test.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "worker_test_collect_test",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "collect.test.ts"
-    },
-    {
-      "label": "ORDER",
-      "file_type": "code",
-      "source_file": "worker/test/collect.test.ts",
-      "source_location": "L15",
-      "_origin": "ast",
-      "id": "worker_test_collect_test_order",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "order"
-    },
-    {
-      "label": "cors.test.ts",
-      "file_type": "code",
-      "source_file": "worker/test/cors.test.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "worker_test_cors_test",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "cors.test.ts"
-    },
-    {
-      "label": "env",
-      "file_type": "code",
-      "source_file": "worker/test/cors.test.ts",
-      "source_location": "L15",
-      "_origin": "ast",
-      "id": "worker_test_cors_test_env",
-      "community": 2,
-      "community_name": "src/admin.ts",
-      "norm_label": "env"
     },
     {
       "label": "customer.test.ts",
@@ -7075,6 +7023,17 @@
       "norm_label": "roll"
     },
     {
+      "label": "lucide-static/icons/calendar-days.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/calendar-days.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "calendar_days_svg_raw",
+      "community": 21,
+      "community_name": "lib/admin.ts",
+      "norm_label": "lucide-static/icons/calendar-days.svg?raw"
+    },
+    {
       "label": "lucide-static/icons/lightbulb.svg?raw",
       "file_type": "code",
       "source_file": "lucide-static/icons/lightbulb.svg?raw",
@@ -7108,15 +7067,26 @@
       "norm_label": "lucide-static/icons/map-pin.svg?raw"
     },
     {
-      "label": "lucide-static/icons/plus.svg?raw",
+      "label": "lucide-static/icons/message-circle.svg?raw",
       "file_type": "code",
-      "source_file": "lucide-static/icons/plus.svg?raw",
+      "source_file": "lucide-static/icons/message-circle.svg?raw",
       "confidence": "EXTRACTED",
       "_origin": "ast",
-      "id": "plus_svg_raw",
+      "id": "message_circle_svg_raw",
       "community": 21,
       "community_name": "lib/admin.ts",
-      "norm_label": "lucide-static/icons/plus.svg?raw"
+      "norm_label": "lucide-static/icons/message-circle.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/send.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/send.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "send_svg_raw",
+      "community": 21,
+      "community_name": "lib/admin.ts",
+      "norm_label": "lucide-static/icons/send.svg?raw"
     },
     {
       "label": "lucide-static/icons/shopping-bag.svg?raw",
@@ -7218,6 +7188,17 @@
       "norm_label": "admin/expo.astro"
     },
     {
+      "label": "pages/expo.astro",
+      "file_type": "code",
+      "source_file": "src/pages/expo.astro",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_pages_expo",
+      "community": 21,
+      "community_name": "lib/admin.ts",
+      "norm_label": "pages/expo.astro"
+    },
+    {
       "label": "lucide-static/icons/badge-indian-rupee.svg?raw",
       "file_type": "code",
       "source_file": "lucide-static/icons/badge-indian-rupee.svg?raw",
@@ -7306,6 +7287,28 @@
       "norm_label": "lucide-static/icons/scan-line.svg?raw"
     },
     {
+      "label": "lucide-static/icons/square-pen.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/square-pen.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "square_pen_svg_raw",
+      "community": 22,
+      "community_name": "admin/merch.astro",
+      "norm_label": "lucide-static/icons/square-pen.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/trash-2.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/trash-2.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "trash_2_svg_raw",
+      "community": 22,
+      "community_name": "admin/merch.astro",
+      "norm_label": "lucide-static/icons/trash-2.svg?raw"
+    },
+    {
       "label": "admin/merch.astro",
       "file_type": "code",
       "source_file": "src/pages/admin/merch.astro",
@@ -7361,28 +7364,6 @@
       "norm_label": "salt"
     },
     {
-      "label": "lucide-static/icons/chevron-left.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/chevron-left.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "chevron_left_svg_raw",
-      "community": 24,
-      "community_name": "pages/merch.astro",
-      "norm_label": "lucide-static/icons/chevron-left.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/chevron-right.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/chevron-right.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "chevron_right_svg_raw",
-      "community": 24,
-      "community_name": "pages/merch.astro",
-      "norm_label": "lucide-static/icons/chevron-right.svg?raw"
-    },
-    {
       "label": "lucide-static/icons/circle-help.svg?raw",
       "file_type": "code",
       "source_file": "lucide-static/icons/circle-help.svg?raw",
@@ -7392,6 +7373,28 @@
       "community": 24,
       "community_name": "pages/merch.astro",
       "norm_label": "lucide-static/icons/circle-help.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/copy.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/copy.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "copy_svg_raw",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "lucide-static/icons/copy.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/download.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/download.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "download_svg_raw",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "lucide-static/icons/download.svg?raw"
     },
     {
       "label": "lucide-static/icons/minus.svg?raw",
@@ -7427,6 +7430,28 @@
       "norm_label": "lucide-static/icons/package.svg?raw"
     },
     {
+      "label": "lucide-static/icons/plus.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/plus.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "plus_svg_raw",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "lucide-static/icons/plus.svg?raw"
+    },
+    {
+      "label": "lucide-static/icons/search.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/search.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "search_svg_raw",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "lucide-static/icons/search.svg?raw"
+    },
+    {
       "label": "lucide-static/icons/shirt.svg?raw",
       "file_type": "code",
       "source_file": "lucide-static/icons/shirt.svg?raw",
@@ -7460,6 +7485,28 @@
       "norm_label": "lucide-static/icons/shopping-cart.svg?raw"
     },
     {
+      "label": "lucide-static/icons/x.svg?raw",
+      "file_type": "code",
+      "source_file": "lucide-static/icons/x.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "x_svg_raw",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "lucide-static/icons/x.svg?raw"
+    },
+    {
+      "label": "ticket.ts",
+      "file_type": "code",
+      "source_file": "src/lib/ticket.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_lib_ticket",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "ticket.ts"
+    },
+    {
       "label": "pages/merch.astro",
       "file_type": "code",
       "source_file": "src/pages/merch.astro",
@@ -7471,15 +7518,15 @@
       "norm_label": "pages/merch.astro"
     },
     {
-      "label": "worker/src/hub.ts",
+      "label": "order.astro",
       "file_type": "code",
-      "source_file": "worker/src/hub.ts",
+      "source_file": "src/pages/order.astro",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "worker_src_hub",
-      "community": 25,
-      "community_name": "CatalogueHub",
-      "norm_label": "worker/src/hub.ts"
+      "id": "src_pages_order",
+      "community": 24,
+      "community_name": "pages/merch.astro",
+      "norm_label": "order.astro"
     },
     {
       "label": "lucide-static/icons/archive.svg?raw",
@@ -7502,28 +7549,6 @@
       "community": 26,
       "community_name": "events.astro",
       "norm_label": "lucide-static/icons/calendar-plus.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/square-pen.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/square-pen.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "square_pen_svg_raw",
-      "community": 26,
-      "community_name": "events.astro",
-      "norm_label": "lucide-static/icons/square-pen.svg?raw"
-    },
-    {
-      "label": "lucide-static/icons/trash-2.svg?raw",
-      "file_type": "code",
-      "source_file": "lucide-static/icons/trash-2.svg?raw",
-      "confidence": "EXTRACTED",
-      "_origin": "ast",
-      "id": "trash_2_svg_raw",
-      "community": 26,
-      "community_name": "events.astro",
-      "norm_label": "lucide-static/icons/trash-2.svg?raw"
     },
     {
       "label": "events.astro",
@@ -8065,61 +8090,6 @@
       "norm_label": "teams.astro"
     },
     {
-      "label": "smoke.mjs",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "worker_scripts_smoke",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "smoke.mjs"
-    },
-    {
-      "label": "AUTH",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L67",
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_auth",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "auth"
-    },
-    {
-      "label": "sized",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L79",
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_sized",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "sized"
-    },
-    {
-      "label": "unsized",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L80",
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_unsized",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "unsized"
-    },
-    {
-      "label": "vars",
-      "file_type": "code",
-      "source_file": "worker/scripts/smoke.mjs",
-      "source_location": "L17",
-      "_origin": "ast",
-      "id": "worker_scripts_smoke_vars",
-      "community": 32,
-      "community_name": "teams.astro",
-      "norm_label": "vars"
-    },
-    {
       "label": "worker-events/tsconfig.json",
       "file_type": "code",
       "source_file": "worker-events/tsconfig.json",
@@ -8567,8 +8537,30 @@
       "_origin": "ast",
       "id": "worker_src_razorpay",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "razorpay.ts"
+    },
+    {
+      "label": "cors.test.ts",
+      "file_type": "code",
+      "source_file": "worker/test/cors.test.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "worker_test_cors_test",
+      "community": 40,
+      "community_name": "Env",
+      "norm_label": "cors.test.ts"
+    },
+    {
+      "label": "env",
+      "file_type": "code",
+      "source_file": "worker/test/cors.test.ts",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "worker_test_cors_test_env",
+      "community": 40,
+      "community_name": "Env",
+      "norm_label": "env"
     },
     {
       "label": "razorpay.test.ts",
@@ -8578,7 +8570,7 @@
       "_origin": "ast",
       "id": "worker_test_razorpay_test",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "razorpay.test.ts"
     },
     {
@@ -8589,8 +8581,41 @@
       "_origin": "ast",
       "id": "worker_test_razorpay_test_env",
       "community": 40,
-      "community_name": "razorpay.ts",
+      "community_name": "Env",
       "norm_label": "env"
+    },
+    {
+      "label": "spot.astro",
+      "file_type": "code",
+      "source_file": "src/pages/spot.astro",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_pages_spot",
+      "community": 41,
+      "community_name": "spot.astro",
+      "norm_label": "spot.astro"
+    },
+    {
+      "label": "hint",
+      "file_type": "code",
+      "source_file": "src/pages/spot.astro",
+      "source_location": "L42",
+      "_origin": "ast",
+      "id": "src_pages_spot_hint",
+      "community": 41,
+      "community_name": "spot.astro",
+      "norm_label": "hint"
+    },
+    {
+      "label": "state",
+      "file_type": "code",
+      "source_file": "src/pages/spot.astro",
+      "source_location": "L41",
+      "_origin": "ast",
+      "id": "src_pages_spot_state",
+      "community": 41,
+      "community_name": "spot.astro",
+      "norm_label": "state"
     },
     {
       "label": "roster.test.ts",
@@ -8615,59 +8640,92 @@
       "norm_label": "astro.config.mjs"
     },
     {
-      "label": "lucide-static/icons/copy.svg?raw",
+      "label": "lucide-static/icons/arrow-up-right.svg?raw",
       "file_type": "code",
-      "source_file": "lucide-static/icons/copy.svg?raw",
+      "source_file": "lucide-static/icons/arrow-up-right.svg?raw",
       "confidence": "EXTRACTED",
       "_origin": "ast",
-      "id": "copy_svg_raw",
+      "id": "arrow_up_right_svg_raw",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "lucide-static/icons/copy.svg?raw"
+      "community_name": "projects.astro",
+      "norm_label": "lucide-static/icons/arrow-up-right.svg?raw"
     },
     {
-      "label": "lucide-static/icons/download.svg?raw",
+      "label": "lucide-static/icons/camera.svg?raw",
       "file_type": "code",
-      "source_file": "lucide-static/icons/download.svg?raw",
+      "source_file": "lucide-static/icons/camera.svg?raw",
       "confidence": "EXTRACTED",
       "_origin": "ast",
-      "id": "download_svg_raw",
+      "id": "camera_svg_raw",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "lucide-static/icons/download.svg?raw"
+      "community_name": "projects.astro",
+      "norm_label": "lucide-static/icons/camera.svg?raw"
     },
     {
-      "label": "lucide-static/icons/search.svg?raw",
+      "label": "lucide-static/icons/id-card.svg?raw",
       "file_type": "code",
-      "source_file": "lucide-static/icons/search.svg?raw",
+      "source_file": "lucide-static/icons/id-card.svg?raw",
       "confidence": "EXTRACTED",
       "_origin": "ast",
-      "id": "search_svg_raw",
+      "id": "id_card_svg_raw",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "lucide-static/icons/search.svg?raw"
+      "community_name": "projects.astro",
+      "norm_label": "lucide-static/icons/id-card.svg?raw"
     },
     {
-      "label": "ticket.ts",
+      "label": "lucide-static/icons/pen-line.svg?raw",
       "file_type": "code",
-      "source_file": "src/lib/ticket.ts",
+      "source_file": "lucide-static/icons/pen-line.svg?raw",
+      "confidence": "EXTRACTED",
+      "_origin": "ast",
+      "id": "pen_line_svg_raw",
+      "community": 6,
+      "community_name": "projects.astro",
+      "norm_label": "lucide-static/icons/pen-line.svg?raw"
+    },
+    {
+      "label": "expo.ts",
+      "file_type": "code",
+      "source_file": "src/lib/expo.ts",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_lib_ticket",
+      "id": "src_lib_expo",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "ticket.ts"
+      "community_name": "projects.astro",
+      "norm_label": "expo.ts"
     },
     {
-      "label": "order.astro",
+      "label": "HALLS",
       "file_type": "code",
-      "source_file": "src/pages/order.astro",
+      "source_file": "src/lib/expo.ts",
+      "source_location": "L42",
+      "_origin": "ast",
+      "id": "src_lib_expo_halls",
+      "community": 6,
+      "community_name": "projects.astro",
+      "norm_label": "halls"
+    },
+    {
+      "label": "apply.astro",
+      "file_type": "code",
+      "source_file": "src/pages/apply.astro",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "src_pages_order",
+      "id": "src_pages_apply",
       "community": 6,
-      "community_name": "order.astro",
-      "norm_label": "order.astro"
+      "community_name": "projects.astro",
+      "norm_label": "apply.astro"
+    },
+    {
+      "label": "projects.astro",
+      "file_type": "code",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_pages_projects",
+      "community": 6,
+      "community_name": "projects.astro",
+      "norm_label": "projects.astro"
     },
     {
       "label": "README.md",
@@ -10005,6 +10063,18 @@
       "_origin": "ast",
       "source": "src_pages_order_initorder",
       "target": "src_lib_ticket_savereceipt"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L318",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "src_pages_projects_show",
+      "target": "src_pages_projects_setopen",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -15567,7 +15637,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/expo.astro",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_expo",
@@ -15579,7 +15649,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/expo.astro",
-      "source_location": "L14",
+      "source_location": "L15",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_expo",
@@ -18183,7 +18253,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/expo.astro",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_expo",
@@ -18195,7 +18265,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/expo.astro",
-      "source_location": "L14",
+      "source_location": "L15",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_expo",
@@ -20818,11 +20888,44 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src/pages/projects.astro",
+      "source_location": "L232",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "src_pages_projects",
+      "target": "src_pages_projects_select",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L293",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "src_pages_projects",
+      "target": "src_pages_projects_show",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/projects.astro",
       "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_projects",
       "target": "src_pages_projects_barcode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/projects.astro",
+      "source_location": "L321",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "src_pages_projects",
+      "target": "src_pages_projects_setopen",
       "confidence_score": 1.0
     },
     {
@@ -25789,6 +25892,24 @@
       "source_file": "src/pages/expo.astro",
       "_origin": "ast",
       "source": "src_pages_expo",
+      "target": "message_circle_svg_raw",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/expo.astro",
+      "_origin": "ast",
+      "source": "src_pages_expo",
+      "target": "send_svg_raw",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src/pages/expo.astro",
+      "_origin": "ast",
+      "source": "src_pages_expo",
       "target": "src_layouts_sitelayout",
       "confidence_score": 1.0
     },
@@ -26703,19 +26824,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "src/pages/expo.astro",
-      "source_location": "L390",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "src_pages_expo",
-      "target": "src_pages_distribution_tick"
-    },
-    {
-      "relation": "indirect_call",
-      "context": "argument",
-      "confidence": "INFERRED",
-      "confidence_score": 0.8,
-      "source_file": "src/pages/expo.astro",
-      "source_location": "L535",
+      "source_location": "L478",
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_expo",
@@ -26731,7 +26840,7 @@
       "weight": 1.0,
       "_origin": "ast",
       "source": "src_pages_index",
-      "target": "worker_scripts_switch_show"
+      "target": "src_pages_projects_show"
     },
     {
       "relation": "indirect_call",
@@ -26903,5 +27012,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e89866dd9e3c1f3560f9ede4b8c218d9f017ac3a"
+  "built_at_commit": "f9254a0fefd7b4e94654d13b8f1171b71ee3d29c"
 }

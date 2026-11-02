@@ -1,374 +1,664 @@
 ---
 /**
- * Admin · Expo — the ideation meeting calendar.
+ * Admin · Expo — the projects on /projects.
  *
- * Deliberately one screen and one form. The events panel next door is a three-pane
- * editor because an event has a poster, a registration link, a write-up and two tables
- * to move between; a meeting has a subject, a time and a room. Building the same
- * machinery for three fields would have been the wrong shape.
+ * Laid out the way the merch panel is: a task rail on the left (add or edit), the form
+ * in the middle, and on the right a live preview of the folder a visitor opens — the
+ * same ProjectFolder component /projects uses, filled by the same script, so what is
+ * previewed here is exactly what goes up.
  *
- * The form is BOTH the add form and the edit form. Picking a row loads it in and the
- * submit button changes verb — a second form would have been the same three inputs
- * twice, kept in step by hand.
- *
- * Everything here talks to the EVENTS Worker, not the merch one. Same admin session:
- * both read the same admin_login table, which is why adminFetch takes a base URL.
+ * Everything talks to the EVENTS Worker (/api/projects), not the merch one. Same admin
+ * session: both read the same admin_login table, which is why adminFetch takes a base.
+ * The photo travels in the same multipart request as the fields, and the Worker files
+ * it in R2 as projects/<CODE>_<NN>.<ext>.
  */
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import ProjectFolder from '../../components/ProjectFolder.astro';
 import { EVENTS_API } from '../../lib/api';
+import { HALLS } from '../../lib/expo';
 
-import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
-import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
+import iAdd from 'lucide-static/icons/folder-plus.svg?raw';
+import iEdit from 'lucide-static/icons/square-pen.svg?raw';
 import iPlus from 'lucide-static/icons/plus.svg?raw';
+import iX from 'lucide-static/icons/x.svg?raw';
+
+// Code -> name and icon, for the preview. The icon is our own static SVG string.
+const SUBJ = Object.fromEntries(HALLS.map((h) => [h.code, { name: h.name, icon: h.icon }]));
+const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 ---
 
-<AdminLayout title="Admin · Expo — Anvesha '26">
-	<div class="xa-wrap" data-api={EVENTS_API}>
-		<div class="xa-grid">
-			{/* ---- the form ---- */}
-			<section class="xa-pane">
-				<p class="a-eyebrow"><span id="xaFormLabel">New meeting</span></p>
+<AdminLayout title="Expo — Admin — Anvesha '26">
+	<div class="a-wrap xa-shell" id="xaShell" data-task="add" data-api={EVENTS_API}>
+		<!-- TASK RAIL -->
+		<nav class="xa-tasks" aria-label="Expo tasks">
+			<div class="xa-task-row">
+				<button class="btn xa-task on" type="button" data-task-btn="add" aria-current="true">
+					<span class="xa-task-icon" set:html={iAdd} />
+					<span>Add project</span>
+				</button>
+				<button class="btn xa-task" type="button" data-task-btn="edit">
+					<span class="xa-task-icon" set:html={iEdit} />
+					<span>Edit project</span>
+				</button>
+			</div>
 
-				<form class="xa-form" id="xaForm" novalidate>
-					<label class="field">
-						<span class="field-label">Subject</span>
-						<input class="field-input" id="fSubject" type="text" maxlength="200"
-						       placeholder="What the meeting is about" required />
+			<!-- How many are up, per subject. Not a task, so it sits at the foot. -->
+			<div class="xa-tally">
+				<p class="xa-tally-head mono">On /projects <b id="xaTotal">—</b></p>
+				<ul class="xa-tally-list">
+					{HALLS.map((h) => (
+						<li><span>{h.short ?? h.name}</span><b class="mono" data-tally={h.code}>—</b></li>
+					))}
+				</ul>
+			</div>
+		</nav>
+
+		<!-- FORM -->
+		<section class="xa-form-pane">
+			<form class="xa-form" id="xaForm" novalidate>
+				<div class="xa-scroll">
+					<p class="a-eyebrow" id="xaFormLabel">New project</p>
+
+					<!-- Edit only: which project. One dropdown, grouped by subject, rather than
+					     a fourth column — the rail, the form and the preview are the layout. -->
+					<label class="field xa-edit-only">
+						<span class="field-label">Project</span>
+						<select class="field-input" id="xaPick">
+							<option value="">Pick a project to edit</option>
+						</select>
 					</label>
 
-					<div class="xa-row">
-						<label class="field">
-							<span class="field-label">Date &amp; time</span>
-							<input class="field-input" id="fStart" type="datetime-local" required />
-						</label>
-						<label class="field">
-							<span class="field-label">Venue</span>
-							<input class="field-input" id="fVenue" type="text" maxlength="160"
-							       placeholder="LH 101" required />
-						</label>
-					</div>
+					<fieldset class="xa-fields" id="xaFields">
+						<div class="xa-row">
+							<label class="field">
+								<span class="field-label">Subject</span>
+								<select class="field-input" id="fSubject" required>
+									<option value="" disabled selected>Pick a subject</option>
+									{HALLS.map((h) => <option value={h.code}>{h.code} · {h.name}</option>)}
+								</select>
+							</label>
+							<div class="field">
+								<span class="field-label">Exhibit code</span>
+								<p class="xa-code mono" id="xaCode" title="Set by the server when you save">—</p>
+							</div>
+						</div>
 
+						<label class="field">
+							<span class="field-label">Project title</span>
+							<input class="field-input" id="fTitle" type="text" maxlength="160" required
+							       placeholder="What the project is called" />
+						</label>
+
+						<label class="field">
+							<span class="field-label">Description</span>
+							<textarea class="field-input" id="fDesc" maxlength="2000" rows="5" required
+							          placeholder="What it does, and what a visitor will see at the table"></textarea>
+						</label>
+
+						<!-- One input per member; + adds a row, × drops one. -->
+						<div class="field">
+							<span class="field-label">Team members <b class="xa-count mono" id="xaTeamN">0</b></span>
+							<ol class="xa-team" id="xaTeam"></ol>
+							<button class="btn xa-add-member" id="xaAddMember" type="button">
+								<span class="xa-add-icon" set:html={iPlus} /> Add member
+							</button>
+						</div>
+
+						<!-- The whole tile is the file input's label, so the click target is the picture. -->
+						<div class="field">
+							<span class="field-label">Photo</span>
+							<div class="xa-photo">
+								<label class="xa-drop" id="xaDrop">
+									<input type="file" id="fImage" accept="image/jpeg,image/png,image/webp,image/avif" hidden />
+									<img class="xa-drop-img" id="xaDropImg" alt="" />
+									<span class="xa-drop-text" id="xaDropText">CHOOSE A PHOTO<br />JPG · PNG · WEBP · AVIF · 6MB</span>
+								</label>
+								<button class="btn xa-photo-x" id="xaPhotoX" type="button" hidden>
+									<span class="xa-add-icon" set:html={iX} /> Remove photo
+								</button>
+							</div>
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="xa-foot">
 					<p class="a-err" id="xaErr" hidden></p>
-					<p class="xa-ok" id="xaOk" hidden></p>
-
+					<p class="xa-ok mono" id="xaOk" hidden></p>
 					<div class="xa-actions">
-						<button class="btn a-btn-primary" id="xaSave" type="submit">
-							<span class="xa-save-icon" set:html={iPlus} />
-							<span id="xaSaveLabel">ADD MEETING</span>
-						</button>
-						<button class="btn a-btn-secondary" id="xaCancel" type="button" hidden>CANCEL</button>
+						<button class="btn a-btn-primary xa-save" id="xaSave" type="submit">ADD PROJECT</button>
+						<button class="btn a-btn-secondary" id="xaReset" type="button">CLEAR</button>
+						<button class="btn a-btn-danger xa-edit-only" id="xaDelete" type="button">DELETE PROJECT</button>
 					</div>
+				</div>
+			</form>
+		</section>
 
-					{/* Only ever filled when a row is loaded. It is the audit trail the table
-					    exists to keep, and it is the reason an edit is not the same as a
-					    delete-and-re-add. */}
-					<p class="xa-who" id="xaWho" hidden></p>
-				</form>
-			</section>
-
-			{/* ---- the list ---- */}
-			<section class="xa-pane">
-				<p class="a-eyebrow">Scheduled <b id="xaCount">—</b></p>
-
-				<div class="xa-list" id="xaList"></div>
-				<p class="xa-empty" id="xaEmpty" hidden>Nothing scheduled yet.</p>
-				<p class="a-err" id="xaListErr" hidden></p>
-			</section>
-		</div>
+		<!-- PREVIEW: what a visitor opens. Redrawn on every keystroke. -->
+		<aside class="xa-preview-pane">
+			<p class="a-eyebrow">Popup preview</p>
+			<div class="xa-preview" id="xaPreview">
+				<ProjectFolder preview />
+			</div>
+		</aside>
 	</div>
+
+	<script type="application/json" id="xaSubjects" set:html={subjJson} />
+
+	<!-- One team row, cloned per member: in the markup so the page's styles reach it. -->
+	<template id="xaMemberTpl">
+		<li class="xa-member">
+			<input class="field-input" type="text" maxlength="80" placeholder="Full name" />
+			<button class="btn xa-member-x" type="button" aria-label="Remove this member" set:html={iX} />
+		</li>
+	</template>
 </AdminLayout>
 
 <script>
 	import { adminFetch, onCatalogueChange } from '../../lib/admin';
+	import { fillFolder } from '../../scripts/folder';
+	import type { Project } from '../../lib/expo';
 
-	interface Meeting {
-		meeting_id: string;
-		subject: string;
-		starts_at: string;
-		venue: string;
-		created_by_name: string;
-		created_by_roll: string;
-		created_at: string;
-		updated_by_name: string | null;
-		updated_by_roll: string | null;
-		updated_at: string | null;
-	}
+	type Subjects = Record<string, { name: string; icon: string }>;
+
+	// Mirrors the Worker's checks, so a wrong file is caught before an upload, not after.
+	const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+	const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+	const MAX_TEAM = 12;
+
+	const pad = (n: number) => String(n).padStart(2, '0');
 
 	let stopLive: (() => void) | null = null;
 
-	/** 'YYYY-MM-DD HH:MM' as the two strings a person reads. */
-	function readStamp(s: string) {
-		const [d, t] = (s ?? '').split(' ');
-		if (!d || !t) return { date: s, time: '', past: false };
-		const [y, mo, day] = d.split('-').map(Number);
-		const [hh, mm] = t.split(':').map(Number);
-		// Local-time construction, not Date.parse: the column is naive IST and the only
-		// job here is to render the same numbers back with a weekday on them.
-		const at = new Date(y, mo - 1, day, hh, mm);
-		return {
-			date: at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
-			time: at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
-			// Only used to grey a row out. The server decides what is public.
-			past: at.getTime() < Date.now(),
-		};
-	}
-
-	function boot() {
+	function initExpoAdmin() {
 		stopLive?.();
-		stopLive = null;
+		const shell = document.getElementById('xaShell');
+		if (!shell) return;
 
-		const wrap = document.querySelector<HTMLElement>('.xa-wrap');
-		if (!wrap) return;
-		const api = wrap.dataset.api ?? '';
+		const api = shell.dataset.api ?? '';
+		const subjects = JSON.parse(document.getElementById('xaSubjects')?.textContent || '{}') as Subjects;
+		const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-		const $ = <T extends HTMLElement = HTMLInputElement>(id: string) =>
-			document.getElementById(id) as T;
-		const form = $('xaForm') as unknown as HTMLFormElement;
-		const err = $('xaErr'), ok = $('xaOk'), who = $('xaWho');
-		const saveBtn = $('xaSave') as unknown as HTMLButtonElement;
-		const cancelBtn = $('xaCancel') as unknown as HTMLButtonElement;
-		const list = $('xaList'), empty = $('xaEmpty'), listErr = $('xaListErr');
+		const form = $<HTMLFormElement>('xaForm');
+		const pick = $<HTMLSelectElement>('xaPick');
+		const fSubject = $<HTMLSelectElement>('fSubject');
+		const fTitle = $<HTMLInputElement>('fTitle');
+		const fDesc = $<HTMLTextAreaElement>('fDesc');
+		const fImage = $<HTMLInputElement>('fImage');
+		const team = $('xaTeam');
+		const memberTpl = $<HTMLTemplateElement>('xaMemberTpl');
+		const dropImg = $<HTMLImageElement>('xaDropImg');
+		const errEl = $('xaErr'), okEl = $('xaOk');
+		const saveBtn = $<HTMLButtonElement>('xaSave');
+		const delBtn = $<HTMLButtonElement>('xaDelete');
+		const folder = $('xaPreview').querySelector('.pm') as HTMLElement;
 
-		/** null = the form is adding; an id = it is editing that row. */
-		let editing: string | null = null;
+		let task: 'add' | 'edit' = 'add';
+		let projects: Project[] = [];
+		let editing: Project | null = null;
+		/** The photo as it stands: a picked file, the server's copy, or nothing. */
+		let file: File | null = null;
+		let fileUrl: string | null = null;
+		let removeImage = false;
 
-		function setMode(m: Meeting | null) {
-			editing = m?.meeting_id ?? null;
-			$('xaFormLabel').textContent = m ? 'Edit meeting' : 'New meeting';
-			$('xaSaveLabel').textContent = m ? 'SAVE CHANGES' : 'ADD MEETING';
-			cancelBtn.hidden = !m;
-			err.hidden = true;
-			ok.hidden = true;
+		const imageUrl = (p: Project) =>
+			p.has_image ? `${api}/api/projects/${p.project_id}/image?v=${encodeURIComponent(p.v)}` : null;
 
-			$('fSubject').value = m?.subject ?? '';
-			// The input wants a 'T', the column stores a space.
-			$('fStart').value = m ? m.starts_at.replace(' ', 'T') : '';
-			$('fVenue').value = m?.venue ?? '';
+		// ---------- team rows ----------
+		function addMember(name = '', focus = false) {
+			if (team.children.length >= MAX_TEAM) return;
+			const li = memberTpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+			const input = li.querySelector('input')!;
+			input.value = name;
+			team.append(li);
+			if (focus) input.focus();
+			syncTeam();
+		}
+		function members() {
+			return [...team.querySelectorAll('input')].map((i) => i.value.trim()).filter(Boolean);
+		}
+		function syncTeam() {
+			$('xaTeamN').textContent = String(team.children.length);
+			$<HTMLButtonElement>('xaAddMember').disabled = team.children.length >= MAX_TEAM;
+		}
+		$('xaAddMember').onclick = () => { addMember('', true); render(); };
+		team.addEventListener('click', (e) => {
+			const x = (e.target as HTMLElement).closest('.xa-member-x');
+			if (!x) return;
+			x.closest('li')!.remove();
+			// Never zero rows: an empty list has nowhere to type the first name.
+			if (!team.children.length) addMember();
+			syncTeam();
+			render();
+		});
+		// Enter in a name field adds the next row instead of submitting half a team.
+		team.addEventListener('keydown', (e) => {
+			if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+			e.preventDefault();
+			addMember('', true);
+		});
 
-			if (m) {
-				const added = `Added by ${m.created_by_name} (${m.created_by_roll})`;
-				who.textContent = m.updated_by_name
-					? `${added} · last edited by ${m.updated_by_name} (${m.updated_by_roll})`
-					: added;
-			}
-			who.hidden = !m;
+		// ---------- photo ----------
+		function setFile(f: File | null) {
+			if (fileUrl) URL.revokeObjectURL(fileUrl);
+			file = f;
+			fileUrl = f ? URL.createObjectURL(f) : null;
+			render();
+		}
+		fImage.addEventListener('change', () => {
+			const f = fImage.files?.[0] ?? null;
+			fImage.value = ''; // so picking the same file again still fires
+			if (!f) return;
+			if (!IMAGE_TYPES.includes(f.type)) return showErr('Use a JPG, PNG, WEBP or AVIF photo.');
+			if (f.size > MAX_IMAGE_BYTES) return showErr('The photo must be 6MB or smaller.');
+			errEl.hidden = true;
+			removeImage = false;
+			setFile(f);
+		});
+		$('xaPhotoX').onclick = () => {
+			if (file) setFile(null);
+			// In edit mode with nothing picked, the button means "drop the saved photo".
+			else if (editing?.has_image) { removeImage = true; render(); }
+		};
 
-			if (m) $('fSubject').focus();
+		/** Which photo the project will have after saving. */
+		function currentImage() {
+			if (fileUrl) return fileUrl;
+			if (editing && !removeImage) return imageUrl(editing);
+			return null;
 		}
 
-		function render(rows: Meeting[]) {
-			$('xaCount').textContent = String(rows.length);
-			empty.hidden = rows.length > 0;
-			list.textContent = '';
-
-			for (const m of rows) {
-				const when = readStamp(m.starts_at);
-
-				const row = document.createElement('article');
-				row.className = 'xa-item' + (when.past ? ' is-past' : '');
-
-				const body = document.createElement('div');
-				body.className = 'xa-item-body';
-
-				const h = document.createElement('h3');
-				h.className = 'xa-item-subject';
-				// textContent throughout: a subject is free text typed by an admin, and
-				// innerHTML here would make the panel injectable by whoever typed it.
-				h.textContent = m.subject;
-
-				const meta = document.createElement('p');
-				meta.className = 'xa-item-meta';
-				meta.textContent = `${when.date} · ${when.time} · ${m.venue}`;
-
-				const by = document.createElement('p');
-				by.className = 'xa-item-by';
-				by.textContent = m.updated_by_name
-					? `${m.created_by_name} · edited by ${m.updated_by_name}`
-					: m.created_by_name;
-
-				body.append(h, meta, by);
-
-				const acts = document.createElement('div');
-				acts.className = 'xa-item-acts';
-
-				const edit = document.createElement('button');
-				edit.type = 'button';
-				edit.className = 'btn a-btn-secondary xa-mini';
-				edit.textContent = 'EDIT';
-				edit.onclick = () => setMode(m);
-
-				const del = document.createElement('button');
-				del.type = 'button';
-				del.className = 'btn a-btn-danger xa-mini';
-				del.textContent = 'DELETE';
-				del.onclick = async () => {
-					if (!confirm(`Delete “${m.subject}”?`)) return;
-					del.disabled = true;
-					try {
-						await adminFetch(`/api/ideation/${m.meeting_id}`, { method: 'DELETE' }, api);
-						// The row being edited has just stopped existing.
-						if (editing === m.meeting_id) setMode(null);
-						await load();
-					} catch (e) {
-						listErr.textContent = (e as Error).message;
-						listErr.hidden = false;
-						del.disabled = false;
-					}
-				};
-
-				acts.append(edit, del);
-				row.append(body, acts);
-				list.append(row);
-			}
+		// ---------- the code and the preview ----------
+		/** BIO-04 for a new one: the server will number it the same way, highest plus one. */
+		function codeFor(subject: string) {
+			if (!subject) return '—';
+			if (editing && editing.subject === subject) return `${subject}-${pad(editing.project_no)}`;
+			const top = Math.max(0, ...projects.filter((p) => p.subject === subject).map((p) => p.project_no));
+			return `${subject}-${pad(top + 1)}`;
 		}
 
+		function render() {
+			const code = codeFor(fSubject.value);
+			$('xaCode').textContent = code;
+			const s = subjects[fSubject.value];
+			const img = currentImage();
+
+			dropImg.classList.toggle('ok', Boolean(img));
+			if (img) dropImg.src = img; else dropImg.removeAttribute('src');
+			$('xaPhotoX').hidden = !img;
+
+			// Placeholders in the preview, never in the data: an empty field shows what
+			// goes there rather than a hole in the card.
+			const names = members();
+			fillFolder(folder, {
+				code: code === '—' ? 'XXX-00' : code,
+				icon: s?.icon ?? '',
+				subject: s?.name ?? 'Subject',
+				title: fTitle.value.trim() || 'Project title',
+				summary: fDesc.value.trim() || 'The description goes here — what the project does and what a visitor will see at the table.',
+				team: names.length ? names : ['Team member'],
+				image: img,
+			});
+		}
+		form.addEventListener('input', render);
+
+		// ---------- messages ----------
+		function showErr(m: string) { okEl.hidden = true; errEl.textContent = m; errEl.hidden = false; }
+		function showOk(m: string) { errEl.hidden = true; okEl.textContent = m; okEl.hidden = false; }
+
+		// ---------- loading ----------
 		async function load() {
 			try {
-				listErr.hidden = true;
-				// ?all=1 — the admin list includes meetings that have already happened, so
-				// stale rows can be cleared out. The public endpoint hides them.
-				const data = await adminFetch<{ meetings: Meeting[] }>('/api/ideation?all=1', {}, api);
-				render(data.meetings ?? []);
-			} catch (e) {
-				listErr.textContent = (e as Error).message;
-				listErr.hidden = false;
+				const res = await fetch(`${api}/api/projects`);
+				if (!res.ok) throw new Error(String(res.status));
+				projects = ((await res.json()) as { projects?: Project[] }).projects ?? [];
+			} catch {
+				showErr('Could not load the projects. Is the events Worker up?');
+				return;
 			}
+			$('xaTotal').textContent = pad(projects.length);
+			for (const el of document.querySelectorAll<HTMLElement>('[data-tally]')) {
+				el.textContent = pad(projects.filter((p) => p.subject === el.dataset.tally).length);
+			}
+
+			// The edit dropdown, grouped by subject in floor order.
+			const keep = pick.value;
+			pick.replaceChildren(new Option(projects.length ? 'Pick a project to edit' : 'No projects yet', ''));
+			for (const [code, s] of Object.entries(subjects)) {
+				const mine = projects.filter((p) => p.subject === code);
+				if (!mine.length) continue;
+				const g = document.createElement('optgroup');
+				g.label = s.name;
+				for (const p of mine) g.append(new Option(`${p.subject}-${pad(p.project_no)} · ${p.title}`, String(p.project_id)));
+				pick.append(g);
+			}
+			pick.value = keep;
+			// Someone else deleted what this tab was editing.
+			if (editing && !projects.some((p) => p.project_id === editing!.project_id)) loadInto(null);
+			render();
 		}
 
-		form.onsubmit = async (e) => {
+		// ---------- modes ----------
+		function clearForm() {
+			form.reset();
+			fSubject.value = '';
+			team.replaceChildren();
+			addMember();
+			removeImage = false;
+			setFile(null);
+		}
+
+		/** Fill the form from a project, or empty it for a new one. */
+		function loadInto(p: Project | null) {
+			editing = p;
+			disarmDelete();
+			clearForm();
+			pick.value = p ? String(p.project_id) : '';
+			if (p) {
+				fSubject.value = p.subject;
+				fTitle.value = p.title;
+				fDesc.value = p.description;
+				team.replaceChildren();
+				for (const m of p.team) addMember(m);
+				if (!p.team.length) addMember();
+			}
+			// In edit mode the fields stay locked until there is a project to edit.
+			$<HTMLFieldSetElement>('xaFields').disabled = task === 'edit' && !p;
+			render();
+		}
+
+		function setTask(t: 'add' | 'edit') {
+			task = t;
+			shell!.dataset.task = t;
+			for (const b of document.querySelectorAll<HTMLElement>('[data-task-btn]')) {
+				const on = b.dataset.taskBtn === t;
+				b.classList.toggle('on', on);
+				if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+			}
+			$('xaFormLabel').textContent = t === 'add' ? 'New project' : 'Edit project';
+			saveBtn.textContent = t === 'add' ? 'ADD PROJECT' : 'SAVE CHANGES';
+			$('xaReset').textContent = t === 'add' ? 'CLEAR' : 'REVERT';
+			errEl.hidden = okEl.hidden = true;
+			loadInto(null);
+		}
+		for (const b of document.querySelectorAll<HTMLElement>('[data-task-btn]')) {
+			b.onclick = () => setTask(b.dataset.taskBtn as 'add' | 'edit');
+		}
+		pick.onchange = () => {
+			errEl.hidden = okEl.hidden = true;
+			loadInto(projects.find((p) => String(p.project_id) === pick.value) ?? null);
+		};
+		$('xaReset').onclick = () => { errEl.hidden = okEl.hidden = true; loadInto(editing); };
+
+		// ---------- save ----------
+		form.addEventListener('submit', async (e) => {
 			e.preventDefault();
-			err.hidden = true;
-			ok.hidden = true;
+			const names = members();
+			if (!fSubject.value) return showErr('Pick a subject.');
+			if (!fTitle.value.trim()) return showErr('Give the project a title.');
+			if (!fDesc.value.trim()) return showErr('Write a short description.');
+			if (!names.length) return showErr('Add at least one team member.');
+			if (task === 'edit' && !editing) return showErr('Pick a project to edit first.');
+
+			const body = new FormData();
+			body.set('subject', fSubject.value);
+			body.set('title', fTitle.value.trim());
+			body.set('description', fDesc.value.trim());
+			for (const m of names) body.append('team', m);
+			if (file) body.set('image', file);
+			if (removeImage && !file) body.set('remove_image', '1');
+
 			saveBtn.disabled = true;
-
-			const body = {
-				subject: $('fSubject').value,
-				starts_at: $('fStart').value,
-				venue: $('fVenue').value,
-			};
-
+			errEl.hidden = okEl.hidden = true;
 			try {
-				// The server validates all three regardless; this is only so a missing
-				// field is caught before a round trip. Naming the field that is actually
-				// missing rather than listing all three: the common failure is a date typed
-				// with no time beside it, and "date is needed" is a baffling thing to read
-				// next to the date you just typed.
-				const missing: string[] = [];
-				if (!body.subject.trim()) missing.push('a subject');
-				if (!body.venue.trim()) missing.push('a venue');
-				if (!body.starts_at) {
-					// A datetime-local reads back '' both when it is untouched and when it
-					// is half filled. badInput is what tells the two apart — it is set only
-					// when the control holds input it cannot parse into a whole value.
-					const el = $('fStart') as HTMLInputElement;
-					missing.push(el.validity.badInput ? 'a time as well as the date' : 'a date and time');
-				}
-				if (missing.length) {
-					const last = missing.pop();
-					throw new Error(
-						'Still needs ' + (missing.length ? `${missing.join(', ')} and ${last}` : last),
-					);
-				}
-				await adminFetch(
-					editing ? `/api/ideation/${editing}` : '/api/ideation',
-					{ method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) },
+				const saved = await adminFetch<{ project_id: number; project_no: number; subject: string }>(
+					editing ? `/api/projects/${editing.project_id}` : '/api/projects',
+					{ method: editing ? 'PUT' : 'POST', body },
 					api,
 				);
-				const verb = editing ? 'Saved' : 'Added';
-				setMode(null);
-				ok.textContent = `${verb}. It is live on the Expo page.`;
-				ok.hidden = false;
+				const code = `${saved.subject}-${pad(saved.project_no)}`;
 				await load();
-			} catch (e2) {
-				err.textContent = (e2 as Error).message;
-				err.hidden = false;
+				if (editing) {
+					showOk(`Saved ${code}.`);
+					loadInto(projects.find((p) => p.project_id === saved.project_id) ?? null);
+				} else {
+					showOk(`Added ${code}. It is live on /projects.`);
+					loadInto(null);
+				}
+			} catch (err) {
+				showErr(err instanceof Error ? err.message : 'Could not save.');
 			} finally {
 				saveBtn.disabled = false;
 			}
+		});
+
+		// ---------- delete ----------
+		// Two-step, as on the merch panel: the first click arms, the second commits.
+		// There is no undo behind this — the row and its photo both go.
+		let armed = false;
+		let disarmTimer: number | undefined;
+		function disarmDelete() {
+			armed = false;
+			clearTimeout(disarmTimer);
+			delBtn.textContent = 'DELETE PROJECT';
+			delBtn.classList.remove('armed');
+		}
+		delBtn.onclick = async () => {
+			if (!editing) return showErr('Pick a project to delete.');
+			if (!armed) {
+				armed = true;
+				delBtn.textContent = 'CONFIRM DELETE';
+				delBtn.classList.add('armed');
+				clearTimeout(disarmTimer);
+				disarmTimer = setTimeout(disarmDelete, 5000) as unknown as number;
+				return;
+			}
+			delBtn.disabled = true;
+			const code = `${editing.subject}-${pad(editing.project_no)}`;
+			try {
+				await adminFetch(`/api/projects/${editing.project_id}`, { method: 'DELETE' }, api);
+				editing = null;
+				await load();
+				loadInto(null);
+				showOk(`Deleted ${code}.`);
+			} catch (err) {
+				showErr(err instanceof Error ? err.message : 'Could not delete.');
+			} finally {
+				delBtn.disabled = false;
+				disarmDelete();
+			}
 		};
 
-		cancelBtn.onclick = () => setMode(null);
-
-		setMode(null);
+		setTask('add');
 		load();
-		// Two admins on the panel at once is normal on a fest weekend; this is what stops
-		// one of them working from a list the other has already changed.
-		if (api) stopLive = onCatalogueChange(load, ['ideation'], api);
+		// Another admin's save lands here without a reload.
+		if (api) stopLive = onCatalogueChange(() => load(), ['projects'], api);
 	}
 
-	document.addEventListener('astro:page-load', boot);
+	document.addEventListener('astro:page-load', initExpoAdmin);
 	document.addEventListener('astro:before-swap', () => {
 		stopLive?.();
 		stopLive = null;
 	});
 </script>
 
-<style is:global>
-	.xa-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(18px, 2.4vw, 30px); }
-	.xa-grid {
-		display: grid; gap: clamp(16px, 2vw, 24px);
-		grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-		max-width: 1180px; margin: 0 auto;
-		align-items: start;
+<style>
+	/* ---- shell: task rail | form | preview ----
+	   The merch panel's chassis: one variable drives the rail so the columns cannot
+	   drift, ink rules between the panes, and each pane scrolls on its own. */
+	.xa-shell {
+		--rail: 240px;
+		flex-direction: row;
+		min-height: 0;
 	}
-	.xa-pane {
-		padding: clamp(16px, 2vw, 22px);
-		background: var(--primary);
+
+	.xa-tasks {
+		flex: none; width: var(--rail); box-sizing: border-box;
+		display: flex; flex-direction: column;
+		padding: 20px 14px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	.xa-task-row { display: flex; flex-direction: column; gap: 6px; }
+	.xa-task {
+		display: flex; align-items: center; gap: 10px;
+		box-sizing: border-box; width: 100%;
+		padding: 12px 13px; text-align: left;
+		font-size: 12.5px; font-weight: 700;
+	}
+	.xa-task.on { background: var(--secondary); color: var(--primary); border-color: var(--secondary); }
+	.xa-task-icon { display: grid; place-items: center; flex: none; }
+	.xa-task-icon :global(svg) { width: 16px; height: 16px; stroke-width: 2; }
+
+	/* The tally sits at the foot of the rail, the way the merch release switch does. */
+	.xa-tally {
+		margin-top: auto; padding-top: 18px;
+		border-top: 1.5px solid var(--hair);
+	}
+	.xa-tally-head {
+		display: flex; align-items: center; justify-content: space-between;
+		margin: 0 0 10px;
+		font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40);
+	}
+	.xa-tally-head b, .xa-count {
+		display: inline-grid; place-items: center;
+		min-width: 18px; height: 16px; padding: 0 4px;
+		font-size: 9.5px; font-weight: 500; color: var(--primary); background: var(--accent);
+		border-radius: var(--r);
+	}
+	.xa-tally-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+	.xa-tally-list li {
+		display: flex; justify-content: space-between; gap: 10px;
+		font-size: 12px; font-weight: 600;
+	}
+	.xa-tally-list b { font-size: 11px; font-weight: 500; color: var(--ink-60); }
+
+	/* ---- middle: the form ---- */
+	.xa-form-pane {
+		flex: 1; min-width: 0; min-height: 0;
+		display: flex; flex-direction: column;
+		padding: 24px 30px 24px;
+		border-right: var(--stroke) solid var(--secondary);
+	}
+	/* Same three bands as the merch editor: head, scrolling body, pinned actions. */
+	.xa-form { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+	.xa-scroll {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+		display: flex; flex-direction: column; gap: 16px;
+		/* room for the focus shadow on controls at the very edge */
+		padding: 4px 6px 4px 4px; margin: -4px -6px -4px -4px;
+	}
+	.xa-scroll .a-eyebrow { margin: 0; }
+	.xa-fields {
+		display: flex; flex-direction: column; gap: 16px;
+		margin: 0; padding: 0; border: 0; min-width: 0;
+	}
+	.xa-fields:disabled { opacity: .45; }
+	.xa-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; }
+
+	.xa-shell:not([data-task='edit']) .xa-edit-only { display: none; }
+
+	/* Read-only: what the exhibit will be called. Boxed like the merch id label. */
+	.xa-code {
+		margin: 0; padding: 12px 13px;
+		font-size: 12.5px; letter-spacing: .08em;
+		background: var(--sink);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
 	}
 
-	.xa-form { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
-	.xa-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-	.xa-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-	.xa-actions .btn { flex: 1 0 auto; padding: 13px 18px; font-size: 11.5px; }
-	.xa-save-icon { display: inline-grid; place-items: center; }
-	.xa-save-icon svg { width: 14px; height: 14px; stroke-width: 2.4; }
-	#xaSave { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+	.field-label .xa-count { margin-left: 6px; vertical-align: 1px; }
 
-	.xa-ok {
-		margin: 0; padding: 9px 12px;
-		font-size: 12px; color: var(--secondary);
-		background: color-mix(in srgb, var(--accent) 12%, var(--primary));
-		border-left: var(--stroke) solid var(--accent); border-radius: var(--r);
+	/* ---- team rows ---- */
+	.xa-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: m; }
+	.xa-member {
+		counter-increment: m;
+		display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px;
 	}
-	.xa-ok[hidden], .xa-who[hidden], .xa-empty[hidden] { display: none; }
-	.xa-who {
-		margin: 0; font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; line-height: 1.6; color: var(--ink-60);
+	.xa-member::before {
+		content: counter(m, decimal-leading-zero);
+		font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; color: var(--accent);
 	}
+	.xa-member-x { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; }
+	.xa-member-x :global(svg) { width: 14px; height: 14px; stroke-width: 2.4; }
+	.xa-add-member, .xa-photo-x {
+		align-self: flex-start;
+		display: inline-flex; align-items: center; gap: 8px;
+		padding: 10px 14px;
+		font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+	}
+	.xa-add-member { margin-left: 30px; }
+	.xa-add-member:disabled { opacity: .4; cursor: not-allowed; }
+	.xa-add-icon { display: grid; place-items: center; }
+	.xa-add-icon :global(svg) { width: 13px; height: 13px; stroke-width: 2.6; }
 
-	.xa-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-	.xa-item {
-		display: flex; align-items: center; gap: 12px;
-		padding: 12px 14px;
+	/* ---- photo ---- */
+	.xa-photo { display: flex; flex-direction: column; gap: 10px; }
+	.xa-drop {
+		display: grid; place-items: center;
+		aspect-ratio: 16 / 7; cursor: pointer;
 		background: var(--sink);
-		border: 1.5px solid var(--hair); border-radius: var(--r);
+		border: var(--stroke) dashed var(--secondary); border-radius: var(--r);
+		overflow: hidden;
 	}
-	/* Already happened. Still listed and still deletable — greying it out says which
-	   rows are housekeeping without hiding them. */
-	.xa-item.is-past { opacity: .55; }
-	.xa-item-body { flex: 1 1 auto; min-width: 0; }
-	.xa-item-subject {
-		margin: 0 0 4px;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 13.5px; letter-spacing: -.01em; color: var(--secondary);
+	.xa-drop > * { grid-area: 1 / 1; min-width: 0; min-height: 0; }
+	.xa-drop:hover { border-color: var(--accent); }
+	.xa-drop-img { display: none; width: 100%; height: 100%; object-fit: cover; }
+	.xa-drop-img.ok { display: block; }
+	.xa-drop-img.ok + .xa-drop-text { display: none; }
+	.xa-drop-text {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 9.5px; line-height: 1.8; letter-spacing: .12em; text-align: center; color: var(--ink-40);
 	}
-	.xa-item-meta { margin: 0; font-size: 12px; color: var(--ink-60); }
-	.xa-item-by {
-		margin: 4px 0 0; font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9.5px; letter-spacing: .08em; color: var(--ink-40);
-	}
-	.xa-item-acts { flex: none; display: flex; gap: 6px; }
-	.xa-mini { padding: 8px 11px; font-size: 9.5px; }
 
-	.xa-empty { margin: 14px 0 0; font-size: 12.5px; color: var(--ink-60); font-style: italic; }
-
-	@media (max-width: 860px) {
-		.xa-grid { grid-template-columns: minmax(0, 1fr); }
+	/* ---- pinned actions ---- */
+	.xa-foot {
+		flex: none;
+		display: flex; flex-direction: column; gap: 10px;
+		padding-top: 14px;
+		border-top: var(--stroke) solid var(--secondary);
 	}
-	@media (max-width: 480px) {
-		.xa-row { grid-template-columns: minmax(0, 1fr); }
-		.xa-item { flex-direction: column; align-items: stretch; }
-		.xa-item-acts .btn { flex: 1; }
+	.xa-ok {
+		margin: 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+	}
+	.xa-actions { display: flex; gap: 10px; }
+	.xa-save { flex: 1; }
+
+	/* ---- right: the preview ---- */
+	.xa-preview-pane {
+		flex: 0 0 min(440px, 36%); min-width: 0; min-height: 0;
+		display: flex; flex-direction: column; gap: 14px;
+		padding: 24px 26px;
+		background: var(--sink);
+		overflow-y: auto; overscroll-behavior: contain;
+	}
+	.xa-preview-pane .a-eyebrow { margin: 0; }
+	/* Room above for the folder's tab, and on the right/bottom for its offset shadow. */
+	.xa-preview { padding: 40px 10px 12px 0; }
+	.xa-preview :global(.pm) { width: 100%; }
+
+	@media (max-width: 1100px) {
+		/* Three columns stop fitting; the preview drops under the form. */
+		.xa-shell { flex-wrap: wrap; overflow-y: auto; }
+		.xa-form-pane { border-right: 0; }
+		.xa-preview-pane {
+			flex: 1 0 100%; overflow: visible;
+			border-top: var(--stroke) solid var(--secondary);
+		}
+		.xa-preview { max-width: 560px; }
+	}
+
+	@media (max-width: 720px) {
+		/* The rail becomes a row of tabs across the top — a 240px column would eat half
+		   a phone screen. */
+		.xa-shell { flex-direction: column; flex-wrap: nowrap; }
+		.xa-tasks {
+			width: auto; padding: 12px;
+			border-right: 0; border-bottom: var(--stroke) solid var(--secondary);
+		}
+		.xa-task-row { flex-direction: row; }
+		.xa-task { justify-content: center; }
+		.xa-tally { display: none; }
+		.xa-form-pane { flex: none; padding: 18px; }
+		.xa-scroll { overflow: visible; }
+		.xa-row { grid-template-columns: 1fr; }
+		.xa-preview-pane { flex: none; padding: 18px; }
 	}
 </style>

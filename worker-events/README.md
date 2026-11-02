@@ -32,7 +32,22 @@ PUT    /api/events/:id          edit a scheduled event           admin
 DELETE /api/events/:id          drop a scheduled event           admin
 PUT    /api/events/past/:id     set gallery_link + summary       admin
 POST   /api/events/sweep        run the archive sweep now        admin
+
+GET    /api/projects            every expo project               public
+POST   /api/projects            add one (multipart + image)      admin
+PUT    /api/projects/:id        edit one (multipart + image)     admin
+DELETE /api/projects/:id        drop one and its photo           admin
+GET    /api/projects/:id/image  the photo, from R2               public
 ```
+
+### Projects
+
+Table `projects` — run `migrate-projects.sql` once (local and remote, commands in the
+file). Each row is one exhibit: subject code (`BIO`, `PHY`, `CHE`, `MAT`, `DAT`, `EES`),
+its number within the subject, title, description, team (JSON array) and the R2 key of
+its photo. Photos live in the merch bucket as `projects/<CODE>_<NN>.<ext>`, e.g.
+`projects/BIO_03.jpg`; moving a project to another subject renumbers it and renames
+the photo to match. Edited from `/admin/expo`, shown on `/projects`.
 
 Admin routes take `Authorization: Bearer <session_token>` — the token the existing
 admin panel already holds after login. No new password, no new secret.

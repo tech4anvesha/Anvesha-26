@@ -4,27 +4,25 @@
  *
  * Opened from the "View projects" button on /expo. One page, not one per subject: the
  * subjects are tabs, switched in place, and the chosen subject is named beside the
- * page title. A project opens as a folder over the page — photo across the top, record below.
+ * page title. A project opens as a folder over the page — photo across the top, record
+ * below (components/ProjectFolder.astro, the same one /admin/expo previews in).
  *
- * Everything comes off HALLS in src/lib/expo.ts. The cards are server-rendered; the
- * folder is filled from a JSON copy of the same data, so there is one source and
- * nothing to fetch.
+ * The subjects are static (HALLS in src/lib/expo.ts) and server-rendered; the projects
+ * are data, fetched from the events Worker's /api/projects and drawn into each tab from
+ * a <template>. A live socket refetches when an admin adds or edits one.
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
+import ProjectFolder from '../components/ProjectFolder.astro';
 import { HALLS } from '../lib/expo';
+import { EVENTS_API } from '../lib/api';
 
 import iArrowUpRight from 'lucide-static/icons/arrow-up-right.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
-import iX from 'lucide-static/icons/x.svg?raw';
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const code = (h: (typeof HALLS)[number]) => (h.short ?? h.name).slice(0, 3).toUpperCase();
-const total = HALLS.reduce((n, h) => n + h.projects.length, 0);
 
 /**
- * A barcode for each subject, drawn from its code and count ("BIO02"): every character's
- * low seven bits become seven bars, wide for a 1 and thin for a 0, between guard bars
- * at either end. Five characters, so every subject's code is about the same length.
+ * A barcode for each subject, drawn from its code ("BIO26"): every character's low
+ * seven bits become seven bars, wide for a 1 and thin for a 0, between guard bars at
+ * either end. Five characters, so every subject's code is about the same length.
  * ponytail: decorative, not a real symbology — nothing scans it.
  */
 function barcode(seed: string) {
@@ -37,24 +35,21 @@ function barcode(seed: string) {
 	return { bars, width: x - 1 };
 }
 
-// What the folder needs, keyed by subject. The icon rides along as its SVG string —
-// it is our own static markup, not anything a visitor typed.
-const CARDS = Object.fromEntries(
-	HALLS.map((h) => [h.slug, { name: h.name, code: code(h), icon: h.icon, projects: h.projects }]),
-);
-// `<` escaped so a "</script>" in any copy cannot close the data block early.
-const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
+// What the script needs to name a subject and draw its folder, keyed by code. The icon
+// rides along as its SVG string — our own static markup, not anything a visitor typed.
+const SUBJ = Object.fromEntries(HALLS.map((h) => [h.code, { name: h.name, icon: h.icon }]));
+const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 ---
 
 <SiteLayout
 	title="Projects · Expo · Anvesha '26"
 	description="Every project on the Aficionados floor at Anvesha '26, subject by subject — what each team built and who built it."
 >
-	<div class="page pj-page">
+	<div class="page pj-page" id="pjPage" data-api={EVENTS_API}>
 		{/* ---- the head: centred, on its own dot ground, the way /outreach opens ----
 		    The chosen subject sits beside the title rather than in a block of its own:
 		    one label per subject, server-rendered and stacked in one cell, switched with
-		    the tabs below — so the page is complete before any script runs. */}
+		    the tabs below. The counts are filled in once the projects arrive. */}
 		<header class="page-head pj-head" data-reveal>
 			<p class="eyebrow">Aficionados &middot; Anvesha &rsquo;26</p>
 
@@ -69,9 +64,9 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 								{h.short ?? h.name}
 							</p>
 							<p class="pj-sub-count mono">
-								<span><b>{pad(h.projects.length)}</b> {h.projects.length === 1 ? 'project' : 'projects'}</span>
+								<span><b data-count={h.code}>--</b> <span data-noun={h.code}>projects</span></span>
 								{(() => {
-									const bc = barcode(`${code(h)}${pad(h.projects.length)}`);
+									const bc = barcode(`${h.code}26`);
 									return (
 										<svg class="pj-bar" viewBox={`0 0 ${bc.width} 10`} width={bc.width * 1.5}
 										     preserveAspectRatio="none" aria-hidden="true">
@@ -89,13 +84,13 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 				Every exhibit on the floor, subject by subject. Open a project to see what the
 				team built, and who to ask about it at the table.
 			</p>
-			<p class="pj-meta pj-meta-all mono"><b>{total}</b> projects &middot; <b>{HALLS.length}</b> subjects</p>
+			<p class="pj-meta pj-meta-all mono"><b data-total>--</b> projects &middot; <b>{HALLS.length}</b> subjects</p>
 			{/* Phone only: the chosen subject's code and count, in place of the totals —
 			    the count has left the subject block there, so it lands here instead. */}
 			<div class="pj-meta-subs">
 				{HALLS.map((h, i) => (
 					<p class:list={['pj-meta pj-meta-sub mono', i === 0 && 'is-on']} data-sub={h.slug}>
-						<b>{code(h)}</b> &middot; <b>{pad(h.projects.length)}</b> {h.projects.length === 1 ? 'project' : 'projects'}
+						<b>{h.code}</b> &middot; <b data-count={h.code}>--</b> <span data-noun={h.code}>projects</span>
 					</p>
 				))}
 			</div>
@@ -112,7 +107,7 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 				        title={h.short ? h.name : undefined}>
 					<span class="pj-tab-icon" set:html={h.icon} />
 					<span>{h.short ?? h.name}</span>
-					<i class="pj-tab-n mono">{h.projects.length}</i>
+					<i class="pj-tab-n mono" data-count-raw={h.code}>&ndash;</i>
 				</button>
 			))}
 		</div>
@@ -120,109 +115,83 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 		<div data-reveal>
 			{HALLS.map((h, i) => (
 				<section class="section pj-panel" role="tabpanel" id={`panel-${h.slug}`}
-				         aria-labelledby={`tab-${h.slug}`} hidden={i !== 0}>
-					{h.projects.length ? (
-						<ol class="pj-grid">
-							{h.projects.map((p, j) => (
-								<li class="pj-card">
-									<figure class:list={['pj-shot', !p.image && 'is-empty']}>
-										{p.image && (
-											<img src={p.image} alt="" loading="lazy"
-											     onerror="this.parentElement.classList.add('is-empty')" />
-										)}
-										<span class="pj-shot-empty" set:html={iCamera} />
-										<i class="pj-num mono">{code(h)}-{pad(j + 1)}</i>
-									</figure>
-
-									<div class="pj-body">
-										{/* The button carries the name and stretches over the card with
-										    ::after — one click target, announced as the project's title. */}
-										<h3 class="pj-name">
-											<button class="pj-open" type="button" aria-haspopup="dialog"
-											        data-s={h.slug} data-j={j}>{p.title}</button>
-										</h3>
-										<p class="pj-summary">{p.summary}</p>
-										<ul class="pj-chips pj-team">
-											{p.team.map((m) => <li class="pj-chip">{m}</li>)}
-										</ul>
-									</div>
-
-									<span class="pj-go mono" aria-hidden="true">
-										View project <span set:html={iArrowUpRight} />
-									</span>
-								</li>
-							))}
-						</ol>
-					) : (
-						<p class="pj-empty">
-							Projects for {h.name} go up here once teams are confirmed.
-						</p>
-					)}
+				         aria-labelledby={`tab-${h.slug}`} data-code={h.code} hidden={i !== 0}>
+					<ol class="pj-grid"></ol>
+					{/* Loading, empty and failed in turn. Starts as loading so a slow network
+					    reads as "working", not as "there are no projects". */}
+					<p class="pj-empty" data-state data-name={h.name}>Loading projects&hellip;</p>
 				</section>
 			))}
 		</div>
+
+		{/* One card, cloned per project. In the markup rather than built in script so the
+		    page's scoped styles reach it — elements made with createElement never get
+		    Astro's scoping attribute. The single chip is the pattern for every member. */}
+		<template id="pjCardTpl">
+			<li class="pj-card">
+				<figure class="pj-shot">
+					<img alt="" loading="lazy" />
+					<span class="pj-shot-empty" set:html={iCamera} />
+					<i class="pj-num mono"></i>
+				</figure>
+
+				<div class="pj-body">
+					{/* The button carries the name and stretches over the card with ::after —
+					    one click target, announced as the project's title. */}
+					<h3 class="pj-name">
+						<button class="pj-open" type="button" aria-haspopup="dialog"></button>
+					</h3>
+					<p class="pj-summary"></p>
+					<ul class="pj-chips pj-team"><li class="pj-chip"></li></ul>
+				</div>
+
+				<span class="pj-go mono" aria-hidden="true">
+					View project <span set:html={iArrowUpRight} />
+				</span>
+			</li>
+		</template>
 	</div>
 
 	<Fragment slot="overlays">
-		<script type="application/json" id="pjData" set:html={cardsJson} />
-
-		{/* ============ THE FOLDER ============
-		    A project folder: a tab with its code standing up off the top edge, the photo
-		    across the full width, the record under it, and a ruled strip of fields along
-		    the foot like the label on an index card. */}
+		<script type="application/json" id="pjSubjects" set:html={subjJson} />
 		<div id="pmWrap" class="pm-wrap" aria-hidden="true">
-			<div class="pm" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
-				<span class="pm-tab mono"><span class="pm-tab-icon" id="pmIcon"></span><span id="pmCode"></span></span>
-				<button class="btn pm-x" id="pmClose" type="button" aria-label="Close" set:html={iX} />
-
-				<figure class="pm-media" id="pmMedia">
-					<img id="pmImg" alt="" />
-					<span class="pm-media-empty" set:html={iCamera} />
-				</figure>
-
-				<div class="pm-body">
-					<h2 class="pm-title" id="pmTitle"></h2>
-					<div class="pm-cols">
-						<p class="pm-summary" id="pmSummary"></p>
-						<div class="pm-team">
-							<p class="pm-label mono">Team</p>
-							<ol class="pm-members" id="pmTeam"></ol>
-						</div>
-					</div>
-				</div>
-
-				<dl class="pm-fields">
-					<div><dt>Subject</dt><dd id="pmFSubject"></dd></div>
-					<div><dt>Exhibit</dt><dd id="pmFCode"></dd></div>
-					<div><dt>Members</dt><dd id="pmFCount"></dd></div>
-				</dl>
-			</div>
+			<ProjectFolder />
 		</div>
 	</Fragment>
 </SiteLayout>
 
 <script>
 	import { gsap } from 'gsap';
+	import { onCatalogueChange } from '../lib/admin';
+	import { fillFolder } from '../scripts/folder';
+	import type { Project } from '../lib/expo';
 
-	type Project = { title: string; summary: string; team: string[]; image?: string };
-	type Cards = Record<string, { name: string; code: string; icon: string; projects: Project[] }>;
+	type Subjects = Record<string, { name: string; icon: string }>;
+
+	const pad = (n: number) => String(n).padStart(2, '0');
+	const codeOf = (p: Project) => `${p.subject}-${pad(p.project_no)}`;
 
 	// Listeners hang off one controller per visit: ClientRouter swaps the DOM without
 	// reloading, so anything bound to window must be torn down before the next bind.
 	let ac: AbortController | null = null;
+	let stopLive: (() => void) | null = null;
 
 	function init() {
 		ac?.abort();
+		stopLive?.();
+		const page = document.getElementById('pjPage');
 		const tablist = document.getElementById('pjTabs');
 		const wrap = document.getElementById('pmWrap');
-		const dataEl = document.getElementById('pjData');
-		if (!tablist || !wrap || !dataEl) return;
+		const tpl = document.getElementById('pjCardTpl') as HTMLTemplateElement | null;
+		if (!page || !tablist || !wrap || !tpl) return;
 
 		ac = new AbortController();
 		const { signal } = ac;
+		const api = page.dataset.api ?? '';
 		const rm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-		const cards = JSON.parse(dataEl.textContent || '{}') as Cards;
+		const subjects = JSON.parse(document.getElementById('pjSubjects')?.textContent || '{}') as Subjects;
 		const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+		const all = <T extends HTMLElement = HTMLElement>(sel: string) => [...document.querySelectorAll<T>(sel)];
 
 		// ---------- tabs ----------
 		const tabs = [...tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
@@ -251,7 +220,7 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 				const head = $(`head-${tab.dataset.slug}`);
 				// clearProps hands the transform back to CSS when done — the cards lift on
 				// hover with their own transform, which an inline one left behind would pin.
-				gsap.fromTo(panel.querySelectorAll('.pj-card, .pj-empty'),
+				gsap.fromTo(panel.querySelectorAll('.pj-card, .pj-empty:not([hidden])'),
 					{ opacity: 0, x: 36 * dir },
 					{ opacity: 1, x: 0, duration: 0.42, stagger: 0.06, ease: 'power3.out', overwrite: true, clearProps: 'opacity,transform' });
 				gsap.fromTo(head, { opacity: 0, y: 8 },
@@ -278,42 +247,96 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 			select(tabs[(to + tabs.length) % tabs.length], true);
 		}, { signal });
 
+		// ---------- the projects ----------
+		const byId = new Map<number, Project>();
+		const imageUrl = (p: Project) =>
+			p.has_image ? `${api}/api/projects/${p.project_id}/image?v=${encodeURIComponent(p.v)}` : null;
+
+		function card(p: Project) {
+			const li = tpl!.content.firstElementChild!.cloneNode(true) as HTMLElement;
+			const shot = li.querySelector('.pj-shot') as HTMLElement;
+			const img = shot.querySelector('img')!;
+			const src = imageUrl(p);
+			if (src) {
+				img.onerror = () => shot.classList.add('is-empty');
+				img.src = src;
+			} else {
+				shot.classList.add('is-empty');
+			}
+			(li.querySelector('.pj-num') as HTMLElement).textContent = codeOf(p);
+			const open = li.querySelector('.pj-open') as HTMLButtonElement;
+			// textContent throughout: every value here is free text an admin typed.
+			open.textContent = p.title;
+			open.dataset.id = String(p.project_id);
+			(li.querySelector('.pj-summary') as HTMLElement).textContent = p.description;
+			const team = li.querySelector('.pj-team') as HTMLElement;
+			const chip = team.firstElementChild!;
+			team.replaceChildren(...p.team.map((m) => {
+				const c = chip.cloneNode() as HTMLElement;
+				c.textContent = m;
+				return c;
+			}));
+			return li;
+		}
+
+		/** Every count on the page from one list, so the tab badge, the head and the
+		 *  phone line can never disagree. */
+		function render(list: Project[]) {
+			byId.clear();
+			for (const p of list) byId.set(p.project_id, p);
+			for (const el of all('[data-total]')) el.textContent = pad(list.length);
+
+			for (const panel of all('.pj-panel')) {
+				const code = panel.dataset.code!;
+				const mine = list.filter((p) => p.subject === code);
+				panel.querySelector('.pj-grid')!.replaceChildren(...mine.map(card));
+				const state = panel.querySelector('[data-state]') as HTMLElement;
+				state.hidden = mine.length > 0;
+				state.textContent = `No ${state.dataset.name} projects yet — check back soon.`;
+
+				for (const el of all(`[data-count="${code}"]`)) el.textContent = pad(mine.length);
+				for (const el of all(`[data-count-raw="${code}"]`)) el.textContent = String(mine.length);
+				for (const el of all(`[data-noun="${code}"]`)) el.textContent = mine.length === 1 ? 'project' : 'projects';
+			}
+		}
+
+		async function load() {
+			try {
+				const res = await fetch(`${api}/api/projects`, { signal });
+				if (!res.ok) throw new Error(String(res.status));
+				render(((await res.json()) as { projects?: Project[] }).projects ?? []);
+			} catch (e) {
+				if (signal.aborted) return;
+				// A dead Worker must not leave "Loading…" on screen forever.
+				for (const s of all('[data-state]')) {
+					if (!s.previousElementSibling?.children.length) {
+						s.hidden = false;
+						s.textContent = 'Could not load the projects just now — try again in a minute.';
+					}
+				}
+			}
+		}
+
+		load();
+		if (api) stopLive = onCatalogueChange(() => load(), ['projects'], api);
+
 		// ---------- the folder ----------
 		const pm = wrap.querySelector('.pm') as HTMLElement;
-		const media = $('pmMedia'), img = $<HTMLImageElement>('pmImg');
 		let opener: HTMLElement | null = null;
 		let open = false;
 
 		gsap.set(wrap, { autoAlpha: 0 });
 		gsap.set(pm, { y: 24, scale: 0.98 });
 
-		// A photo that fails falls back to the drawn frame, same as the cards.
-		img.onerror = () => media.classList.add('is-empty');
-
-		function show(slug: string, j: number, from: HTMLElement) {
-			const s = cards[slug];
-			const p = s?.projects[j];
-			if (!p) return;
+		function show(id: number, from: HTMLElement) {
+			const p = byId.get(id);
+			const s = p && subjects[p.subject];
+			if (!p || !s) return;
 			opener = from;
-
-			media.classList.toggle('is-empty', !p.image);
-			if (p.image) img.src = p.image; else img.removeAttribute('src');
-
-			const ref = `${s.code}-${String(j + 1).padStart(2, '0')}`;
-			$('pmIcon').innerHTML = s.icon;
-			// textContent from here on: every value below is free text from the data file.
-			$('pmCode').textContent = ref;
-			$('pmTitle').textContent = p.title;
-			$('pmSummary').textContent = p.summary;
-			$('pmFSubject').textContent = s.name;
-			$('pmFCode').textContent = ref;
-			$('pmFCount').textContent = String(p.team.length).padStart(2, '0');
-			$('pmTeam').replaceChildren(...p.team.map((m) => {
-				const li = document.createElement('li');
-				li.textContent = m;
-				return li;
-			}));
-
+			fillFolder(pm, {
+				code: codeOf(p), icon: s.icon, subject: s.name,
+				title: p.title, summary: p.description, team: p.team, image: imageUrl(p),
+			});
 			wrap.scrollTop = 0;
 			setOpen(true);
 		}
@@ -329,15 +352,23 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 			else opener?.focus();
 		}
 
-		for (const b of document.querySelectorAll<HTMLButtonElement>('.pj-open'))
-			b.addEventListener('click', () => show(b.dataset.s!, Number(b.dataset.j), b), { signal });
+		// Delegated: the cards are redrawn on every refetch, and a listener per button
+		// would have to be rebound each time.
+		page.addEventListener('click', (e) => {
+			const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.pj-open');
+			if (b) show(Number(b.dataset.id), b);
+		}, { signal });
 		$('pmClose').addEventListener('click', () => setOpen(false), { signal });
 		wrap.addEventListener('click', (e) => { if (e.target === wrap) setOpen(false); }, { signal });
 		addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) setOpen(false); }, { signal });
 	}
 
 	document.addEventListener('astro:page-load', init);
-	document.addEventListener('astro:before-swap', () => ac?.abort());
+	document.addEventListener('astro:before-swap', () => {
+		ac?.abort();
+		stopLive?.();
+		stopLive = null;
+	});
 </script>
 
 <style>
@@ -538,7 +569,9 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 
 	.pj-empty { margin: 0; text-align: center; font-size: 14px; line-height: 1.65; color: var(--ink-60); font-style: italic; }
 
-	/* ============ THE FOLDER ============ */
+	/* ============ THE FOLDER ============
+	   The folder itself is styles/project-folder.css, shared with the admin preview.
+	   This is only the overlay it opens in. */
 	.pm-wrap {
 		opacity: 0; visibility: hidden;
 		position: fixed; inset: 0; z-index: 46;
@@ -548,109 +581,10 @@ const cardsJson = JSON.stringify(CARDS).replace(/</g, '\\u003c');
 		background: color-mix(in srgb, var(--secondary) 55%, transparent);
 		overflow-y: auto;
 	}
-	.pm {
-		position: relative;
-		width: min(860px, 100%);
-		background: var(--primary);
-		border: var(--stroke) solid var(--secondary); border-radius: 0 var(--r) var(--r) var(--r);
-		box-shadow: 8px 8px 0 var(--accent);
-	}
-
-	/* The folder tab. It sits a stroke lower than the sheet's top edge and is painted
-	   over it, so the sheet's border runs out from under the tab rather than across it —
-	   tab and folder read as one piece of card. */
-	.pm-tab {
-		position: absolute; left: calc(-1 * var(--stroke)); bottom: calc(100% - var(--stroke)); z-index: 1;
-		display: inline-flex; align-items: center; gap: 9px;
-		padding: 9px 18px 10px 14px;
-		font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
-		background: var(--primary);
-		border: var(--stroke) solid var(--secondary); border-bottom: 0;
-		border-radius: 6px 6px 0 0;
-	}
-	.pm-tab-icon { display: grid; place-items: center; color: var(--accent); }
-	.pm-tab-icon :global(svg) { width: 15px; height: 15px; stroke-width: 2; }
-
-	.pm-x {
-		position: absolute; top: 12px; right: 12px; z-index: 1;
-		display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
-	}
-	.pm-x :global(svg) { width: 15px; height: 15px; stroke-width: 2.4; }
-
-	/* Landscape and full width: the folder is laid out across, the photo is its banner. */
-	.pm-media {
-		position: relative; margin: 0;
-		aspect-ratio: 16 / 7;
-		background: var(--sink);
-		border-bottom: var(--stroke) solid var(--secondary);
-		overflow: hidden;
-	}
-	.pm-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-	.pm-media-empty { position: absolute; inset: 0; display: none; place-items: center; color: var(--ink-40); }
-	.pm-media-empty :global(svg) { width: 34px; height: 34px; stroke-width: 1.3; }
-	.pm-media.is-empty img { display: none; }
-	.pm-media.is-empty .pm-media-empty { display: grid; }
-
-	.pm-body { padding: clamp(20px, 2.8vw, 30px); }
-	.pm-title {
-		margin: 0 0 18px;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(24px, 3vw, 34px);
-		line-height: 1; letter-spacing: -.02em; text-transform: uppercase;
-		text-wrap: balance; overflow-wrap: anywhere;
-	}
-	/* Summary and team side by side: the sheet is wide, and a team list under a two-line
-	   summary would leave half of it empty. */
-	.pm-cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; }
-	.pm-summary { margin: 0; font-size: 14.5px; line-height: 1.68; color: var(--ink-60); text-wrap: pretty; }
-	.pm-team { padding-left: 24px; border-left: 1.5px solid var(--hair); }
-	.pm-label {
-		margin: 0 0 6px;
-		font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
-	}
-	.pm-members { margin: 0; padding: 0; list-style: none; counter-reset: m; }
-	.pm-members :global(li) {
-		counter-increment: m;
-		display: flex; align-items: baseline; gap: 12px;
-		padding: 8px 0;
-		font-size: 14px; font-weight: 700; letter-spacing: -.01em;
-		border-bottom: 1.5px solid var(--hair);
-	}
-	.pm-members :global(li:last-child) { border-bottom: 0; }
-	.pm-members :global(li)::before {
-		content: counter(m, decimal-leading-zero);
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; font-weight: 500; color: var(--accent);
-	}
-
-	/* The index-card label along the foot: three ruled fields. */
-	.pm-fields {
-		display: grid; grid-template-columns: 2fr 1fr 1fr; margin: 0;
-		background: var(--sink);
-		border-top: var(--stroke) solid var(--secondary);
-	}
-	.pm-fields > div { min-width: 0; padding: 12px clamp(14px, 2.2vw, 22px); }
-	.pm-fields > div + div { border-left: var(--stroke) solid var(--secondary); }
-	.pm-fields dt {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
-	}
-	.pm-fields dd {
-		margin: 4px 0 0;
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 13px; letter-spacing: -.01em;
-		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-	}
 
 	@media (prefers-reduced-motion: reduce) {
 		.pj-card, .pj-go, .pj-go :global(svg) { transition: none; }
 		.pj-card:hover, .pj-card:focus-within { transform: none; }
 	}
 
-	@media (max-width: 640px) {
-		.pm-media { aspect-ratio: 4 / 3; }
-		.pm-cols { grid-template-columns: 1fr; gap: 18px; }
-		.pm-team { padding: 16px 0 0; border-left: 0; border-top: 1.5px solid var(--hair); }
-		.pm-fields { grid-template-columns: 1.4fr 1fr 1fr; }
-	}
 </style>

@@ -5,7 +5,7 @@
   "3": "Welcome.astro",
   "4": "worker-events/src/index.ts",
   "5": "astro.config.mjs",
-  "6": "order.astro",
+  "6": "projects.astro",
   "7": "Astro Starter Kit: Basics",
   "8": "CLAUDE.md",
   "9": "gsap",
@@ -17,6 +17,7 @@
   "15": "compilerOptions",
   "16": "test/tsconfig.json",
   "17": "Anvesha '26 — merch API",
+  "18": "smoke.mjs",
   "19": "switch.mjs",
   "20": "admin/index.astro",
   "21": "lib/admin.ts",
@@ -38,6 +39,7 @@
   "37": "esc",
   "38": "event-types.ts",
   "39": "onCatalogueChange",
-  "40": "razorpay.ts",
+  "40": "Env",
+  "41": "spot.astro",
   "42": "roster.test.ts"
 }

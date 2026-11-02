@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "src/pages/expo.astro": {
-    "mtime": 1793596233.3696187,
-    "ast_hash": "0fade1686d501860cf2a5135f91859f4",
+    "mtime": 1793599160.0634239,
+    "ast_hash": "31c05f19de23ef39c341529015d5200e",
     "semantic_hash": ""
   },
   "src/pages/outreach.astro": {
@@ -920,8 +920,8 @@
     "semantic_hash": ""
   },
   "src/pages/projects.astro": {
-    "mtime": 1793598084.2170522,
-    "ast_hash": "85550091ae0fb1c423df0e0fc245405b",
+    "mtime": 1793598447.616921,
+    "ast_hash": "f4b36efbc73ac91d415a2d574fffe051",
     "semantic_hash": ""
   }
 }

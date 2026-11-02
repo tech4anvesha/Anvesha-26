@@ -1,16 +1,16 @@
 # Graph Report - Anvesha-26  (2026-11-02)
 
 ## Corpus Check
-- 96 files · ~4,672,356 words
+- 98 files · ~4,673,363 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 761 nodes · 1599 edges · 42 communities (36 shown, 6 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 30 edges (avg confidence: 0.69)
+- 789 nodes · 1653 edges · 45 communities (38 shown, 7 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 37 edges (avg confidence: 0.69)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e89866dd`
+- Built from commit: `f9254a0f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,7 +19,7 @@
 - dependencies
 - src/admin.ts
 - worker-events/src/index.ts
-- pages/expo.astro
+- admin/expo.astro
 - Astro Starter Kit: Basics
 - CLAUDE.md
 - scripts
@@ -30,6 +30,7 @@
 - compilerOptions
 - test/tsconfig.json
 - Anvesha '26 — merch API
+- smoke.mjs
 - switch.mjs
 - admin/index.astro
 - lib/admin.ts
@@ -49,8 +50,10 @@
 - esc
 - event-types.ts
 - onCatalogueChange
-- Env
+- razorpay.ts
 - roster.test.ts
+- cart.ts
+- order.astro
 
 ## God Nodes (most connected - your core abstractions)
 1. `[]` - 57 edges
@@ -58,7 +61,7 @@
 3. `json()` - 37 edges
 4. `bad()` - 30 edges
 5. `requireAdmin()` - 22 edges
-6. `fetch()` - 20 edges
+6. `fetch()` - 21 edges
 7. `adminReviewOrder()` - 18 edges
 8. `submitPayment()` - 18 edges
 9. `requireBudget()` - 18 edges
@@ -69,17 +72,17 @@
   src/pages/admin/events.astro → worker-events/src/index.ts
 - `renderShots()` --calls--> `escape()`  [INFERRED]
   src/pages/admin/merch.astro → src/pages/distribution.astro
-- `renderPreview()` --calls--> `escape()`  [INFERRED]
-  src/pages/admin/merch.astro → src/pages/distribution.astro
-- `reviewCell()` --calls--> `escape()`  [INFERRED]
-  src/pages/admin/merch.astro → src/pages/distribution.astro
-- `renderOrders()` --calls--> `escape()`  [INFERRED]
-  src/pages/admin/merch.astro → src/pages/distribution.astro
+- `showDate()` --calls--> `pad()`  [INFERRED]
+  src/pages/events.astro → src/pages/admin/expo.astro
+- `render()` --calls--> `pad()`  [INFERRED]
+  src/pages/projects.astro → src/pages/admin/expo.astro
+- `initExpoAdmin()` --calls--> `setFile()`  [INFERRED]
+  src/pages/admin/expo.astro → src/pages/events.astro
 
 ## Import Cycles
 - None detected.
 
-## Communities (42 total, 6 thin omitted)
+## Communities (45 total, 7 thin omitted)
 
 ### Community 0 - "tsconfig.json"
 Cohesion: 0.25
@@ -90,16 +93,16 @@ Cohesion: 0.07
 Nodes (28): astro, @astrojs/sitemap, lucide-static, dependencies, astro, @astrojs/sitemap, gsap, jsqr (+20 more)
 
 ### Community 2 - "src/admin.ts"
-Cohesion: 0.06
-Nodes (116): adminCollect(), adminCreateMerch(), adminDeleteMerch(), adminDeleteOrder(), adminListMerch(), adminListOrders(), adminLogin(), adminLogout() (+108 more)
+Cohesion: 0.05
+Nodes (121): adminCollect(), adminCreateMerch(), adminDeleteMerch(), adminDeleteOrder(), adminListMerch(), adminListOrders(), adminLogin(), adminLogout() (+113 more)
 
 ### Community 4 - "worker-events/src/index.ts"
-Cohesion: 0.10
-Nodes (48): EventsHub, AdminIdentity, ApiError, bad(), broadcast(), Cors, corsHeaders(), createEvent() (+40 more)
+Cohesion: 0.08
+Nodes (55): EventsHub, AdminIdentity, ApiError, bad(), broadcast(), Cors, corsHeaders(), createEvent() (+47 more)
 
-### Community 6 - "pages/expo.astro"
-Cohesion: 0.16
-Nodes (5): ADMIN_NAV, EVENTS_API, Hall, HALLS, Project
+### Community 6 - "admin/expo.astro"
+Cohesion: 0.11
+Nodes (13): Hall, HALLS, Project, IMAGE_TYPES, initExpoAdmin(), SUBJ, subjJson, card() (+5 more)
 
 ### Community 7 - "Astro Starter Kit: Basics"
 Cohesion: 0.40
@@ -113,17 +116,13 @@ Nodes (27): dependencies, qrcode-generator, devDependencies, @cloudflare/workers
 Cohesion: 0.06
 Nodes (32): [], cardEd, cardNum, cardPos, cardWord, dlDate, dlEdition, dlList (+24 more)
 
-### Community 12 - "SiteLayout.astro"
-Cohesion: 0.10
-Nodes (3): ../assets/anvesha-mark.svg?raw, setOpen(), show()
-
 ### Community 13 - "distribution.astro"
-Cohesion: 0.14
-Nodes (26): renderShots(), MOTES, collect(), escape(), initCounter(), initPage(), isDead(), itemsHtml() (+18 more)
+Cohesion: 0.15
+Nodes (25): MOTES, collect(), escape(), initCounter(), initPage(), isDead(), itemsHtml(), lookup() (+17 more)
 
 ### Community 14 - "email.ts"
-Cohesion: 0.07
-Nodes (40): CartLineInput, formatRupees(), MAX_LINES, MAX_QTY_PER_LINE, MerchRow, parseCart(), PricedCart, PricedLine (+32 more)
+Cohesion: 0.12
+Nodes (26): formatRupees(), deliver(), esc(), html(), label(), MailResult, nextUtcMidnight(), OrderEmail (+18 more)
 
 ### Community 15 - "compilerOptions"
 Cohesion: 0.12
@@ -137,6 +136,10 @@ Nodes (9): node, **/*.ts, ../tsconfig.json, compilerOptions, types, extends, inc
 Cohesion: 0.15
 Nodes (12): Admin panel, Anvesha '26 — merch API, Confirmation email, Deploying for real, Endpoints, Live catalogue updates, Payment mode, `POST /api/checkout` (+4 more)
 
+### Community 18 - "smoke.mjs"
+Cohesion: 0.25
+Nodes (7): AUTH, post(), req(), section(), sized, unsized, vars
+
 ### Community 19 - "switch.mjs"
 Cohesion: 0.18
 Nodes (24): API, ask(), call(), clearSecrets(), [cmd, arg], DEV_VARS, devVarsSet(), identity() (+16 more)
@@ -146,23 +149,23 @@ Cohesion: 0.40
 Nodes (4): btn, err, form, roll
 
 ### Community 21 - "lib/admin.ts"
-Cohesion: 0.24
-Nodes (12): initShell(), adminBlob(), adminFetch(), AdminSession, clearSession(), getSession(), toLogin(), toPaise() (+4 more)
+Cohesion: 0.22
+Nodes (13): initShell(), adminBlob(), adminFetch(), AdminSession, clearSession(), getSession(), toLogin(), toPaise() (+5 more)
 
 ### Community 22 - "admin/merch.astro"
-Cohesion: 0.13
-Nodes (13): cacheProof(), confirmPayment(), confirmReject(), mailStopNotice(), openReject(), openShot(), paintMailBlock(), renderOrders() (+5 more)
+Cohesion: 0.12
+Nodes (14): cacheProof(), confirmPayment(), confirmReject(), mailStopNotice(), openReject(), openShot(), paintMailBlock(), renderOrders() (+6 more)
 
 ### Community 23 - "set-admin-password.mjs"
 Cohesion: 0.33
 Nodes (5): args, derive(), hash, salt, verify()
 
 ### Community 24 - "pages/merch.astro"
-Cohesion: 0.13
-Nodes (10): buildReceiptCard(), drawQR(), ReceiptData, receiptFilename(), rupees(), saveReceipt(), buildTree(), setBranch() (+2 more)
+Cohesion: 0.15
+Nodes (4): pad(), buildTree(), setBranch(), syncTree()
 
 ### Community 26 - "events.astro"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (25): badLink(), badPoster(), delModal, disarmPosterDelete(), dparts(), esc(), initEventsAdmin(), MON (+17 more)
 
 ### Community 31 - "scripts"
@@ -170,16 +173,16 @@ Cohesion: 0.09
 Nodes (22): devDependencies, @cloudflare/workers-types, @types/node, typescript, wrangler, engines, node, @cloudflare/workers-types (+14 more)
 
 ### Community 32 - "teams.astro"
-Cohesion: 0.08
-Nodes (12): revealInTree(), openCat(), openFromHash(), printCode(), select(), AUTH, post(), req() (+4 more)
+Cohesion: 0.12
+Nodes (5): revealInTree(), openCat(), openFromHash(), printCode(), select()
 
 ### Community 33 - "compilerOptions"
 Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, lib, module, moduleResolution, noEmit, noUnusedLocals, skipLibCheck (+7 more)
 
 ### Community 34 - "Anvesha '26 — events API"
-Cohesion: 0.29
-Nodes (6): Anvesha '26 — events API, Deploy, Local, Routes, Tables, The sweep
+Cohesion: 0.25
+Nodes (7): Anvesha '26 — events API, Deploy, Local, Projects, Routes, Tables, The sweep
 
 ### Community 36 - "review.test.ts"
 Cohesion: 0.17
@@ -197,29 +200,37 @@ Nodes (4): EVENT_TYPES, EventType, FALLBACK_ICON, TYPE_ICONS
 Cohesion: 0.67
 Nodes (4): onCatalogueChange(), boot(), initEvents(), refresh()
 
-### Community 40 - "Env"
-Cohesion: 0.16
-Nodes (15): createRazorpayOrder(), fetchPayment(), hmacHex(), PaymentEntity, RazorpayOrder, verifyCheckoutSignature(), verifyWebhookSignature(), WebhookEvent (+7 more)
+### Community 40 - "razorpay.ts"
+Cohesion: 0.23
+Nodes (11): createRazorpayOrder(), fetchPayment(), hmacHex(), PaymentEntity, RazorpayOrder, verifyCheckoutSignature(), verifyWebhookSignature(), WebhookEvent (+3 more)
+
+### Community 43 - "cart.ts"
+Cohesion: 0.21
+Nodes (13): CartLineInput, MAX_LINES, MAX_QTY_PER_LINE, MerchRow, parseCart(), priceCart(), PricedCart, Size (+5 more)
+
+### Community 44 - "order.astro"
+Cohesion: 0.32
+Nodes (7): buildReceiptCard(), drawQR(), ReceiptData, receiptFilename(), rupees(), saveReceipt(), initOrder()
 
 ## Knowledge Gaps
-- **211 isolated node(s):** `name`, `type`, `version`, `node`, `dev` (+206 more)
+- **217 isolated node(s):** `name`, `type`, `version`, `node`, `dev` (+212 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `text()` connect `email.ts` to `SiteLayout.astro`?**
-  _High betweenness centrality (0.110) - this node is a cross-community bridge._
 - **Why does `renderTree()` connect `events.astro` to `worker-events/src/index.ts`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+  _High betweenness centrality (0.117) - this node is a cross-community bridge._
 - **Why does `scheduled()` connect `worker-events/src/index.ts` to `events.astro`?**
-  _High betweenness centrality (0.100) - this node is a cross-community bridge._
+  _High betweenness centrality (0.116) - this node is a cross-community bridge._
+- **Why does `text()` connect `email.ts` to `pages/index.astro`?**
+  _High betweenness centrality (0.110) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `[]` (e.g. with `boot()` and `endDrag()`) actually correct?**
   _`[]` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `type`, `version` to the rest of the system?**
-  _211 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _217 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.06896551724137931 - nodes in this community are weakly interconnected._
 - **Should `src/admin.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05532635142282873 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05102040816326531 - nodes in this community are weakly interconnected._

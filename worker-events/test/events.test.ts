@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import worker, {
-	type Env, istStamp, looksLikeEventId, looksLikeMeetingId, newEventId, sweep,
+	type Env, istStamp, looksLikeEventId, newEventId, parseProject, projectImageKey, sweep,
 } from '../src/index.ts';
 
 describe('istStamp', () => {
@@ -29,10 +29,8 @@ describe('newEventId', () => {
 	it('produces ids its own matcher accepts', () => {
 		for (let i = 0; i < 50; i++) assert.ok(looksLikeEventId(newEventId()));
 	});
-	it('takes a prefix, and the two matchers do not accept each other', () => {
-		for (let i = 0; i < 50; i++) assert.ok(looksLikeMeetingId(newEventId('IDE_')));
-		assert.equal(looksLikeMeetingId(newEventId()), false);
-		assert.equal(looksLikeEventId(newEventId('IDE_')), false);
+	it('takes a prefix, and the event matcher refuses any other', () => {
+		assert.equal(looksLikeEventId(newEventId('PRJ_')), false);
 	});
 	it('rejects anything else', () => {
 		for (const v of ['', 'EVT_', 'MER_ABCDEFGH', 'EVT_ABCDEFGHI', 'EVT_ABCDEFGI', null]) {
@@ -132,7 +130,7 @@ const ctx = () => ({ waitUntil: () => {}, passThroughOnException: () => {} }) as
 /**
  * A live admin session for requireAdmin's single lookup.
  *
- * The identity columns are here because requireAdmin returns them now and the ideation
+ * The identity columns are here because requireAdmin returns them now and project
  * rows are stamped with them — a stub that only had `active` would have let a bug that
  * writes `undefined` into created_by_name pass.
  */
@@ -246,68 +244,173 @@ describe('CORS', () => {
 	});
 });
 
-// ---------- ideation meetings ----------
-describe('ideation', () => {
-	const body = { subject: 'Hall themes', starts_at: '2026-03-02T17:30', venue: 'LH 101' };
-	const send = (method: string, path: string, b?: unknown, auth = true) =>
-		new Request('https://api.test' + path, {
-			method,
-			...(auth ? { headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' } } : {}),
-			...(b === undefined ? {} : { body: JSON.stringify(b) }),
-		});
+// ---------- expo projects ----------
 
-	it('needs a session to schedule one', async () => {
-		const { db } = fakeDb([]);
-		const res = await worker.fetch(send('POST', '/api/ideation', body, false), env(db), ctx());
+/**
+ * A D1 stub that answers by SQL: each query is matched against `script` in order and
+ * gets the first row list whose pattern fits. Unlike fakeDb, a create can be signed in,
+ * read an old row and get a RETURNING row back, all in one request.
+ */
+function scriptedDb(script: [RegExp, any[]][]) {
+	const seen: { sql: string; args: unknown[] }[] = [];
+	const rowsFor = (sql: string) => script.find(([re]) => re.test(sql))?.[1] ?? [];
+	const stmt = (sql: string, args: unknown[] = []): any => ({
+		bind: (...a: unknown[]) => stmt(sql, a),
+		run: async () => (seen.push({ sql, args }), { meta: { changes: rowsFor(sql).length } }),
+		all: async () => (seen.push({ sql, args }), { results: rowsFor(sql) }),
+		first: async () => (seen.push({ sql, args }), rowsFor(sql)[0] ?? null),
+	});
+	return { seen, db: { prepare: (sql: string) => stmt(sql) } as unknown as D1Database };
+}
+
+const ADMIN: [RegExp, any[]] = [/FROM admin_login/, [
+	{ active: 1, name: 'Asha R', roll_number: 'IMS21001', collegemail: 'asha@iisertvm.ac.in' },
+]];
+
+/** An R2 stub that remembers what was written and deleted. */
+function fakeBucket(existing: Record<string, string> = {}) {
+	const puts: string[] = [], deletes: string[] = [];
+	return {
+		puts, deletes,
+		media: {
+			put: async (k: string) => { puts.push(k); return {}; },
+			get: async (k: string) => (k in existing
+				? { body: existing[k], httpMetadata: { contentType: 'image/png' } } : null),
+			delete: async (k: string) => { deletes.push(k); },
+		} as unknown as R2Bucket,
+	};
+}
+
+function projectForm(patch: Record<string, string | string[] | File> = {}) {
+	const f = new FormData();
+	const fields = { subject: 'PHY', title: 'Cloud chamber', description: 'Watch muons go by.', team: ['Asha R', 'Vivek M'], ...patch };
+	for (const [k, v] of Object.entries(fields)) {
+		for (const one of Array.isArray(v) ? v : [v]) f.append(k, one);
+	}
+	return f;
+}
+
+const sendForm = (method: string, path: string, body?: FormData, auth = true) =>
+	new Request('https://api.test' + path, {
+		method, ...(body ? { body } : {}),
+		...(auth ? { headers: { Authorization: 'Bearer tok' } } : {}),
+	});
+
+const png = () => new File(['x'], 'p.png', { type: 'image/png' });
+
+describe('parseProject', () => {
+	it('takes the subject code in any case and drops blank team rows', () => {
+		const p = parseProject(projectForm({ subject: 'bio', team: ['Asha R', '  ', 'Vivek M'] }));
+		assert.equal(p.subject, 'BIO');
+		assert.deepEqual(p.team, ['Asha R', 'Vivek M']);
+	});
+
+	it('refuses a subject that is not one of the six, and a team with nobody in it', () => {
+		assert.throws(() => parseProject(projectForm({ subject: 'ART' })), /subject/i);
+		assert.throws(() => parseProject(projectForm({ team: ['', ' '] })), /team member/i);
+	});
+});
+
+describe('projectImageKey', () => {
+	it('names the photo after the exhibit, under projects/', () => {
+		assert.equal(projectImageKey('BIO', 3, 'jpg'), 'projects/BIO_03.jpg');
+		assert.equal(projectImageKey('EES', 12, 'webp'), 'projects/EES_12.webp');
+	});
+});
+
+describe('POST /api/projects', () => {
+	it('needs a session', async () => {
+		const { db } = scriptedDb([]);
+		const res = await worker.fetch(sendForm('POST', '/api/projects', projectForm(), false), env(db), ctx());
 		assert.equal(res.status, 401);
 	});
 
-	it('stamps the row with the admin who typed it, not with a join', async () => {
-		const { db, seen } = signedIn();
-		const res = await worker.fetch(send('POST', '/api/ideation', body), env(db), ctx());
-		assert.equal(res.status, 201);
-		const insert = seen.find((q) => /INSERT INTO ideation_meetings/.test(q.sql));
-		assert.ok(insert, 'no insert ran');
-		// id, subject, starts_at (normalised off the T), venue, then who.
-		assert.ok(looksLikeMeetingId(insert!.args[0]));
-		assert.deepEqual(insert!.args.slice(1), [
-			'Hall themes', '2026-03-02 17:30', 'LH 101',
-			'Asha R', 'IMS21001', 'asha@iisertvm.ac.in',
-		]);
-	});
-
-	it('rejects a start time that is not a real date', async () => {
-		const { db } = signedIn();
+	it('numbers it inside the INSERT and files the photo under that number', async () => {
+		const { db, seen } = scriptedDb([ADMIN, [/INSERT INTO projects/, [{ project_id: 7, project_no: 4 }]]]);
+		const bucket = fakeBucket();
 		const res = await worker.fetch(
-			send('POST', '/api/ideation', { ...body, starts_at: '2026-02-30 10:00' }), env(db), ctx(),
+			sendForm('POST', '/api/projects', projectForm({ image: png() })), env(db, bucket.media), ctx(),
 		);
+		assert.equal(res.status, 201);
+
+		const insert = seen.find((q) => /INSERT INTO projects/.test(q.sql))!;
+		// Read-then-write would let two admins both claim the same number.
+		assert.match(insert.sql, /COALESCE\(MAX\(project_no\), 0\) \+ 1/);
+		assert.deepEqual(JSON.parse(String(insert.args[3])), ['Asha R', 'Vivek M']);
+
+		assert.deepEqual(bucket.puts, ['projects/PHY_04.png']);
+		const update = seen.find((q) => /UPDATE projects SET image_path/.test(q.sql))!;
+		assert.deepEqual(update.args, ['projects/PHY_04.png', 7]);
+	});
+
+	it('refuses a bad photo before writing a row', async () => {
+		const { db, seen } = scriptedDb([ADMIN]);
+		const svg = new File(['x'], 'p.svg', { type: 'image/svg+xml' });
+		const res = await worker.fetch(sendForm('POST', '/api/projects', projectForm({ image: svg })), env(db), ctx());
 		assert.equal(res.status, 400);
-		assert.equal((await res.json() as any).error, 'bad_datetime');
+		assert.equal((await res.json() as any).error, 'bad_image_type');
+		assert.ok(!seen.some((q) => /INSERT INTO projects/.test(q.sql)), 'no row for a refused photo');
 	});
+});
 
-	it('an edit records the editor and leaves the caller alone', async () => {
-		const { db, seen } = signedIn();
-		const res = await worker.fetch(send('PUT', '/api/ideation/IDE_00000000', body), env(db), ctx());
+describe('PUT /api/projects/:id', () => {
+	it('moving subject renames the photo to the new code, then drops the old one', async () => {
+		const { db, seen } = scriptedDb([
+			ADMIN,
+			[/SELECT subject, project_no, image_path FROM projects/, [{ subject: 'BIO', project_no: 3, image_path: 'projects/BIO_03.png' }]],
+			[/UPDATE projects\s+SET project_no/, [{ project_no: 5 }]],
+		]);
+		const bucket = fakeBucket({ 'projects/BIO_03.png': 'bytes' });
+		const res = await worker.fetch(sendForm('PUT', '/api/projects/9', projectForm()), env(db, bucket.media), ctx());
 		assert.equal(res.status, 200);
-		const sql = seen.find((q) => /UPDATE ideation_meetings/.test(q.sql))!.sql;
-		assert.match(sql, /updated_by_name = \?/);
-		assert.doesNotMatch(sql, /created_by/);
+		assert.deepEqual(bucket.puts, ['projects/PHY_05.png']);
+		assert.deepEqual(bucket.deletes, ['projects/BIO_03.png']);
+		const update = seen.find((q) => /UPDATE projects SET image_path/.test(q.sql))!;
+		assert.deepEqual(update.args, ['projects/PHY_05.png', 9]);
 	});
 
-	it('rejects an id shaped like an event id', async () => {
-		const { db } = signedIn();
-		const res = await worker.fetch(send('DELETE', '/api/ideation/EVT_00000000'), env(db), ctx());
+	it('remove_image clears the column and the object', async () => {
+		const { db, seen } = scriptedDb([
+			ADMIN,
+			[/SELECT subject, project_no, image_path FROM projects/, [{ subject: 'PHY', project_no: 2, image_path: 'projects/PHY_02.jpg' }]],
+			[/UPDATE projects\s+SET project_no/, [{ project_no: 2 }]],
+		]);
+		const bucket = fakeBucket();
+		const res = await worker.fetch(
+			sendForm('PUT', '/api/projects/9', projectForm({ remove_image: '1' })), env(db, bucket.media), ctx(),
+		);
+		assert.equal(res.status, 200);
+		assert.deepEqual(bucket.deletes, ['projects/PHY_02.jpg']);
+		assert.deepEqual(seen.find((q) => /UPDATE projects SET image_path/.test(q.sql))!.args, [null, 9]);
+	});
+
+	it('404s a project that does not exist', async () => {
+		const { db } = scriptedDb([ADMIN]);
+		const res = await worker.fetch(sendForm('PUT', '/api/projects/404', projectForm()), env(db), ctx());
 		assert.equal(res.status, 404);
 	});
+});
 
-	it('the public list hides what has already happened; ?all=1 needs an admin', async () => {
-		const { db, seen } = fakeDb([]);
-		const open = await worker.fetch(send('GET', '/api/ideation', undefined, false), env(db), ctx());
-		assert.equal(open.status, 200);
-		assert.match(seen.at(-1)!.sql, /WHERE starts_at > \?/);
+describe('DELETE /api/projects/:id', () => {
+	it('takes the photo with it', async () => {
+		const { db } = scriptedDb([ADMIN, [/DELETE FROM projects/, [{ image_path: 'projects/MAT_01.jpg' }]]]);
+		const bucket = fakeBucket();
+		const res = await worker.fetch(sendForm('DELETE', '/api/projects/3'), env(db, bucket.media), ctx());
+		assert.equal(res.status, 200);
+		assert.deepEqual(bucket.deletes, ['projects/MAT_01.jpg']);
+	});
+});
 
-		const { db: db2 } = fakeDb([]);
-		const all = await worker.fetch(send('GET', '/api/ideation?all=1', undefined, false), env(db2), ctx());
-		assert.equal(all.status, 401);
+describe('GET /api/projects', () => {
+	it('is public, in floor order, with the team unpacked into an array', async () => {
+		const { db, seen } = scriptedDb([[/FROM projects ORDER BY/, [
+			{ project_id: 1, subject: 'BIO', project_no: 1, title: 't', description: 'd', team: '["A","B"]', has_image: 1, v: 'x' },
+		]]]);
+		const res = await worker.fetch(sendForm('GET', '/api/projects', undefined, false), env(db), ctx());
+		assert.equal(res.status, 200);
+		const { projects } = await res.json() as any;
+		assert.deepEqual(projects[0].team, ['A', 'B']);
+		assert.equal(projects[0].has_image, true);
+		assert.match(seen[0].sql, /ORDER BY subject, project_no/);
 	});
 });

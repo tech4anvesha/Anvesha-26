@@ -1,0 +1,122 @@
+/* ============================================================
+   ANVESHA '26 — the project folder
+
+   The card a project opens into on /projects, and the live preview beside the form on
+   /admin/expo. One stylesheet for both so the preview can never drift from what a
+   visitor sees. Markup: components/ProjectFolder.astro; filled by scripts/folder.ts.
+
+   A folder: a tab with the exhibit code standing off the top edge, the photo across
+   the full width, the record under it, and a ruled strip of fields along the foot
+   like the label on an index card.
+
+   The narrow layout keys off the folder's OWN width (a container query), not the
+   screen's: the admin preview is narrow on a wide screen, the popup wide on one.
+   ============================================================ */
+
+.pm {
+	container-type: inline-size;
+	position: relative;
+	width: min(860px, 100%);
+	background: var(--primary);
+	border: var(--stroke) solid var(--secondary); border-radius: 0 var(--r) var(--r) var(--r);
+	box-shadow: 8px 8px 0 var(--accent);
+}
+
+/* The folder tab. It sits a stroke lower than the sheet's top edge and is painted over
+   it, so the sheet's border runs out from under the tab rather than across it — tab
+   and folder read as one piece of card. Anything holding a folder must leave ~40px
+   above it for the tab. */
+.pm-tab {
+	position: absolute; left: calc(-1 * var(--stroke)); bottom: calc(100% - var(--stroke)); z-index: 1;
+	display: inline-flex; align-items: center; gap: 9px;
+	padding: 9px 18px 10px 14px;
+	font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+	background: var(--primary);
+	border: var(--stroke) solid var(--secondary); border-bottom: 0;
+	border-radius: 6px 6px 0 0;
+}
+.pm-tab-icon { display: grid; place-items: center; color: var(--accent); }
+.pm-tab-icon svg { width: 15px; height: 15px; stroke-width: 2; }
+
+.pm-x {
+	position: absolute; top: 12px; right: 12px; z-index: 1;
+	display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+}
+.pm-x svg { width: 15px; height: 15px; stroke-width: 2.4; }
+
+/* Landscape and full width: the folder is laid out across, the photo is its banner. */
+.pm-media {
+	position: relative; margin: 0;
+	aspect-ratio: 16 / 7;
+	background: var(--sink);
+	border-bottom: var(--stroke) solid var(--secondary);
+	overflow: hidden;
+}
+.pm-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pm-media-empty { position: absolute; inset: 0; display: none; place-items: center; color: var(--ink-40); }
+.pm-media-empty svg { width: 34px; height: 34px; stroke-width: 1.3; }
+.pm-media.is-empty img { display: none; }
+.pm-media.is-empty .pm-media-empty { display: grid; }
+
+.pm-body { padding: clamp(20px, 2.8vw, 30px); }
+.pm-title {
+	margin: 0 0 18px;
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-weight: 900; font-size: clamp(24px, 3vw, 34px);
+	line-height: 1; letter-spacing: -.02em; text-transform: uppercase;
+	text-wrap: balance; overflow-wrap: anywhere;
+}
+/* Summary and team side by side: the sheet is wide, and a team list under a two-line
+   summary would leave half of it empty. */
+.pm-cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; }
+.pm-summary {
+	margin: 0; font-size: 14.5px; line-height: 1.68; color: var(--ink-60);
+	text-wrap: pretty; white-space: pre-line; overflow-wrap: anywhere;
+}
+.pm-team { padding-left: 24px; border-left: 1.5px solid var(--hair); }
+.pm-label {
+	margin: 0 0 6px;
+	font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
+}
+/* A numbered roll call: in here there is room for one name a line. */
+.pm-members { margin: 0; padding: 0; list-style: none; counter-reset: m; }
+.pm-members li {
+	counter-increment: m;
+	display: flex; align-items: baseline; gap: 12px;
+	padding: 8px 0;
+	font-size: 14px; font-weight: 700; letter-spacing: -.01em;
+	border-bottom: 1.5px solid var(--hair);
+	overflow-wrap: anywhere;
+}
+.pm-members li:last-child { border-bottom: 0; }
+.pm-members li::before {
+	content: counter(m, decimal-leading-zero);
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 10px; font-weight: 500; color: var(--accent);
+}
+
+/* The index-card label along the foot: three ruled fields. */
+.pm-fields {
+	display: grid; grid-template-columns: 2fr 1fr 1fr; margin: 0;
+	background: var(--sink);
+	border-top: var(--stroke) solid var(--secondary);
+}
+.pm-fields > div { min-width: 0; padding: 12px clamp(14px, 2.2vw, 22px); }
+.pm-fields > div + div { border-left: var(--stroke) solid var(--secondary); }
+.pm-fields dt {
+	font-family: 'DM Mono', ui-monospace, monospace;
+	font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40);
+}
+.pm-fields dd {
+	margin: 4px 0 0;
+	font-family: 'Archivo Expanded', 'Archivo', sans-serif;
+	font-weight: 800; font-size: 13px; letter-spacing: -.01em;
+	white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+@container (max-width: 600px) {
+	.pm-media { aspect-ratio: 4 / 3; }
+	.pm-cols { grid-template-columns: 1fr; gap: 18px; }
+	.pm-team { padding: 16px 0 0; border-left: 0; border-top: 1.5px solid var(--hair); }
+	.pm-fields { grid-template-columns: 1.4fr 1fr 1fr; }
+}

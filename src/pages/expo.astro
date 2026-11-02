@@ -3,34 +3,38 @@
  * AFICIONADOS — the science fair. Routed at /expo; the nav keeps that word, the page
  * does not.
  *
- * One page, five blocks: the pitch and a countdown, last year's floor as a running reel,
- * the next ideation meeting, the six subjects with their coordinators, and the forms.
+ * One page, four blocks: the pitch and the way in to the projects, last year's floor
+ * as a running reel, the six subjects with their coordinators, and the forms.
  *
  * Everything below is data. The six subjects, their domains and their coordinators all
  * come off one array, so adding a subject is one entry and no markup.
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
-import { EVENTS_API } from '../lib/api';
 import { HALLS } from '../lib/expo';
 
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iUsers from 'lucide-static/icons/users.svg?raw';
+import iSend from 'lucide-static/icons/send.svg?raw';
+import iMessage from 'lucide-static/icons/message-circle.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
 
-// The floor opens on the 30th. The countdown targets 00:00 IST that morning, written as
-// a UTC instant so it is the same moment for a reader in any timezone — IST is UTC+5:30,
-// so midnight IST is 18:30 UTC the evening before.
-// TODO(anvesha): one line to move if the opening shifts.
-const OPENS_UTC = '2026-10-29T18:30:00Z';
 const DATES = '30 & 31 October';
 const VENUE = 'Indoor Stadium';
+
+const LINKS = [
+	{ label: 'Participation form', note: 'Enter a project', icon: iSend,
+	  href: 'https://docs.google.com/forms/d/e/1FAIpQLSeXSXF3gYAXDUrZcfX1_SOR-sIIjHj_vROL_wNPu-cnR8_vjQ/viewform?usp=dialog' },
+	{ label: 'Mentor form', note: 'Offer to mentor a team', icon: iUsers,
+	  href: 'https://forms.gle/Zg9RLvKmFnmwkj836' },
+	{ label: 'WhatsApp community', note: 'Ask questions, find a team', icon: iMessage,
+	  href: 'https://chat.whatsapp.com/HiHfSuBzF4f7kGCDwCO0Fw' },
+];
 
 // Derived, so the copy cannot drift from the table under it.
 const lastYearTotal = HALLS.reduce((n, h) => n + h.n, 0);
 const leadCount = HALLS.reduce((n, h) => n + h.leads.length, 0);
-const projectTotal = HALLS.reduce((n, h) => n + h.projects.length, 0);
 
 /**
  * The gallery — ten photographs from the '25 floor, split five and five.
@@ -197,26 +201,15 @@ const pad = (n: number) => String(n).padStart(2, '0');
 				poster.
 			</p>
 
-			{/* ---- the countdown ----
-			    Server-rendered as dashes and filled by script. The markup is the shape of the
-			    thing, so nothing jumps when the numbers arrive, and a reader with no JS sees
-			    the date on the strip below rather than a broken clock. */}
-			<div class="xp-clock" id="xpClock" data-opens={OPENS_UTC} role="timer"
-			     aria-label={`Countdown to the Expo floor opening on ${DATES}`}>
-				{[
-					['xpD', 'Days'], ['xpH', 'Hours'], ['xpM', 'Minutes'], ['xpS', 'Seconds'],
-				].map(([id, label]) => (
-					<div class="xp-cell">
-						<span class="xp-n" id={id}>--</span>
-						<span class="xp-l">{label}</span>
-					</div>
-				))}
-			</div>
-			<p class="xp-clock-note mono" id="xpNote">Doors open {DATES}</p>
+			{/* ---- the way in ----
+			    The floor has closed, so the countdown gave way to what was on it. */}
+			<a class="cta xp-cta" href="/projects">
+				<span>View Projects</span>
+				<span set:html={iArrowRight} />
+			</a>
 
-			{/* When and where sit WITH the clock, not in a section further down: they are the
-			    three facts the countdown is counting toward, and a reader who has just seen
-			    "52 days" is asking "until what, and where" in the same breath. */}
+			{/* When and where stay in the header rather than a section further down: they
+			    are the first two things anyone asks about a fair. */}
 			<dl class="xp-facts">
 				{[
 					{ k: 'When', v: `${DATES} 2026`, icon: iCalendar },
@@ -266,47 +259,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			<p class="xp-reel-note mono">Hover to hold it still.</p>
 		</section>
 
-		{/* ---- ideation meetings ----
-		    The one block on this page that is not written here: it comes off the events
-		    Worker so the Expo team can move a meeting without a deploy.
-
-		    A real <table>, because this is one: four columns of the same four facts, and
-		    the thing a reader does with it is scan down a column. The <thead> and the
-		    empty <tbody> are server-rendered so the shape is there before the fetch lands
-		    and nothing jumps when it does. */}
-		<section class="section" data-reveal>
-			<div class="sechead">
-				<span class="sechead-label">Ideation</span>
-				<span class="sechead-rule"></span>
-				<span class="sechead-meta" id="ideMeta"></span>
-			</div>
-
-			<div class="xp-ide" id="xpIde" data-api={EVENTS_API}>
-				{/* The wrapper scrolls, not the page: four columns do not fit a phone, and a
-				    table that makes the whole document scroll sideways is worse than one
-				    that scrolls inside its own box. */}
-				<div class="xp-ide-scroll" id="ideScroll" hidden>
-					<table class="xp-ide-table">
-						<caption class="xp-ide-cap">Upcoming ideation meetings</caption>
-						<thead>
-							<tr>
-								<th scope="col">Meeting</th>
-								<th scope="col">Date</th>
-								<th scope="col">Time</th>
-								<th scope="col">Venue</th>
-							</tr>
-						</thead>
-						<tbody id="ideBody"></tbody>
-					</table>
-				</div>
-
-				{/* Carries the loading, empty and failed states in turn. Starts as loading
-				    text rather than empty, so a slow network reads as "working" and not as
-				    "there are no meetings". */}
-				<p class="xp-ide-note" id="ideNote">Checking the calendar&hellip;</p>
-			</div>
-		</section>
-
 		{/* ---- the halls ----
 		    Six subjects, each with what it covered last year and who to call about it. */}
 		<section class="section" data-reveal>
@@ -346,203 +298,29 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			</p>
 		</section>
 
-		{/* ---- the projects ----
-		    Where the forms used to be. Every subject's projects live on /projects, one
-		    page with the subjects as tabs, so this is one door rather than six. */}
-		<section class="section xp-proj" data-reveal>
+		{/* ---- the forms ---- */}
+		<section class="section" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">Projects</span>
+				<span class="sechead-label">Take part</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta"><b>{projectTotal}</b> on the floor this year</span>
+				<span class="sechead-meta">Three ways in</span>
 			</div>
 
-			<div class="xp-proj-row">
-				<p class="xp-proj-text">
-					Every exhibit on the floor, subject by subject &mdash; what each team built
-					and who built it.
-				</p>
-				<a class="cta" href="/projects">
-					<span>View projects</span>
-					<span set:html={iArrowRight} />
-				</a>
+			<div class="xp-links">
+				{LINKS.map((l) => (
+					<a class="xp-link" href={l.href} target="_blank" rel="noopener noreferrer">
+						<span class="xp-link-icon" set:html={l.icon} />
+						<span class="xp-link-body">
+							<span class="xp-link-label">{l.label}</span>
+							<span class="xp-link-note">{l.note}</span>
+						</span>
+						<span class="xp-link-go" set:html={iArrowRight} />
+					</a>
+				))}
 			</div>
 		</section>
 	</div>
 </SiteLayout>
-
-<script>
-	import { onCatalogueChange } from '../lib/admin';
-
-	/**
-	 * The countdown.
-	 *
-	 * Rebound on every client-router navigation and torn down through its own interval
-	 * handle — otherwise a timer started on this page keeps ticking against elements that
-	 * have been swapped out from under it.
-	 *
-	 * The target is an absolute UTC instant in the markup, not a local date built in
-	 * script: `new Date('2026-10-30')` is midnight UTC, which is half past five in the
-	 * morning in IST, and a reader abroad would be counting to a different moment again.
-	 */
-	let tick = 0;
-
-	function countdown() {
-		clearInterval(tick);
-
-		const box = document.getElementById('xpClock');
-		if (!box) return;
-
-		const opens = Date.parse(box.dataset.opens ?? '');
-		if (Number.isNaN(opens)) return;
-
-		const cells = ['xpD', 'xpH', 'xpM', 'xpS'].map((id) => document.getElementById(id));
-		const note = document.getElementById('xpNote');
-		if (cells.some((c) => !c)) return;
-
-		const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
-
-		const draw = () => {
-			const left = opens - Date.now();
-
-			if (left <= 0) {
-				clearInterval(tick);
-				box.classList.add('is-open');
-				for (const c of cells) c!.textContent = '00';
-				if (note) note.textContent = 'The floor is open — Indoor Stadium';
-				return;
-			}
-
-			const s = Math.floor(left / 1000);
-			// Days is not padded to two: a three-digit countdown is a real state this page
-			// spends most of the year in.
-			cells[0]!.textContent = String(Math.floor(s / 86400));
-			cells[1]!.textContent = pad(Math.floor(s / 3600) % 24);
-			cells[2]!.textContent = pad(Math.floor(s / 60) % 60);
-			cells[3]!.textContent = pad(s % 60);
-		};
-
-		draw();
-		tick = window.setInterval(draw, 1000);
-	}
-
-	/**
-	 * The next ideation meeting.
-	 *
-	 * Fills the card that is already in the DOM rather than building one, and keeps a
-	 * live socket open so a meeting moved in the admin panel lands on an open page
-	 * without a reload — the same hub the events page listens to, filtered to 'ideation'
-	 * so an edit to the programme does not refetch this.
-	 */
-	let stopIde: (() => void) | null = null;
-
-	/** 'YYYY-MM-DD HH:MM' -> the two strings the card shows. */
-	function readStamp(s: string) {
-		const [d, t] = s.split(' ');
-		const [y, mo, day] = d.split('-').map(Number);
-		const [hh, mm] = t.split(':').map(Number);
-		// Built from the parts in LOCAL time on purpose. The stamp is naive IST and the
-		// only job here is to render those same numbers back with a weekday and a 12-hour
-		// clock; going through UTC would shift both by five and a half hours.
-		const at = new Date(y, mo - 1, day, hh, mm);
-		return {
-			iso: `${d}T${t}`,
-			dow: at.toLocaleDateString('en-IN', { weekday: 'short' }),
-			day: String(day),
-			mon: at.toLocaleDateString('en-IN', { month: 'short' }),
-			time: at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
-		};
-	}
-
-	async function ideation() {
-		stopIde?.();
-		stopIde = null;
-
-		const box = document.getElementById('xpIde');
-		if (!box) return;
-
-		const api = box.dataset.api;
-		const $ = (id: string) => document.getElementById(id) as HTMLElement;
-		const scroll = $('ideScroll'), body = $('ideBody'), note = $('ideNote'), meta = $('ideMeta');
-
-		async function refresh() {
-			try {
-				const res = await fetch(api + '/api/ideation');
-				if (!res.ok) throw new Error(String(res.status));
-				const list = ((await res.json()) as { meetings?: any[] }).meetings ?? [];
-
-				if (!list.length) {
-					scroll.hidden = true;
-					body.textContent = '';
-					note.hidden = false;
-					note.textContent = 'No meeting on the calendar yet — check back, or ask on the group.';
-					meta.textContent = '';
-					return;
-				}
-
-				body.textContent = '';
-				list.forEach((m: any, i: number) => {
-					const w = readStamp(String(m.starts_at));
-					const tr = document.createElement('tr');
-					// The soonest one is the one anybody came here for. A class, not a
-					// separate block above the table — it stays in the column it belongs to.
-					if (i === 0) tr.className = 'is-next';
-
-					const name = document.createElement('th');
-					name.scope = 'row';
-					name.className = 'xp-ide-name';
-					// textContent, not innerHTML: a subject is free text an admin typed.
-					name.textContent = String(m.subject);
-					if (i === 0) {
-						const chip = document.createElement('span');
-						chip.className = 'xp-ide-next mono';
-						chip.textContent = 'NEXT';
-						name.append(chip);
-					}
-
-					const date = document.createElement('td');
-					date.className = 'xp-ide-date mono';
-					const t = document.createElement('time');
-					t.dateTime = w.iso;
-					t.textContent = `${w.dow} ${w.day} ${w.mon}`;
-					date.append(t);
-
-					const time = document.createElement('td');
-					time.className = 'xp-ide-time mono';
-					time.textContent = w.time;
-
-					const venue = document.createElement('td');
-					venue.className = 'xp-ide-venue';
-					venue.textContent = String(m.venue);
-
-					tr.append(name, date, time, venue);
-					body.append(tr);
-				});
-
-				meta.innerHTML = `<b>${list.length}</b> scheduled`;
-				scroll.hidden = false;
-				note.hidden = true;
-			} catch {
-				// A dead Worker must not leave "Checking the calendar…" on screen forever.
-				scroll.hidden = true;
-				body.textContent = '';
-				note.hidden = false;
-				note.textContent = 'Could not reach the calendar just now.';
-				meta.textContent = '';
-			}
-		}
-
-		await refresh();
-		if (api) stopIde = onCatalogueChange(refresh, ['ideation'], api);
-	}
-
-	document.addEventListener('astro:page-load', countdown);
-	document.addEventListener('astro:page-load', ideation);
-	document.addEventListener('astro:before-swap', () => {
-		clearInterval(tick);
-		stopIde?.();
-		stopIde = null;
-	});
-</script>
 
 <style>
 	/* ============ THE GROUND ============
@@ -688,52 +466,17 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	}
 
 	/* ============ THE PITCH ============
-	   Centred, because the countdown is the thing this block is built around and a clock
-	   ranged left with a column of text beside it reads as a widget rather than a header. */
+	   Centred: a title, one paragraph and one button read as a header, not a column. */
 	.xp-head {
 		padding-bottom: clamp(26px, 3.4vw, 40px);
 		display: flex; flex-direction: column; align-items: center; text-align: center;
 	}
 	.xp-head .lede { max-width: 62ch; }
 
-	/* ---- the countdown ----
-	   Four equal cells over one ink ground: the gap IS the divider, so no cell needs a
-	   border of its own and there are no nth-child sums to keep in step. */
-	.xp-clock {
-		display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: var(--stroke);
-		width: 100%; max-width: 520px; margin: clamp(24px, 3vw, 34px) auto 0;
-		background: var(--secondary);
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		overflow: hidden;
-	}
-	.xp-cell {
-		display: flex; flex-direction: column; align-items: center; gap: 4px;
-		padding: clamp(12px, 1.6vw, 18px) 6px;
-		background: var(--primary);
-	}
-	.xp-n {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(26px, 4.4vw, 44px); line-height: 1;
-		letter-spacing: -.03em;
-		/* Tabular figures, or the whole row shifts every time a 1 ticks past. */
-		font-variant-numeric: tabular-nums;
-	}
-	.xp-l {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9px; letter-spacing: .18em; text-transform: uppercase;
-		color: var(--ink-60);
-	}
-	/* When it reaches zero the clock stops being a clock and becomes a sign. */
-	.xp-clock.is-open .xp-n { color: var(--accent); }
-	.xp-clock-note {
-		margin: 10px 0 0;
-		font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-		color: var(--ink-60);
-	}
+	.xp-cta { margin-top: clamp(24px, 3vw, 34px); }
 
-	/* The three facts the clock is counting toward. One ink ground, the gap drawing every
-	   divider — same construction as the clock above, so they read as one instrument. */
+	/* The three facts. One ink ground, the gap drawing every divider, so no cell needs a
+	   border of its own. */
 	.xp-facts {
 		display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: var(--stroke);
@@ -762,87 +505,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 	@media (max-width: 620px) {
 		.xp-facts { grid-template-columns: minmax(0, 1fr); }
 	}
-
-	/* ============ IDEATION ============
-	   A table, because that is what this is: four columns of the same four facts, read by
-	   scanning down one of them. The rows are built in script, so their rules are
-	   :global() — this page's <style> is scoped and a scoped rule never reaches an element
-	   that was not in the server-rendered HTML. Every one is anchored on .xp-ide-table,
-	   which IS server-rendered, so nothing here escapes the section. */
-	.xp-ide { display: grid; }
-
-	.xp-ide-scroll {
-		overflow-x: auto; overscroll-behavior-x: contain;
-		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		background: var(--primary);
-	}
-	.xp-ide-scroll[hidden] { display: none; }
-
-	.xp-ide-table {
-		width: 100%; min-width: 520px;
-		border-collapse: collapse;
-		text-align: left;
-	}
-	/* Named for a screen reader, off-screen for everyone else. The section's own heading
-	   is decorative markup that cannot be associated with a table. */
-	.xp-ide-cap {
-		position: absolute; width: 1px; height: 1px;
-		margin: -1px; padding: 0; overflow: hidden;
-		clip-path: inset(50%); white-space: nowrap;
-	}
-	/* Both selectors, and the tbody one is :global(). A scoped `.xp-ide-table td` reaches
-	   the <thead> because that is in the server-rendered HTML, and silently does NOT reach
-	   the body cells, which script builds — which showed up as a properly padded header
-	   sitting on top of rows 27px tall. */
-	.xp-ide-table thead th,
-	.xp-ide-table :global(tbody th), .xp-ide-table :global(tbody td) {
-		padding: 12px clamp(12px, 1.5vw, 18px);
-		vertical-align: baseline;
-	}
-	.xp-ide-table thead th {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 9px; font-weight: 400; letter-spacing: .2em; text-transform: uppercase;
-		color: var(--ink-60);
-		background: var(--sink);
-		border-bottom: var(--stroke) solid var(--secondary);
-		white-space: nowrap;
-	}
-	/* The rule belongs to the row above, so the last one does not draw a line against the
-	   table's own border. */
-	.xp-ide-table :global(tbody tr + tr) { border-top: 1.5px solid var(--hair); }
-
-	.xp-ide-table :global(.xp-ide-name) {
-		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: clamp(12.5px, 1.2vw, 14.5px); letter-spacing: -.01em;
-		color: var(--secondary);
-		display: flex; align-items: baseline; gap: 9px;
-	}
-	/* The soonest meeting, marked in the column it belongs to rather than lifted out into
-	   a block of its own above the table. */
-	.xp-ide-table :global(.xp-ide-next) {
-		flex: none; padding: 2px 6px;
-		font-size: 8.5px; letter-spacing: .16em;
-		color: var(--primary); background: var(--accent); border-radius: 1px;
-	}
-	/* Tabular figures down both: a column of dates that jogs left and right as the day
-	   number changes width is not a column. */
-	.xp-ide-table :global(.xp-ide-date),
-	.xp-ide-table :global(.xp-ide-time) {
-		font-size: 11px; letter-spacing: .06em; color: var(--ink-60);
-		font-variant-numeric: tabular-nums; white-space: nowrap;
-	}
-	.xp-ide-table :global(.xp-ide-date) { text-transform: uppercase; color: var(--accent); }
-	.xp-ide-table :global(.xp-ide-venue) {
-		font-size: 12.5px; color: var(--secondary);
-	}
-	.xp-ide-table :global(tbody tr:hover) { background: var(--sink); }
-
-	.xp-ide-note {
-		margin: 0; padding: clamp(18px, 2.2vw, 26px);
-		font-size: 13px; line-height: 1.6; color: var(--ink-60);
-		border: 1.5px dashed var(--hair); border-radius: var(--r);
-	}
-	.xp-ide-note[hidden] { display: none; }
 
 	/* ============ LAST YEAR ============
 	   Two rows of five, travelling opposite ways. The frames in each row are rendered
@@ -987,23 +649,42 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		font-size: 10px; letter-spacing: .08em; line-height: 1.7; color: var(--ink-60);
 	}
 
-	/* ============ THE PROJECTS ============ */
-	.xp-proj-row {
-		display: flex; align-items: center; justify-content: space-between;
-		flex-wrap: wrap; gap: 18px 28px;
-		padding: clamp(18px, 2.4vw, 26px);
+	/* ============ THE FORMS ============ */
+	.xp-links {
+		display: grid; gap: 12px;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	}
+	.xp-link {
+		display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+		padding: 16px 18px;
+		text-decoration: none; color: inherit;
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
+		transition: box-shadow .16s ease, transform .16s ease;
 	}
-	.xp-proj-text {
-		margin: 0; max-width: 52ch;
+	.xp-link:hover, .xp-link:focus-visible {
+		transform: translate(-2px, -2px); box-shadow: var(--pop);
+	}
+	.xp-link-icon { display: block; line-height: 0; color: var(--accent); }
+	.xp-link-icon svg { width: 22px; height: 22px; stroke-width: 1.8; }
+	.xp-link-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+	.xp-link-label {
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: clamp(15px, 1.8vw, 19px); line-height: 1.35; letter-spacing: -.01em;
-		text-wrap: balance;
+		font-weight: 800; font-size: 13.5px; letter-spacing: -.01em;
+	}
+	.xp-link-note {
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .1em; color: var(--ink-60);
+	}
+	.xp-link-go { display: block; line-height: 0; color: var(--secondary); }
+	.xp-link-go svg { width: 16px; height: 16px; stroke-width: 2.2; }
+
+	@media (prefers-reduced-motion: reduce) {
+		.xp-link, .xp-lead { transition: none; }
+		.xp-link:hover, .xp-link:focus-visible { transform: none; }
 	}
 
 	@media (max-width: 560px) {
-		.xp-clock { max-width: none; }
 		.xp-hall-top { grid-template-columns: auto auto 1fr; row-gap: 8px; }
 		.xp-hall-count { grid-column: 1 / -1; }
 	}
