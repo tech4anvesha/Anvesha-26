@@ -920,8 +920,8 @@
     "semantic_hash": ""
   },
   "src/pages/projects.astro": {
-    "mtime": 1793600655.1792772,
-    "ast_hash": "d5ec5d474557088e7667f9843a5e1445",
+    "mtime": 1793600838.3293245,
+    "ast_hash": "8d896584bc98dda2091ceb8a160cb41c",
     "semantic_hash": ""
   },
   "src/components/ProjectFolder.astro": {

@@ -109,9 +109,9 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 							<span class="field-label">Photo</span>
 							<div class="xa-photo">
 								<label class="xa-drop" id="xaDrop">
-									<input type="file" id="fImage" accept="image/jpeg,image/png,image/webp,image/avif" hidden />
+									<input type="file" id="fImage" accept="image/*" hidden />
 									<img class="xa-drop-img" id="xaDropImg" alt="" />
-									<span class="xa-drop-text" id="xaDropText">CHOOSE A PHOTO<br />JPG · PNG · WEBP · AVIF · 6MB</span>
+									<span class="xa-drop-text" id="xaDropText">CHOOSE A PHOTO<br />ANY SIZE · SHRUNK BEFORE UPLOAD</span>
 								</label>
 								<button class="btn xa-photo-x" id="xaPhotoX" type="button" hidden>
 									<span class="xa-add-icon" set:html={iX} /> Remove photo
@@ -164,6 +164,49 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 	const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 	const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 	const MAX_TEAM = 12;
+
+	/**
+	 * Shrinks a photo in the browser before it is uploaded — the upload was the slow
+	 * part of saving: a phone photo is 3–6MB, and every byte of it had to cross the
+	 * network to the Worker before the save could finish.
+	 *
+	 * 1600px on the long side covers the folder at its full 860px on a 2× screen, which
+	 * is the largest anyone will ever see it. WebP at 0.82 lands a typical phone photo
+	 * around 200–400KB; Safari before 17 cannot ENCODE WebP (toBlob quietly hands back a
+	 * PNG), so that case falls back to JPEG. The canvas is painted white first, so a
+	 * transparent PNG flattens onto white rather than black when it becomes a JPEG.
+	 *
+	 * The original goes up untouched if it is already small and a type the Worker takes,
+	 * or if the browser cannot decode it here — the Worker still has the final say.
+	 */
+	const MAX_EDGE = 1600;
+	async function shrinkPhoto(f: File): Promise<File> {
+		let bmp: ImageBitmap;
+		try {
+			bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
+		} catch {
+			return f;
+		}
+		const scale = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
+		if (scale === 1 && f.size <= 500_000 && IMAGE_TYPES.includes(f.type)) { bmp.close(); return f; }
+
+		const c = document.createElement('canvas');
+		c.width = Math.round(bmp.width * scale);
+		c.height = Math.round(bmp.height * scale);
+		const g = c.getContext('2d')!;
+		g.fillStyle = '#fff';
+		g.fillRect(0, 0, c.width, c.height);
+		g.drawImage(bmp, 0, 0, c.width, c.height);
+		bmp.close();
+
+		const encode = (type: string, q: number) => new Promise<Blob | null>((r) => c.toBlob(r, type, q));
+		let out = await encode('image/webp', 0.82);
+		if (out?.type !== 'image/webp') out = await encode('image/jpeg', 0.85);
+		// Never trade a file the Worker accepts for a bigger one.
+		if (!out || (out.size >= f.size && IMAGE_TYPES.includes(f.type))) return f;
+		const ext = out.type === 'image/webp' ? 'webp' : 'jpg';
+		return new File([out], f.name.replace(/\.[^.]*$/, '') + '.' + ext, { type: out.type });
+	}
 
 	const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -244,15 +287,25 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 			fileUrl = f ? URL.createObjectURL(f) : null;
 			render();
 		}
+		/** Settles once the picked photo has been shrunk; saving waits on it. */
+		let shrinking: Promise<void> = Promise.resolve();
 		fImage.addEventListener('change', () => {
-			const f = fImage.files?.[0] ?? null;
+			const picked = fImage.files?.[0] ?? null;
 			fImage.value = ''; // so picking the same file again still fires
-			if (!f) return;
-			if (!IMAGE_TYPES.includes(f.type)) return showErr('Use a JPG, PNG, WEBP or AVIF photo.');
-			if (f.size > MAX_IMAGE_BYTES) return showErr('The photo must be 6MB or smaller.');
+			if (!picked) return;
 			errEl.hidden = true;
-			removeImage = false;
-			setFile(f);
+			$('xaDropText').textContent = 'PREPARING PHOTO…';
+			// Shrunk the moment it is picked, not on save — by the time the form is filled
+			// in, the work is done and the save only has to send a few hundred KB.
+			shrinking = shrinkPhoto(picked).then((f) => {
+				$('xaDropText').innerHTML = 'CHOOSE A PHOTO<br />ANY SIZE · SHRUNK BEFORE UPLOAD';
+				if (!IMAGE_TYPES.includes(f.type)) return showErr('That file is not a photo this browser can read. Try a JPG or PNG.');
+				if (f.size > MAX_IMAGE_BYTES) return showErr('That photo is still over 6MB after shrinking. Try a smaller one.');
+				removeImage = false;
+				setFile(f);
+				const kb = (n: number) => `${Math.round(n / 1024)}KB`;
+				if (f !== picked) showOk(`Photo shrunk from ${kb(picked.size)} to ${kb(f.size)}.`);
+			});
 		});
 		$('xaPhotoX').onclick = () => {
 			if (file) setFile(null);
@@ -399,6 +452,8 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 			if (!names.length) return showErr('Add at least one team member.');
 			if (task === 'edit' && !editing) return showErr('Pick a project to edit first.');
 
+			saveBtn.disabled = true;
+			await shrinking;
 			const body = new FormData();
 			body.set('subject', fSubject.value);
 			body.set('title', fTitle.value.trim());
@@ -407,7 +462,6 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 			if (file) body.set('image', file);
 			if (removeImage && !file) body.set('remove_image', '1');
 
-			saveBtn.disabled = true;
 			errEl.hidden = okEl.hidden = true;
 			try {
 				const saved = await adminFetch<{ project_id: number; project_no: number; subject: string }>(
