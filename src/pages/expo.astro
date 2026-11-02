@@ -11,19 +11,12 @@
  */
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { EVENTS_API } from '../lib/api';
+import { HALLS } from '../lib/expo';
 
-import iDna from 'lucide-static/icons/dna.svg?raw';
-import iAtom from 'lucide-static/icons/atom.svg?raw';
-import iFlask from 'lucide-static/icons/flask-conical.svg?raw';
-import iSigma from 'lucide-static/icons/sigma.svg?raw';
-import iCpu from 'lucide-static/icons/cpu.svg?raw';
-import iGlobe from 'lucide-static/icons/globe-2.svg?raw';
 import iCalendar from 'lucide-static/icons/calendar-days.svg?raw';
 import iMapPin from 'lucide-static/icons/map-pin.svg?raw';
 import iArrowRight from 'lucide-static/icons/arrow-right.svg?raw';
 import iUsers from 'lucide-static/icons/users.svg?raw';
-import iSend from 'lucide-static/icons/send.svg?raw';
-import iMessage from 'lucide-static/icons/message-circle.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
 
 // The floor opens on the 30th. The countdown targets 00:00 IST that morning, written as
@@ -34,53 +27,10 @@ const OPENS_UTC = '2026-10-29T18:30:00Z';
 const DATES = '30 & 31 October';
 const VENUE = 'Indoor Stadium';
 
-// Last year's floor, by subject. `n` is the project count; the domains are what those
-// projects actually covered.
-const HALLS = [
-	{
-		name: 'Biology', icon: iDna, n: 12,
-		blurb: 'Botany through to neurobiology — living systems taken apart on the table, from tissue under a microscope to whole-organism behaviour.',
-		leads: ['Sarbajit Pathak', 'Ankita Acharya', 'Gargi Datta'],
-	},
-	{
-		name: 'Physics', icon: iAtom, n: 18,
-		blurb: 'Fluids, plasmas and quantum mechanics, mostly as apparatus you are meant to set going yourself rather than read about.',
-		leads: ['Akshara Somala Raju', 'Sambit Dutta', 'Pranav Guptta'],
-	},
-	{
-		name: 'Chemistry', icon: iFlask, n: 8,
-		blurb: 'Synthesis, crystals and polymers — the bench chemistry that has to be watched happening to make any sense.',
-		leads: ['Mahalakshmi M', 'Pavithra Praveen', 'Aditya Katti'],
-	},
-	{
-		name: 'Mathematics', icon: iSigma, n: 12,
-		blurb: 'Knots, number theory and dynamical systems, built into objects you can turn over in your hands.',
-		leads: ['Akash N', 'Arpan Koul', 'Joel Jobby Jacob'],
-	},
-	{
-		name: 'Data Science', icon: iCpu, n: 13,
-		blurb: 'Vision models, robots and signal processing, running live on hardware small enough to carry to a table.',
-		leads: ['Saurabh Kumar Singh'],
-	},
-	{
-		name: 'Earth, Environmental & Sustainability Sciences', icon: iGlobe, n: 9,
-		blurb: 'Oceans, atmosphere and the carbon cycle — the planet at whatever scale a table can hold.',
-		leads: ['Sonavane Samiksha Nilesh', 'Maheen Rituraj Buddhisagar'],
-	},
-];
-
-const LINKS = [
-	{ label: 'Participation form', note: 'Enter a project', icon: iSend,
-	  href: 'https://docs.google.com/forms/d/e/1FAIpQLSeXSXF3gYAXDUrZcfX1_SOR-sIIjHj_vROL_wNPu-cnR8_vjQ/viewform?usp=dialog' },
-	{ label: 'Mentor form', note: 'Offer to mentor a team', icon: iUsers,
-	  href: 'https://forms.gle/Zg9RLvKmFnmwkj836' },
-	{ label: 'WhatsApp community', note: 'Ask questions, find a team', icon: iMessage,
-	  href: 'https://chat.whatsapp.com/HiHfSuBzF4f7kGCDwCO0Fw' },
-];
-
 // Derived, so the copy cannot drift from the table under it.
 const lastYearTotal = HALLS.reduce((n, h) => n + h.n, 0);
 const leadCount = HALLS.reduce((n, h) => n + h.leads.length, 0);
+const projectTotal = HALLS.reduce((n, h) => n + h.projects.length, 0);
 
 /**
  * The gallery — ten photographs from the '25 floor, split five and five.
@@ -396,25 +346,25 @@ const pad = (n: number) => String(n).padStart(2, '0');
 			</p>
 		</section>
 
-		{/* ---- the forms ---- */}
-		<section class="section" data-reveal>
+		{/* ---- the projects ----
+		    Where the forms used to be. Every subject's projects live on /projects, one
+		    page with the subjects as tabs, so this is one door rather than six. */}
+		<section class="section xp-proj" data-reveal>
 			<div class="sechead">
-				<span class="sechead-label">Take part</span>
+				<span class="sechead-label">Projects</span>
 				<span class="sechead-rule"></span>
-				<span class="sechead-meta">Three ways in</span>
+				<span class="sechead-meta"><b>{projectTotal}</b> on the floor this year</span>
 			</div>
 
-			<div class="xp-links">
-				{LINKS.map((l) => (
-					<a class="xp-link" href={l.href} target="_blank" rel="noopener noreferrer">
-						<span class="xp-link-icon" set:html={l.icon} />
-						<span class="xp-link-body">
-							<span class="xp-link-label">{l.label}</span>
-							<span class="xp-link-note">{l.note}</span>
-						</span>
-						<span class="xp-link-go" set:html={iArrowRight} />
-					</a>
-				))}
+			<div class="xp-proj-row">
+				<p class="xp-proj-text">
+					Every exhibit on the floor, subject by subject &mdash; what each team built
+					and who built it.
+				</p>
+				<a class="cta" href="/projects">
+					<span>View projects</span>
+					<span set:html={iArrowRight} />
+				</a>
 			</div>
 		</section>
 	</div>
@@ -1037,39 +987,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 		font-size: 10px; letter-spacing: .08em; line-height: 1.7; color: var(--ink-60);
 	}
 
-	/* ============ THE FORMS ============ */
-	.xp-links {
-		display: grid; gap: 12px;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-	}
-	.xp-link {
-		display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
-		padding: 16px 18px;
-		text-decoration: none; color: inherit;
+	/* ============ THE PROJECTS ============ */
+	.xp-proj-row {
+		display: flex; align-items: center; justify-content: space-between;
+		flex-wrap: wrap; gap: 18px 28px;
+		padding: clamp(18px, 2.4vw, 26px);
 		background: var(--primary);
 		border: var(--stroke) solid var(--secondary); border-radius: var(--r);
-		transition: box-shadow .16s ease, transform .16s ease;
 	}
-	.xp-link:hover, .xp-link:focus-visible {
-		transform: translate(-2px, -2px); box-shadow: var(--pop);
-	}
-	.xp-link-icon { display: block; line-height: 0; color: var(--accent); }
-	.xp-link-icon svg { width: 22px; height: 22px; stroke-width: 1.8; }
-	.xp-link-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-	.xp-link-label {
+	.xp-proj-text {
+		margin: 0; max-width: 52ch;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 800; font-size: 13.5px; letter-spacing: -.01em;
-	}
-	.xp-link-note {
-		font-family: 'DM Mono', ui-monospace, monospace;
-		font-size: 10px; letter-spacing: .1em; color: var(--ink-60);
-	}
-	.xp-link-go { display: block; line-height: 0; color: var(--secondary); }
-	.xp-link-go svg { width: 16px; height: 16px; stroke-width: 2.2; }
-
-	@media (prefers-reduced-motion: reduce) {
-		.xp-link, .xp-lead { transition: none; }
-		.xp-link:hover, .xp-link:focus-visible { transform: none; }
+		font-weight: 800; font-size: clamp(15px, 1.8vw, 19px); line-height: 1.35; letter-spacing: -.01em;
+		text-wrap: balance;
 	}
 
 	@media (max-width: 560px) {

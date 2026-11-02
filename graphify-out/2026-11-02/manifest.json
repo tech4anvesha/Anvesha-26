@@ -1,0 +1,927 @@
+{
+  ".vscode/extensions.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "",
+    "semantic_hash": ""
+  },
+  ".vscode/launch.json": {
+    "mtime": 1786012897.0,
+    "ast_hash": "",
+    "semantic_hash": ""
+  },
+  "astro.config.mjs": {
+    "mtime": 1793299068.6920378,
+    "ast_hash": "50731c4751626e9cdffc79fc7aa28ace",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1793299068.711189,
+    "ast_hash": "3b805ec135a79770be28cf2439db4d92",
+    "semantic_hash": ""
+  },
+  "src/components/Welcome.astro": {
+    "mtime": 1793299068.7737453,
+    "ast_hash": "7274ef144fc0554f96f977626b0b96d4",
+    "semantic_hash": "7274ef144fc0554f96f977626b0b96d4"
+  },
+  "src/layouts/Layout.astro": {
+    "mtime": 1793299068.773926,
+    "ast_hash": "a4ed45d27da353666a94c08044eb791b",
+    "semantic_hash": ""
+  },
+  "src/pages/index.astro": {
+    "mtime": 1793299068.7759075,
+    "ast_hash": "bd589b709b7c5811a8d42a92bb73bd0c",
+    "semantic_hash": ""
+  },
+  "tsconfig.json": {
+    "mtime": 1793299068.777372,
+    "ast_hash": "1d3613ac08bdda17e2b82251613dbc21",
+    "semantic_hash": "1d3613ac08bdda17e2b82251613dbc21"
+  },
+  "src/pages/merch.astro": {
+    "mtime": 1793299075.2542315,
+    "ast_hash": "a77255436e6c832fe865230a38872b5e",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1793299068.3405364,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1793299068.3405364,
+    "ast_hash": "4d944a80d98bf8891d5b10081a86d3e1",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1793299068.3408637,
+    "ast_hash": "de76967202948d4f70d11f4b3d9e7674",
+    "semantic_hash": ""
+  },
+  "public/favicon.svg": {
+    "mtime": 1793299068.7113507,
+    "ast_hash": "c740b569545db6f97f979cf9b458e7c4",
+    "semantic_hash": ""
+  },
+  "src/assets/astro.svg": {
+    "mtime": 1793299068.7735772,
+    "ast_hash": "d26c3520f1f016bad745392df8b5fae5",
+    "semantic_hash": ""
+  },
+  "src/assets/background.svg": {
+    "mtime": 1793299068.773637,
+    "ast_hash": "c2eaad48507ad1ea41f586bd5c21858a",
+    "semantic_hash": ""
+  },
+  "src/layouts/SiteLayout.astro": {
+    "mtime": 1793596513.4974594,
+    "ast_hash": "9b29d1ac121515b70c39f6d2d31c6bd5",
+    "semantic_hash": ""
+  },
+  "src/pages/events.astro": {
+    "mtime": 1793597200.6618412,
+    "ast_hash": "2157834a78560bb0159df09342f68c61",
+    "semantic_hash": ""
+  },
+  "src/pages/expo.astro": {
+    "mtime": 1793596233.3696187,
+    "ast_hash": "0fade1686d501860cf2a5135f91859f4",
+    "semantic_hash": ""
+  },
+  "src/pages/outreach.astro": {
+    "mtime": 1793299068.776376,
+    "ast_hash": "856f979207ee2294befd1590ea331912",
+    "semantic_hash": ""
+  },
+  "worker/package.json": {
+    "mtime": 1793299068.78201,
+    "ast_hash": "cdb4f98c1a8fbc13403cd7e04d13c4f7",
+    "semantic_hash": ""
+  },
+  "worker/schema.sql": {
+    "mtime": 1786567585.4834557,
+    "ast_hash": "",
+    "semantic_hash": ""
+  },
+  "worker/seed.sql": {
+    "mtime": 1786567585.483942,
+    "ast_hash": "",
+    "semantic_hash": ""
+  },
+  "worker/src/cart.ts": {
+    "mtime": 1793299068.7827923,
+    "ast_hash": "c14d9e99b5b4246058e7c1cfc09bf4fc",
+    "semantic_hash": ""
+  },
+  "worker/src/index.ts": {
+    "mtime": 1793299068.783202,
+    "ast_hash": "376735aaee952b32e34903edbfa98621",
+    "semantic_hash": ""
+  },
+  "worker/src/razorpay.ts": {
+    "mtime": 1793299068.7833824,
+    "ast_hash": "7ab7b6fdfb96b11b0d2b2c9dc3bdcb4e",
+    "semantic_hash": ""
+  },
+  "worker/src/routes.ts": {
+    "mtime": 1793299075.2464542,
+    "ast_hash": "693d879d4ce5c3e17bf1e5dea9360883",
+    "semantic_hash": ""
+  },
+  "worker/src/util.ts": {
+    "mtime": 1793299068.7837083,
+    "ast_hash": "773aceacdae78956435b24dd88a1efa5",
+    "semantic_hash": ""
+  },
+  "worker/test/cart.test.ts": {
+    "mtime": 1793299068.7841423,
+    "ast_hash": "c4e8f463b0e264282c36388c085b1625",
+    "semantic_hash": ""
+  },
+  "worker/test/tsconfig.json": {
+    "mtime": 1793299068.7851768,
+    "ast_hash": "fa708a212b973cc480b79b1126b79e61",
+    "semantic_hash": ""
+  },
+  "worker/tsconfig.json": {
+    "mtime": 1793299068.7852323,
+    "ast_hash": "14af1f0081a5a99d990a1aa44b4a38ab",
+    "semantic_hash": ""
+  },
+  "worker/README.md": {
+    "mtime": 1793299075.2501495,
+    "ast_hash": "d2dd4c8f5ef9c0469554f232cf15d8d3",
+    "semantic_hash": ""
+  },
+  "worker/scripts/smoke.mjs": {
+    "mtime": 1793299068.7823634,
+    "ast_hash": "0aa89d86617c0ddc1c56333ff2193da2",
+    "semantic_hash": ""
+  },
+  "worker/src/customer.ts": {
+    "mtime": 1793299068.7828581,
+    "ast_hash": "c35d4ed96abdc03c18888f7df4237faa",
+    "semantic_hash": ""
+  },
+  "worker/test/customer.test.ts": {
+    "mtime": 1793299068.784385,
+    "ast_hash": "0351cfb02b83234c6216da56e8a56e9c",
+    "semantic_hash": ""
+  },
+  "src/layouts/AdminLayout.astro": {
+    "mtime": 1793299068.7738614,
+    "ast_hash": "c6ed26f7bd313c1799122319bda8fc21",
+    "semantic_hash": ""
+  },
+  "src/lib/admin.ts": {
+    "mtime": 1793299068.7741702,
+    "ast_hash": "c69607ee9668e592a1bd3c5994e6d244",
+    "semantic_hash": ""
+  },
+  "src/lib/api.ts": {
+    "mtime": 1793299068.7742488,
+    "ast_hash": "780f9fd4f087d93670c11b16daf89a2d",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/events.astro": {
+    "mtime": 1793299068.7746189,
+    "ast_hash": "386309030b07a348fcfef4cc08f957b7",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/index.astro": {
+    "mtime": 1793299068.7748227,
+    "ast_hash": "eac6a923116481cd81a0994fef3bfb4a",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/merch.astro": {
+    "mtime": 1793299075.2563202,
+    "ast_hash": "271e6a0959373e92042aa99bffaa24f4",
+    "semantic_hash": ""
+  },
+  "src/pages/creator.astro": {
+    "mtime": 1793299068.7752771,
+    "ast_hash": "a3e27e6383bf3c5d63d63accc14566e1",
+    "semantic_hash": ""
+  },
+  "src/pages/distribution.astro": {
+    "mtime": 1793299068.775388,
+    "ast_hash": "7a7fe8a629092dee5e64559b9912bfad",
+    "semantic_hash": ""
+  },
+  "worker/scripts/set-admin-password.mjs": {
+    "mtime": 1793299068.7822897,
+    "ast_hash": "41705017011be8e962536f571488aeec",
+    "semantic_hash": ""
+  },
+  "worker/src/admin.ts": {
+    "mtime": 1793299075.2443926,
+    "ast_hash": "dbfc383c597cec938174518bdd2ec83e",
+    "semantic_hash": ""
+  },
+  "worker/src/distribution.ts": {
+    "mtime": 1793299068.7829554,
+    "ast_hash": "615452fd58be3a2f4b3323d590193c2b",
+    "semantic_hash": ""
+  },
+  "worker/src/email.ts": {
+    "mtime": 1793299068.7830503,
+    "ast_hash": "c7a8c709953d51d2baed10d1bf6d80a7",
+    "semantic_hash": ""
+  },
+  "worker/src/hub.ts": {
+    "mtime": 1793299068.7831287,
+    "ast_hash": "09e083bd899d972e0501acd797fc49d7",
+    "semantic_hash": ""
+  },
+  "worker/src/qr.ts": {
+    "mtime": 1793299068.7832892,
+    "ast_hash": "aa0b4b47c3bdc457c5ae6da69c4c9684",
+    "semantic_hash": ""
+  },
+  "worker/test/distribution.test.ts": {
+    "mtime": 1793299068.7844455,
+    "ast_hash": "694a6b5cb9735c7b1c9085f8e1a1c75d",
+    "semantic_hash": ""
+  },
+  "worker/test/qr.test.ts": {
+    "mtime": 1793299068.7845902,
+    "ast_hash": "d6130f1901ca196efbe91c4a35a4084b",
+    "semantic_hash": ""
+  },
+  "public/sprites/bg-hoenn.png": {
+    "mtime": 1793299068.772281,
+    "ast_hash": "4aa5d22aa5cd8bdd48ccf3de67fdf844",
+    "semantic_hash": ""
+  },
+  "public/sprites/bulbasaur-sweating.webp": {
+    "mtime": 1793299068.7731662,
+    "ast_hash": "acf63afa5ee49c437198133f1052bdd3",
+    "semantic_hash": ""
+  },
+  "public/sprites/bulbasaur.gif": {
+    "mtime": 1793299068.7733407,
+    "ast_hash": "8d4ac4b9be3c2318cdc09502e1f5a793",
+    "semantic_hash": ""
+  },
+  "worker/test/collect.test.ts": {
+    "mtime": 1793299068.7842474,
+    "ast_hash": "90e55aacf282c58a690c2f9d4cbaf58e",
+    "semantic_hash": ""
+  },
+  "src/lib/event-types.ts": {
+    "mtime": 1793299068.774324,
+    "ast_hash": "7e07373ad2220e43a9f3f2e96130880c",
+    "semantic_hash": ""
+  },
+  "src/pages/apply.astro": {
+    "mtime": 1793299068.7751837,
+    "ast_hash": "a90bb21874c4bebdf8205581fca38ae3",
+    "semantic_hash": ""
+  },
+  "src/pages/teams.astro": {
+    "mtime": 1793299068.7766283,
+    "ast_hash": "0c00bf2145f54c1122cc8ee3084eac38",
+    "semantic_hash": ""
+  },
+  "src/scripts/ink.ts": {
+    "mtime": 1793299068.7767482,
+    "ast_hash": "89f3171eb2b3d2ce8b67766254bbb36f",
+    "semantic_hash": ""
+  },
+  "worker-events/package.json": {
+    "mtime": 1793299068.7780588,
+    "ast_hash": "0f35ceee6231110bd95bb05cf8f105ef",
+    "semantic_hash": ""
+  },
+  "worker-events/src/hub.ts": {
+    "mtime": 1793299068.7783048,
+    "ast_hash": "ea42d6181bc4625736c0a0fe5e774589",
+    "semantic_hash": ""
+  },
+  "worker-events/src/index.ts": {
+    "mtime": 1793299068.7784216,
+    "ast_hash": "7efb5f3b14b48df8c08edf54ce4b59d6",
+    "semantic_hash": ""
+  },
+  "worker-events/test/cloudflare-stub.mjs": {
+    "mtime": 1793299068.778536,
+    "ast_hash": "5dbbbef36932a342e6d352d3a97e6393",
+    "semantic_hash": ""
+  },
+  "worker-events/test/events.test.ts": {
+    "mtime": 1793299068.7786438,
+    "ast_hash": "8d6c1da23aa3328c5eb6967e5f5a0e5b",
+    "semantic_hash": ""
+  },
+  "worker-events/tsconfig.json": {
+    "mtime": 1793299068.7787125,
+    "ast_hash": "630e41fa7d7f41cce9ddf884a97acd67",
+    "semantic_hash": ""
+  },
+  "worker/test/cors.test.ts": {
+    "mtime": 1793299068.784313,
+    "ast_hash": "8df180a89c123ce5062a20ec3b9591b3",
+    "semantic_hash": ""
+  },
+  "worker-events/README.md": {
+    "mtime": 1793299068.777584,
+    "ast_hash": "fdef7f5c670b5f9078c5737e07961fa8",
+    "semantic_hash": ""
+  },
+  "public/img/hero-flare.jpg": {
+    "mtime": 1793299068.7410698,
+    "ast_hash": "9e12e3026f433bc6a92c7d3f20b7ec60",
+    "semantic_hash": ""
+  },
+  "src/assets/anvesha-mark.svg": {
+    "mtime": 1793299068.7735093,
+    "ast_hash": "40aa94c0f5673856e5b87ca764a97155",
+    "semantic_hash": ""
+  },
+  "src/lib/ticket.ts": {
+    "mtime": 1793299068.774399,
+    "ast_hash": "f4fc145aab749e0e4da23cb08d80768a",
+    "semantic_hash": ""
+  },
+  "src/pages/admin/expo.astro": {
+    "mtime": 1793299068.7747319,
+    "ast_hash": "0d89307238ec7bd24bb061a5fc24da3f",
+    "semantic_hash": ""
+  },
+  "src/pages/order.astro": {
+    "mtime": 1793299068.7762818,
+    "ast_hash": "351ed367010bce8b69239162c72499f8",
+    "semantic_hash": ""
+  },
+  "worker/scripts/switch.mjs": {
+    "mtime": 1793299068.7824686,
+    "ast_hash": "2ac57c1aab4f3be286e88357f948fdcb",
+    "semantic_hash": ""
+  },
+  "worker/test/email.test.ts": {
+    "mtime": 1793299068.7845268,
+    "ast_hash": "e911aacf453c88c23188bcb3439099ed",
+    "semantic_hash": ""
+  },
+  "worker/test/razorpay.test.ts": {
+    "mtime": 1793299068.7846982,
+    "ast_hash": "41c481c5975cc0ff41b331d407f88ece",
+    "semantic_hash": ""
+  },
+  "worker/test/release.test.ts": {
+    "mtime": 1793299068.7847855,
+    "ast_hash": "0b2afeab22fa0c5be71d275a1a50d95f",
+    "semantic_hash": ""
+  },
+  "worker/test/review.test.ts": {
+    "mtime": 1793299068.7848744,
+    "ast_hash": "fd73df88f8d16af7fce09e709b86bdd3",
+    "semantic_hash": ""
+  },
+  "public/googleaf742c54de441aec.html": {
+    "mtime": 1793299068.7114093,
+    "ast_hash": "fb1cdd7500ada56a3ccfa94ef0685802",
+    "semantic_hash": ""
+  },
+  "public/robots.txt": {
+    "mtime": 1793299068.7720172,
+    "ast_hash": "61f66f74c06761ac9c04e6d764248a4f",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/collage-2025.jpg": {
+    "mtime": 1793299068.342913,
+    "ast_hash": "21f94fd4a1ed9cfa1460397e729ef908",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo1.JPG": {
+    "mtime": 1793299068.3919632,
+    "ast_hash": "4b0dc30cca67529af3fc87ad55eea3fa",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo10.JPG": {
+    "mtime": 1793299068.4231758,
+    "ast_hash": "7eedaf01b83fef96fe104dd65544e608",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo2.JPG": {
+    "mtime": 1793299068.4573693,
+    "ast_hash": "7e0c26a47d8e149f364ab019a898bf3b",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo3.JPG": {
+    "mtime": 1793299068.470456,
+    "ast_hash": "ec50411207018665ab893dc1ce1187f1",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo4.JPG": {
+    "mtime": 1793299068.512599,
+    "ast_hash": "7ac54500debdac9f66657752bc5611ed",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo5.JPG": {
+    "mtime": 1793299068.5509048,
+    "ast_hash": "c376bc199b7e52007bcc946f5acbf2b2",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo6.JPG": {
+    "mtime": 1793299068.5884163,
+    "ast_hash": "2d6804a704a16f6f2dd59627487e05a8",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo7.JPG": {
+    "mtime": 1793299068.623023,
+    "ast_hash": "b77d08689c6d0a98a95e560b1a033547",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo8.JPG": {
+    "mtime": 1793299068.6574361,
+    "ast_hash": "07f941cd6b939f9d33cbbe7eefd43576",
+    "semantic_hash": ""
+  },
+  "assets-src/expo-originals/expo9.JPG": {
+    "mtime": 1793299068.6918163,
+    "ast_hash": "03f274d3934635eae7e648ae3ef2333d",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMA25031.jpg": {
+    "mtime": 1793299068.71211,
+    "ast_hash": "b9af1467a50bc85641c44fdbba554fac",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS22031.jpg": {
+    "mtime": 1793299068.712491,
+    "ast_hash": "4228d6926205c76b4419f2280f533052",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS22065.jpeg": {
+    "mtime": 1793299068.7134514,
+    "ast_hash": "21b198e72b2a516ce8231d29addb0169",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23019.jpg": {
+    "mtime": 1793299068.7137542,
+    "ast_hash": "91879faa0ccbcb07d25f27904843cca7",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23100.jpg": {
+    "mtime": 1793299068.715002,
+    "ast_hash": "834804d7f44298d2f92e6a87d1c4816e",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23120.jpg": {
+    "mtime": 1793299068.715357,
+    "ast_hash": "e8a3e62b7373c0ee9b9bbc34cbd6d529",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23196.jpg": {
+    "mtime": 1793299068.7154844,
+    "ast_hash": "aafd2f26ec59db27a9b11fee61c7137e",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23197.jpg": {
+    "mtime": 1793299068.715983,
+    "ast_hash": "d6fe69cc148db9d8e63f0cd0d1a008bd",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS23198.jpg": {
+    "mtime": 1793299068.7161455,
+    "ast_hash": "f434ef18c9459a04a31057daf5b84a1e",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24005.jpg": {
+    "mtime": 1793299068.7162855,
+    "ast_hash": "0d80d05678376e50a3352ca5d0d7d814",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24011.jpg": {
+    "mtime": 1793299068.7165742,
+    "ast_hash": "8a87ecde29dd15af07a7495ec2c582f8",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24017 2.jpeg": {
+    "mtime": 1793299068.7169642,
+    "ast_hash": "bbe381cc4e30bf6c8d3366c5075861cc",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24017.jpeg": {
+    "mtime": 1793299068.7172968,
+    "ast_hash": "bbe381cc4e30bf6c8d3366c5075861cc",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24034.jpg": {
+    "mtime": 1793299068.7180989,
+    "ast_hash": "ea52fba48921f00b6cfe90339dc4e81f",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24038.jpg": {
+    "mtime": 1793299068.718336,
+    "ast_hash": "2374585f51c32b4dcca599df6817ca56",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24040.jpg": {
+    "mtime": 1793299068.718496,
+    "ast_hash": "9a4ead211a5fb628ab1236f666e221d4",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24054.jpg": {
+    "mtime": 1793299068.7186348,
+    "ast_hash": "362408b26069ef9e276cd686b6aedfba",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24069.jpg": {
+    "mtime": 1793299068.7190561,
+    "ast_hash": "c1e1b5644242e4c3a671494f6c231edd",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24113.jpg": {
+    "mtime": 1793299068.7195644,
+    "ast_hash": "0b9a25abcc63aeec5318439ffc60b1a9",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24116.jpeg": {
+    "mtime": 1793299068.720274,
+    "ast_hash": "8e9239f716a1432cdb824e25e9584083",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24128.jpg": {
+    "mtime": 1793299068.7206836,
+    "ast_hash": "6285e83d83c3c073ca87b6351c286fd0",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24129.jpg": {
+    "mtime": 1793299068.7208438,
+    "ast_hash": "bc0875fe3950b0b75c0865cb53e51d1b",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24140.jpg": {
+    "mtime": 1793299068.7210486,
+    "ast_hash": "5e84d9ce4899f528d1a794391be5663d",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24168.jpg": {
+    "mtime": 1793299068.721249,
+    "ast_hash": "8e08c5ca2a9075baba792065b9389008",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24174.jpg": {
+    "mtime": 1793299068.721618,
+    "ast_hash": "01441fa11bb2df85dc1a2a635e14f795",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24212.jpg": {
+    "mtime": 1793299068.7217443,
+    "ast_hash": "1f8fe9759226aa6dc77920c368510ad2",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24213.jpg": {
+    "mtime": 1793299068.722594,
+    "ast_hash": "0a227e09df71d26eaa97c8eeddb840ce",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24217.jpg": {
+    "mtime": 1793299068.7227383,
+    "ast_hash": "2a09f97da1a9c521de9393c35ee1e7e7",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24236.jpg": {
+    "mtime": 1793299068.723158,
+    "ast_hash": "79071c264abb0fad6a6af6b72631e574",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24270.jpg": {
+    "mtime": 1793299068.7244177,
+    "ast_hash": "ff09b6d1d2efd1bf2e7a5743cbcb0253",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24276.jpg": {
+    "mtime": 1793299068.7253752,
+    "ast_hash": "a35d7fbd3ef38ab25c77b9e8de6cc889",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24298.jpg": {
+    "mtime": 1793299068.726101,
+    "ast_hash": "584dff783e1464f2b95c5bf34626100a",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24300.jpg": {
+    "mtime": 1793299068.72633,
+    "ast_hash": "da83f50f188c9f31d15333c3712925fb",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS24310.jpg": {
+    "mtime": 1793299068.7265105,
+    "ast_hash": "e4fec57edba0f2cb1e8ae4019df47918",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25016.jpg": {
+    "mtime": 1793299068.7267478,
+    "ast_hash": "e7d1aca351fa6b11862ab228c07a621e",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25021.jpg": {
+    "mtime": 1793299068.7268581,
+    "ast_hash": "16f5e4365f2fd3baf3da379f762de86c",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25063.jpg": {
+    "mtime": 1793299068.7274804,
+    "ast_hash": "c8ce785d157e192d924c111f4898083b",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25090.jpg": {
+    "mtime": 1793299068.7277644,
+    "ast_hash": "8e858c7b4ed0a60ae268960b57b864a3",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25099.jpg": {
+    "mtime": 1793299068.7279997,
+    "ast_hash": "37945b79eeed348f863866b1710137ed",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25151.jpg": {
+    "mtime": 1793299068.7284424,
+    "ast_hash": "848db3f6f32dfb3d7dec7ccc9a1a1597",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25204.jpg": {
+    "mtime": 1793299068.7294729,
+    "ast_hash": "24a72e4675130747370a09929c90c1b0",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25209.jpg": {
+    "mtime": 1793299068.730217,
+    "ast_hash": "a480c0a3826f755740abb22493f0bbdb",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25215.jpg": {
+    "mtime": 1793299068.7303631,
+    "ast_hash": "177fe35ab5f546b5589f09c92b80f017",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25216.jpg": {
+    "mtime": 1793299068.7305334,
+    "ast_hash": "57be37b2da13eec11058a00b24811b69",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25291.jpg": {
+    "mtime": 1793299068.730717,
+    "ast_hash": "2138cb8443cf5a5470c679e247165936",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25295.jpg": {
+    "mtime": 1793299068.7309375,
+    "ast_hash": "26673d2b4be6e1fd9e1bdc2800f90a33",
+    "semantic_hash": ""
+  },
+  "public/img/crew/IMS25297.jpg": {
+    "mtime": 1793299068.7313755,
+    "ast_hash": "fa55c226f99394a964e4cde00354a130",
+    "semantic_hash": ""
+  },
+  "public/img/crew/akash24.jpg": {
+    "mtime": 1793299068.7318668,
+    "ast_hash": "844e567a5baf1b3000a1c6a4e5bc51f3",
+    "semantic_hash": ""
+  },
+  "public/img/crew/deputy.jpg": {
+    "mtime": 1793299068.7328167,
+    "ast_hash": "50243247aaa4d5f2804ad383a9de1e4e",
+    "semantic_hash": ""
+  },
+  "public/img/crew/director.jpg": {
+    "mtime": 1793299068.733094,
+    "ast_hash": "be99b1d6fe4687d387a961b090483636",
+    "semantic_hash": ""
+  },
+  "public/img/crew/dosa.jpg": {
+    "mtime": 1793299068.733407,
+    "ast_hash": "86f0189ba7293e1ddd0ff6fae3463304",
+    "semantic_hash": ""
+  },
+  "public/img/crew/fic-gope.jpg": {
+    "mtime": 1793299068.733655,
+    "ast_hash": "31180b3bdf4f156af6c3b48cdb876b71",
+    "semantic_hash": ""
+  },
+  "public/img/crew/fic-sanu.jpg": {
+    "mtime": 1793299068.7338789,
+    "ast_hash": "5a8f1c32ea7c77c4c4a77d18374dea72",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo01.jpg": {
+    "mtime": 1793299068.7349756,
+    "ast_hash": "fe547756eb8326b8eaf81cf268e45004",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo02.jpg": {
+    "mtime": 1793299068.73547,
+    "ast_hash": "f28bd42477ef9d91d7304aaec34f0ba7",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo03.jpg": {
+    "mtime": 1793299068.7359798,
+    "ast_hash": "930d5a0b81d0875f795dad9c4370a1d6",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo04.jpg": {
+    "mtime": 1793299068.7366579,
+    "ast_hash": "f5236bd82c85c2808dc4075eebb5b998",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo05.jpg": {
+    "mtime": 1793299068.7368462,
+    "ast_hash": "3ff26e3ffc04891f161a203d80f9e6d0",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo06.jpg": {
+    "mtime": 1793299068.7381098,
+    "ast_hash": "895de02ab6119020f0c0f35368973d0c",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo07.jpg": {
+    "mtime": 1793299068.73849,
+    "ast_hash": "cd39487dc07e6ec06b08c48bb3fc6a1b",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo08.jpg": {
+    "mtime": 1793299068.739212,
+    "ast_hash": "f971f5595674fbfa07c21f3de62ddb79",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo09.jpg": {
+    "mtime": 1793299068.739976,
+    "ast_hash": "53e0aa12db140f0e18b7843498f656d4",
+    "semantic_hash": ""
+  },
+  "public/img/expo/expo10.jpg": {
+    "mtime": 1793299068.740505,
+    "ast_hash": "5816551bd38f74a5195266bdb768c74a",
+    "semantic_hash": ""
+  },
+  "public/img/home/home1.jpeg": {
+    "mtime": 1793299068.7428718,
+    "ast_hash": "9582a0d0ec0e015564fe8350dca79993",
+    "semantic_hash": ""
+  },
+  "public/img/home/home2.jpeg": {
+    "mtime": 1793299068.743489,
+    "ast_hash": "b5001ea799921eaa83388f7051e934a8",
+    "semantic_hash": ""
+  },
+  "public/img/home/home3.jpeg": {
+    "mtime": 1793299068.7441196,
+    "ast_hash": "b3a70fada894c3388ece11fba4e85cf0",
+    "semantic_hash": ""
+  },
+  "public/img/home/home4.jpeg": {
+    "mtime": 1793299068.7451508,
+    "ast_hash": "ed1113bb8aa63196c177cb77bd8ac291",
+    "semantic_hash": ""
+  },
+  "public/img/home/home5.jpeg": {
+    "mtime": 1793299068.74605,
+    "ast_hash": "c8b0edae0ded6be0d7f01e342425623e",
+    "semantic_hash": ""
+  },
+  "public/img/home/home6.jpeg": {
+    "mtime": 1793299068.746958,
+    "ast_hash": "b11f8ba8dc1b4b1d3f6d102af2634cd3",
+    "semantic_hash": ""
+  },
+  "public/img/pay/upi-qr.png": {
+    "mtime": 1793299068.7471051,
+    "ast_hash": "3ffc681e3fdd3db8e7181bdac2ff9f06",
+    "semantic_hash": ""
+  },
+  "public/img/pay/upi.png": {
+    "mtime": 1793299068.7512448,
+    "ast_hash": "aae34cb860693ec19ecf26e42c630009",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/burger-king.png": {
+    "mtime": 1793299068.767715,
+    "ast_hash": "3e830e26cb6dbe405b817f9f483f7a74",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/dominos.png": {
+    "mtime": 1793299068.7679842,
+    "ast_hash": "308e973da8e46cc11364f0e5618b45fb",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/imperial-life-sciences.png": {
+    "mtime": 1793299068.768983,
+    "ast_hash": "6f8f23b429b3b2bace64bb9b49cd71df",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/natraj.png": {
+    "mtime": 1793299068.7692597,
+    "ast_hash": "d122ac96c06a83f8c4c04920129230f1",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/wow-momo.png": {
+    "mtime": 1793299068.7719386,
+    "ast_hash": "e88e0e44670f5db1f1c0308336a58c94",
+    "semantic_hash": ""
+  },
+  "worker/test/roster.test.ts": {
+    "mtime": 1793299068.784971,
+    "ast_hash": "d65d161e445709b00c8a459f48572157",
+    "semantic_hash": ""
+  },
+  "src/pages/spot.astro": {
+    "mtime": 1793299068.7764513,
+    "ast_hash": "fde802bddad1537f51ba6c1f6a337a14",
+    "semantic_hash": ""
+  },
+  "worker/src/spot.ts": {
+    "mtime": 1793299068.7836084,
+    "ast_hash": "710397c53e03573e3426df17e2ad040e",
+    "semantic_hash": ""
+  },
+  "worker/src/stock.ts": {
+    "mtime": 1793299075.2403438,
+    "ast_hash": "3d3137d84447437deaa8d39094938544",
+    "semantic_hash": ""
+  },
+  "worker/test/spot.test.ts": {
+    "mtime": 1793299068.7850716,
+    "ast_hash": "c1144f45c8f089c8f1dc916bf01356d6",
+    "semantic_hash": ""
+  },
+  "worker/test/stock.test.ts": {
+    "mtime": 1793299075.242255,
+    "ast_hash": "f39e112f9d10c40c8472e4506699edeb",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/69rigs.png": {
+    "mtime": 1793299068.7515907,
+    "ast_hash": "a94266c7be72b2c766e6c1bd706eefe3",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/August.PNG": {
+    "mtime": 1793299068.7648895,
+    "ast_hash": "81d876fa09d91e827f75bd757c570fdd",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/DCB.jpg": {
+    "mtime": 1793299068.7655118,
+    "ast_hash": "42732ec66181e9ec5732edefa7721aab",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/Rinshi.PNG": {
+    "mtime": 1793299068.7664187,
+    "ast_hash": "4f364b4b6df268a69aa046c5acd5f9c2",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/city_mobiles.jpeg": {
+    "mtime": 1793299068.767818,
+    "ast_hash": "4297ef37311ba8227e3b66f5a5d9a504",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/finlatics.png": {
+    "mtime": 1793299068.7682521,
+    "ast_hash": "a220ee9db75f0ee34465d3bc812210cf",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/food_shop.jpeg": {
+    "mtime": 1793299068.7684896,
+    "ast_hash": "0b26ce291ea9f2af19963119eb23ed3e",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/nurice.jpeg": {
+    "mtime": 1793299068.769425,
+    "ast_hash": "7f6a61fed6e10fe6e3af4cb08ca12f6b",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/phoebus.png": {
+    "mtime": 1793299068.7695928,
+    "ast_hash": "7eba239abf8f414d6345ae45dfad78f9",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/sciastra.png": {
+    "mtime": 1793299068.7706342,
+    "ast_hash": "b6888bffede3dfe99cc8fd81dc48b8ea",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/sector7.png": {
+    "mtime": 1793299068.7712703,
+    "ast_hash": "ceac0e3c67f11fea75c053872d22392e",
+    "semantic_hash": ""
+  },
+  "public/img/sponsors/tasty.jpeg": {
+    "mtime": 1793299068.7716453,
+    "ast_hash": "c45649339cd823c719bc70b43918693a",
+    "semantic_hash": ""
+  },
+  "src/lib/expo.ts": {
+    "mtime": 1793596300.1109488,
+    "ast_hash": "9b5b5b8e6f0cf0203d0df21fabefd497",
+    "semantic_hash": ""
+  },
+  "src/pages/projects.astro": {
+    "mtime": 1793598084.2170522,
+    "ast_hash": "85550091ae0fb1c423df0e0fc245405b",
+    "semantic_hash": ""
+  }
+}
