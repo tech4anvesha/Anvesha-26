@@ -44,6 +44,9 @@ interface Props {
 	brandTag?: string;
 	/** Show the Srijana link. Admin only — see the note by SRIJANA below. */
 	srijana?: boolean;
+	/** Which tab to light when the page is not itself in the nav — /projects lights
+	 *  Expo. Defaults to the page's own path. */
+	section?: string;
 }
 
 // ponytail: one array, not six copies of the same anchor. Every route here exists.
@@ -67,7 +70,7 @@ const SRIJANA = 'https://pragunnepal.github.io/Srijana/';
 
 const {
 	title = "Anvesha '26", description, noindex = false,
-	nav = SITE_NAV, brandHref = '/', brandTag, srijana = false,
+	nav = SITE_NAV, brandHref = '/', brandTag, srijana = false, section,
 } = Astro.props;
 
 // The home hero already carries ANVESHA '26 at full size, so repeating the wordmark in
@@ -76,7 +79,7 @@ const {
 const isHome = Astro.url.pathname === '/';
 const NAV = nav;
 // trailing slash stripped so '/merch/' and '/merch' both match
-const here = Astro.url.pathname.replace(/\/$/, '') || '/';
+const here = section ?? (Astro.url.pathname.replace(/\/$/, '') || '/');
 
 // The menu sits right unless a page fills the `tools` slot (the bag button on /merch),
 // in which case it moves to the middle so tools can own the right edge.

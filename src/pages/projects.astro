@@ -16,6 +16,7 @@ import ProjectFolder from '../components/ProjectFolder.astro';
 import { HALLS } from '../lib/expo';
 import { EVENTS_API } from '../lib/api';
 
+import iArrowLeft from 'lucide-static/icons/arrow-left.svg?raw';
 import iArrowUpRight from 'lucide-static/icons/arrow-up-right.svg?raw';
 import iCamera from 'lucide-static/icons/camera.svg?raw';
 
@@ -42,6 +43,7 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 ---
 
 <SiteLayout
+	section="/expo"
 	title="Projects · Expo · Anvesha '26"
 	description="Every project on the Aficionados floor at Anvesha '26, subject by subject — what each team built and who built it."
 >
@@ -51,6 +53,9 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 		    one label per subject, server-rendered and stacked in one cell, switched with
 		    the tabs below. The counts are filled in once the projects arrive. */}
 		<header class="page-head pj-head" data-reveal>
+			<a class="btn pj-back" href="/expo">
+				<span set:html={iArrowLeft} /> Expo
+			</a>
 			<p class="eyebrow">Aficionados &middot; Anvesha &rsquo;26</p>
 
 			<div class="pj-title-row">
@@ -59,10 +64,8 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 				<div class="pj-heads" aria-live="polite">
 					{HALLS.map((h, i) => (
 						<div class:list={['pj-sub', i === 0 && 'is-on']} id={`head-${h.slug}`} data-sub={h.slug}>
-							<p class="pj-sub-name" title={h.short ? h.name : undefined}>
-								<span class="pj-sub-icon" set:html={h.icon} aria-hidden="true" />
-								{h.short ?? h.name}
-							</p>
+							<span class="pj-sub-icon" set:html={h.icon} aria-hidden="true" />
+							<p class="pj-sub-name" title={h.short ? h.name : undefined}>{h.short ?? h.name}</p>
 							<p class="pj-sub-count mono">
 								<span><b data-count={h.code}>--</b> <span data-noun={h.code}>projects</span></span>
 								{(() => {
@@ -386,6 +389,21 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 	.pj-head, .pj-panel { position: relative; }
 
 	.pj-head { display: flex; flex-direction: column; align-items: center; text-align: center; }
+	/* Back to /expo, in the head's top-left corner so it never competes with the
+	   centred title. On a phone there is no corner to spare; it sits above the eyebrow. */
+	.pj-back {
+		position: absolute; top: clamp(20px, 2.6vw, 30px); left: clamp(20px, 3.5vw, 52px);
+		display: inline-flex; align-items: center; gap: 8px;
+		padding: 8px 12px;
+		font-family: 'DM Mono', ui-monospace, monospace;
+		font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+	}
+	.pj-back :global(svg) { width: 14px; height: 14px; stroke-width: 2.2; }
+	/* On a phone the corner is spoken for and the nav's lit Expo tab already says where
+	   this page lives, so the button goes rather than squeezing in above the title. */
+	@media (max-width: 640px) {
+		.pj-back { display: none; }
+	}
 	.pj-head .lede { max-width: 60ch; }
 	/* Smaller than the shared .page-title: it shares the row with the subject now, and
 	   at full size it dwarfed it. */
@@ -408,18 +426,30 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 	   whichever was showing, and the centred row — PROJECTS with it — slid sideways on
 	   every tab switch. visibility also takes the hidden ones out of the a11y tree. */
 	.pj-heads { display: grid; text-align: left; }
-	.pj-sub { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 10px; visibility: hidden; }
+	/* A grid of three: icon and name on the first row, count and barcode under both.
+	   The phone query below moves the barcode under the name alone, beside the icon.
+	   --nm is the name's size, shared with the icon so the tile stays 1.5× the type. */
+	.pj-sub {
+		--nm: clamp(20px, 2.4vw, 30px);
+		grid-area: 1 / 1;
+		/* auto 1fr: any spare width (the barcode row is the widest) goes to the name's
+		   column, never the icon's — or the icon drifts off the name. */
+		display: grid; grid-template-columns: auto 1fr; justify-items: start;
+		align-items: center; gap: 10px 12px;
+		visibility: hidden;
+	}
 	.pj-sub.is-on { visibility: visible; }
+	.pj-sub-count { grid-column: 1 / -1; }
 	.pj-sub-name {
-		display: flex; align-items: center; gap: 12px; margin: 0;
+		margin: 0;
 		font-family: 'Archivo Expanded', 'Archivo', sans-serif;
-		font-weight: 900; font-size: clamp(20px, 2.4vw, 30px);
+		font-weight: 900; font-size: var(--nm);
 		line-height: 1; letter-spacing: -.01em; text-transform: uppercase;
 	}
 	/* The subject's mark as a pressed key: ink tile, accent offset. */
 	.pj-sub-icon {
 		display: grid; place-items: center; flex: none;
-		width: 1.5em; aspect-ratio: 1;
+		width: calc(var(--nm) * 1.5); aspect-ratio: 1;
 		color: var(--primary); background: var(--secondary);
 		border-radius: var(--r); box-shadow: var(--pop);
 	}
@@ -444,9 +474,11 @@ const subjJson = JSON.stringify(SUBJ).replace(/</g, '\\u003c');
 		.pj-title-row { flex-direction: column; }
 		.pj-title-rule { align-self: center; width: 48px; height: var(--stroke); }
 		.pj-heads { text-align: center; }
-		.pj-sub { align-items: center; }
-		/* The count moves down to the meta line; the barcode stays under the name. */
-		.pj-sub-count { justify-content: center; }
+		/* Icon on the left across both rows; the name on top and the barcode under it on
+		   the right. The count moves down to the meta line. */
+		.pj-sub { grid-template-columns: auto auto; justify-content: center; row-gap: 8px; text-align: left; }
+		.pj-sub-icon { grid-row: 1 / 3; }
+		.pj-sub-count { grid-column: 2; }
 		.pj-sub-count > span { display: none; }
 
 		.pj-meta-all { display: none; }

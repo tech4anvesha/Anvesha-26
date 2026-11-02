@@ -75,8 +75,8 @@
     "semantic_hash": ""
   },
   "src/layouts/SiteLayout.astro": {
-    "mtime": 1793596513.4974594,
-    "ast_hash": "9b29d1ac121515b70c39f6d2d31c6bd5",
+    "mtime": 1793600655.1789625,
+    "ast_hash": "c639b4c92952d9822f91c40731bdc791",
     "semantic_hash": ""
   },
   "src/pages/events.astro": {
@@ -920,8 +920,8 @@
     "semantic_hash": ""
   },
   "src/pages/projects.astro": {
-    "mtime": 1793599916.6811485,
-    "ast_hash": "7c4abdedd304ac860482ba86f2460ee6",
+    "mtime": 1793600838.3293245,
+    "ast_hash": "8d896584bc98dda2091ceb8a160cb41c",
     "semantic_hash": ""
   },
   "src/components/ProjectFolder.astro": {

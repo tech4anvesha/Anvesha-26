@@ -1,7 +1,7 @@
 {
   "0": "tsconfig.json",
   "1": "dependencies",
-  "2": "src/admin.ts",
+  "2": "routes.ts",
   "3": "Welcome.astro",
   "4": "worker-events/src/index.ts",
   "5": "astro.config.mjs",
@@ -12,7 +12,7 @@
   "10": "scripts",
   "11": "[]",
   "12": "SiteLayout.astro",
-  "13": "distribution.astro",
+  "13": "spot.astro",
   "14": "email.ts",
   "15": "compilerOptions",
   "16": "test/tsconfig.json",
@@ -38,10 +38,15 @@
   "36": "review.test.ts",
   "37": "esc",
   "38": "event-types.ts",
-  "39": "onCatalogueChange",
+  "39": "boot",
   "40": "razorpay.ts",
   "41": "pages/index.astro",
   "42": "roster.test.ts",
-  "43": "cart.ts",
-  "44": "order.astro"
+  "43": "worker/src/index.ts",
+  "44": "order.astro",
+  "45": "util.ts",
+  "46": "src/admin.ts",
+  "47": "distribution.ts",
+  "48": "spot.ts",
+  "49": "stock.ts"
 }
