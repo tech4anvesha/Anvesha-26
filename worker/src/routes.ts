@@ -3,12 +3,12 @@
 import { MAX_LINES, type MerchRow, type PricedCart, type PricedLine, parseCart, priceCart } from './cart.ts';
 import { type Customer, normaliseRoll, parseCustomer } from './customer.ts';
 import { sendOrderEmail } from './email.ts';
+import { broadcastOrder } from './orderfeed.ts';
 import { type SpotPass, consumeSpotPass, requireSpotPass } from './spot.ts';
 import { readStock, requireStock, returnStock, takeStock } from './stock.ts';
 import {
 	ApiError,
 	EXT,
-	broadcastChange,
 	IMAGE_TYPES,
 	MAX_IMAGE_BYTES,
 	bad,
@@ -389,6 +389,41 @@ export async function getOrder(env: Env, orderId: string, cors: Cors): Promise<R
  *  scanOrder and collectItems need it and neither owns the other. */
 export type CollectionStatus = 'pending' | 'partial' | 'collected';
 
+/**
+ * A check that must pass for a query to count — the counter's "is this session still
+ * open?" — carried INTO the query's round trip rather than run before it.
+ *
+ * The counter routes used to read the session, wait, then read the order: two trips to
+ * D1 for every scan, three for every hand-over. A gate rides along instead — in the
+ * same D1 batch as a read (gated, below), or inside the UPDATE's WHERE for a collect —
+ * so the session is still re-checked on every request, ending one still kills the link
+ * at once, and the volunteer waits on one round trip.
+ *
+ * Built by distribution.ts (it owns sessions; routes.ts importing it back would be a
+ * cycle). The admin routes pass no gate: their check is requireAdmin.
+ */
+export interface Gate {
+	/** The session id, for a collect's WHERE clause. */
+	sessionId: string;
+	/** The read that decides it — one row with `end_time`, or none. */
+	stmt: D1PreparedStatement;
+	/** Throws the precise error (404 no such session, 410 ended) unless the row says open. */
+	check: (row: { end_time: string | null } | null) => void;
+}
+
+/** Runs the gate's check now — the slow path, for when the answer is already a refusal. */
+const enforce = async (gate: Gate | undefined) => {
+	if (gate) gate.check(await gate.stmt.first<{ end_time: string | null }>());
+};
+
+/** `stmt`'s rows, with the gate checked in the same D1 round trip (one batch). */
+async function gated<T>(env: Env, gate: Gate | undefined, stmt: D1PreparedStatement): Promise<T[]> {
+	if (!gate) return (await stmt.all<T>()).results;
+	const [g, r] = await env.DB.batch([gate.stmt, stmt]);
+	gate.check((g.results[0] as { end_time: string | null } | undefined) ?? null);
+	return r.results as T[];
+}
+
 
 /**
  * The scan itself, with no opinion about who is asking. Split out so the admin panel
@@ -400,23 +435,19 @@ export type CollectionStatus = 'pending' | 'partial' | 'collected';
  * is no single "can I hand this over" bit, so the caller reads payment_status and
  * collection_status directly instead of trusting a flag computed from them.
  */
-export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise<Response> {
-	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+export async function scanOrder(env: Env, orderId: unknown, cors: Cors, gate?: Gate): Promise<Response> {
+	// A dead session outranks a bad code: the counter must learn the link is dead, not
+	// that one QR was malformed. Rare path, so the extra round trip only costs here.
+	if (!looksLikeOrderId(orderId)) {
+		await enforce(gate);
+		throw bad('bad_order_id', 'Malformed order id');
+	}
 
 	// One round trip, not two. A scan is the single most repeated action at the counter,
 	// and D1 lives one region away — reading the payment in the same query halves the
 	// wait between a volunteer scanning and the checklist appearing. LEFT JOIN because an
 	// unpaid order has no payment row, and it cannot fan out: payments.order_id is UNIQUE.
-	const order = await env.DB.prepare(
-		`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status, o.collection_status,
-		        o.roll_number, o.collected_at, o.created_at,
-		        p.razorpay_transaction_id, p.transaction_info, p.created_at AS payment_created_at
-		   FROM orders o
-		   LEFT JOIN payments p ON p.order_id = o.order_id
-		  WHERE o.order_id = ?`,
-	)
-		.bind(orderId)
-		.first<{
+	const [order] = await gated<{
 			order_id: string;
 			order_info: string;
 			total_price_paise: number;
@@ -428,7 +459,18 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 			razorpay_transaction_id: string | null;
 			transaction_info: string | null;
 			payment_created_at: string | null;
-		}>();
+		}>(
+		env,
+		gate,
+		env.DB.prepare(
+			`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status, o.collection_status,
+			        o.roll_number, o.collected_at, o.created_at,
+			        p.razorpay_transaction_id, p.transaction_info, p.created_at AS payment_created_at
+			   FROM orders o
+			   LEFT JOIN payments p ON p.order_id = o.order_id
+			  WHERE o.order_id = ?`,
+		).bind(orderId),
+	);
 	if (!order) throw notFound('No such order');
 
 	// transaction_info is NOT NULL on the payments table, so a null here means the LEFT
@@ -470,75 +512,107 @@ export async function scanOrder(env: Env, orderId: unknown, cors: Cors): Promise
 
 
 /**
- * Strikes the given line indexes off an order and recomputes its collection_status.
- * Shared with the admin panel and the counter session routes — see scanOrder above.
+ * Strikes the given line indexes off an order and recomputes its collection_status —
+ * in ONE statement. Shared with the admin panel and the counter session routes.
  *
- * `lines` omitted means "everything still outstanding" — what the panel's own
- * "Mark All as collected" button sends, and what an external caller of the old
- * whole-order collect contract gets by not passing the field at all.
+ * `lines` omitted means "everything still outstanding" — what MARK ALL sends.
  *
- * A line, once struck off, cannot be struck back on through this endpoint — the
- * merge below only ever turns 0 into 1. There is no undo in the counter UI, so there
- * is none here either.
+ * The merge happens inside SQLite, not in the Worker: the UPDATE walks the order's own
+ * order_info (json_each), sets `collected = 1` on the chosen lines, and works out
+ * pending/partial/collected from the same pass. Being one statement, it is atomic
+ * against itself, which buys two things the old read-merge-write could not:
+ *
+ *   - one round trip to D1 instead of two (three, with the counter's session check,
+ *     which a `gate` now puts in this same WHERE clause);
+ *   - two volunteers ticking DIFFERENT lines of one order at the same moment both
+ *     succeed. The old version guarded with "order_info unchanged since I read it", so
+ *     the second of them got a 409 "rescan" for a change that never conflicted.
+ *
+ * A line, once struck off, cannot be struck back on through this — the merge only ever
+ * writes 1. There is no undo in the counter UI, so there is none here either.
+ *
+ * Only a refusal costs more than one trip: the UPDATE matching nothing then reads the
+ * session and the row to say exactly why (ended link, unpaid, already collected…).
  */
-export async function collectItems(env: Env, orderId: unknown, lines: unknown, cors: Cors): Promise<Response> {
-	if (!looksLikeOrderId(orderId)) throw bad('bad_order_id', 'Malformed order id');
+export async function collectItems(
+	env: Env,
+	orderId: unknown,
+	lines: unknown,
+	cors: Cors,
+	gate?: Gate,
+): Promise<Response> {
+	if (!looksLikeOrderId(orderId)) {
+		await enforce(gate);
+		throw bad('bad_order_id', 'Malformed order id');
+	}
+	const all = lines === undefined;
+	const targets = all ? [] : parseLineIndexes(lines);
 
-	const row = await env.DB.prepare(`SELECT order_info, payment_status, collection_status FROM orders WHERE order_id = ?`)
-		.bind(orderId)
-		.first<{ order_info: string; payment_status: string; collection_status: CollectionStatus }>();
+	// ?1 order id · ?2 1 = every line · ?3 the chosen indexes, as a JSON array · ?4 the
+	// counter session, or NULL for an admin. Numbered so the "is this line targeted"
+	// test can be written once and used in three places.
+	const TARGETED = (key: string) => `(?2 = 1 OR ${key} IN (SELECT value FROM json_each(?3)))`;
+	// Every line either already collected or being collected now — i.e. done after this.
+	const ALL_DONE = `NOT EXISTS (
+		SELECT 1 FROM json_each(orders.order_info) e
+		 WHERE COALESCE(json_extract(e.value, '$.collected'), 0) != 1 AND NOT ${TARGETED('e.key')})`;
 
-	if (!row) throw notFound('No such order');
-	if (row.payment_status !== 'paid') throw new ApiError(409, 'unpaid', 'Order is not paid');
-	if (row.collection_status === 'collected')
-		throw new ApiError(409, 'already_collected', 'Every item on this order is already collected');
-
-	const items = (JSON.parse(row.order_info) as PricedLine[]).map((l) => ({
-		...l,
-		collected: (l.collected === 1 ? 1 : 0) as 0 | 1,
-	}));
-
-	const targets =
-		lines === undefined
-			? items.flatMap((l, i) => (l.collected === 0 ? [i] : []))
-			: parseLineIndexes(lines, items.length);
-	if (targets.length === 0) throw bad('no_items', 'Nothing was selected to collect');
-
-	const newItems = items.map((l, i) => (targets.includes(i) ? { ...l, collected: 1 as const } : l));
-	const allCollected = newItems.every((l) => l.collected === 1);
-	const newStatus: CollectionStatus = allCollected ? 'collected' : 'partial';
-	const newOrderInfo = JSON.stringify(newItems);
-
-	// order_info is repeated in the WHERE clause as an optimistic-concurrency check:
-	// if two scans of the same ticket ever race, whichever write lands second finds
-	// the row already changed underneath it and gets a clean 409 instead of silently
-	// clobbering the first volunteer's selection.
-	const res = await env.DB.prepare(
+	const row = await env.DB.prepare(
 		`UPDATE orders
-		    SET order_info = ?, collection_status = ?,
-		        collected_at = CASE WHEN ? = 'collected' THEN datetime('now') ELSE collected_at END,
+		    SET order_info = (
+		          SELECT json_group_array(
+		                   json_set(value, '$.collected',
+		                     CASE WHEN ${TARGETED('key')} THEN 1
+		                          ELSE COALESCE(json_extract(value, '$.collected'), 0) END)
+		                   ORDER BY key)
+		            FROM json_each(orders.order_info)),
+		        collection_status = CASE WHEN ${ALL_DONE} THEN 'collected' ELSE 'partial' END,
+		        collected_at = CASE WHEN ${ALL_DONE} THEN datetime('now') ELSE collected_at END,
 		        updated_at = datetime('now')
-		  WHERE order_id = ? AND payment_status = 'paid' AND collection_status != 'collected' AND order_info = ?`,
+		  WHERE order_id = ?1
+		    AND payment_status = 'paid'
+		    AND collection_status != 'collected'
+		    AND (?2 = 1 OR (SELECT MAX(value) FROM json_each(?3)) < json_array_length(order_info))
+		    AND (?4 IS NULL OR EXISTS (
+		          SELECT 1 FROM distributions WHERE session_id = ?4 AND end_time IS NULL))
+		 RETURNING order_info, collection_status, collected_at`,
 	)
-		.bind(newOrderInfo, newStatus, newStatus, orderId, row.order_info)
-		.run();
+		.bind(orderId, all ? 1 : 0, JSON.stringify(targets), gate?.sessionId ?? null)
+		.first<{ order_info: string; collection_status: CollectionStatus; collected_at: string | null }>();
 
-	if (res.meta.changes === 1)
-		return json({ ok: true, order_id: orderId, collection_status: newStatus, items: newItems }, {}, cors);
+	if (row) {
+		return json(
+			{
+				ok: true,
+				order_id: orderId,
+				collection_status: row.collection_status,
+				items: (JSON.parse(row.order_info) as PricedLine[]).map((l) => ({ ...l, collected: l.collected === 1 ? 1 : 0 })),
+				// Straight from the row, so the counter's "collected at" is D1's own stamp.
+				collected_at: row.collected_at,
+			},
+			{},
+			cors,
+		);
+	}
 
-	// Nothing changed — the row moved under us since it was read above. Re-read to say
-	// precisely why rather than a bare failure.
+	// Nothing matched. Say precisely why — the session first, since a dead link is the
+	// one answer that changes what the counter does next.
+	await enforce(gate);
 	const current = await env.DB.prepare(
-		`SELECT payment_status, collection_status, collected_at FROM orders WHERE order_id = ?`,
+		`SELECT order_info, payment_status, collection_status, collected_at FROM orders WHERE order_id = ?`,
 	)
 		.bind(orderId)
-		.first<{ payment_status: string; collection_status: CollectionStatus; collected_at: string | null }>();
+		.first<{ order_info: string; payment_status: string; collection_status: CollectionStatus; collected_at: string | null }>();
 
 	if (!current) throw notFound('No such order');
 	if (current.payment_status !== 'paid') throw new ApiError(409, 'unpaid', 'Order is not paid');
 	if (current.collection_status === 'collected')
 		throw new ApiError(409, 'already_collected', `Already collected at ${current.collected_at}`);
-	throw new ApiError(409, 'stale', 'This order changed since it was scanned — rescan it');
+	const count = (JSON.parse(current.order_info) as unknown[]).length;
+	const outside = targets.find((t) => t >= count);
+	if (outside !== undefined) throw bad('bad_lines', `${outside} is not a valid item index for this order`);
+	// Every condition above held a moment ago, so the row changed between the two.
+	throw new ApiError(409, 'stale', 'This order changed while it was being collected — rescan it');
 }
 
 // ============================================================
@@ -554,18 +628,16 @@ export async function collectItems(env: Env, orderId: unknown, lines: unknown, c
  * Matching is case-insensitive at both ends — normaliseRoll uppercases the input, and
  * COLLATE NOCASE covers anything that reached the column by another route.
  */
-export async function lookupByRoll(env: Env, roll: unknown, cors: Cors): Promise<Response> {
-	const rollNumber = normaliseRoll(roll);
+export async function lookupByRoll(env: Env, roll: unknown, cors: Cors, gate?: Gate): Promise<Response> {
+	let rollNumber: string;
+	try {
+		rollNumber = normaliseRoll(roll);
+	} catch (e) {
+		await enforce(gate); // a dead link outranks a typo, as in scanOrder
+		throw e;
+	}
 
-	const { results } = await env.DB.prepare(
-		`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
-		        collected_at, created_at
-		   FROM orders
-		  WHERE roll_number = ? COLLATE NOCASE
-		  ORDER BY created_at DESC, order_id DESC`,
-	)
-		.bind(rollNumber)
-		.all<{
+	const results = await gated<{
 			order_id: string;
 			order_info: string;
 			total_price_paise: number;
@@ -573,7 +645,17 @@ export async function lookupByRoll(env: Env, roll: unknown, cors: Cors): Promise
 			collection_status: CollectionStatus;
 			collected_at: string | null;
 			created_at: string;
-		}>();
+		}>(
+		env,
+		gate,
+		env.DB.prepare(
+			`SELECT order_id, order_info, total_price_paise, payment_status, collection_status,
+			        collected_at, created_at
+			   FROM orders
+			  WHERE roll_number = ? COLLATE NOCASE
+			  ORDER BY created_at DESC, order_id DESC`,
+		).bind(rollNumber),
+	);
 
 	// 404 rather than an empty list: "no such roll" is the same dead end as "no such
 	// order", and the counter page already knows how to word that.
@@ -603,13 +685,17 @@ export async function lookupByRoll(env: Env, roll: unknown, cors: Cors): Promise
 	);
 }
 
-/** `lines` off the wire: must be a non-empty array of distinct in-range indexes. */
-function parseLineIndexes(lines: unknown, itemCount: number): number[] {
+/**
+ * `lines` off the wire: a non-empty array of distinct non-negative integers. Whether
+ * each one is inside THIS order is decided against the row itself — in collectItems'
+ * WHERE clause — since the Worker no longer reads the row before writing it.
+ */
+function parseLineIndexes(lines: unknown): number[] {
 	if (!Array.isArray(lines) || lines.length === 0 || lines.length > MAX_LINES)
 		throw bad('bad_lines', 'lines must be a non-empty array of item indexes');
 	const seen = new Set<number>();
 	for (const v of lines) {
-		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) >= itemCount)
+		if (!Number.isInteger(v) || (v as number) < 0)
 			throw bad('bad_lines', `${String(v)} is not a valid item index for this order`);
 		seen.add(v as number);
 	}
@@ -970,7 +1056,7 @@ export async function submitPayment(
 	// insert won its race — the loser of a double-tapped SUBMIT already threw above.
 	if (spotPass) await consumeSpotPass(env, spotPass.pass_id, orderId);
 
-	const live = broadcastChange(env, 'orders', `payment submitted ${orderId}`);
+	const live = broadcastOrder(env, orderId, 'upsert');
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, order_id: orderId, review_status: 'pending' }, { status: 201 }, cors);

@@ -10,6 +10,8 @@
  *   GET  /api/distribution/:id          is this counter link live?
  *   POST /api/distribution/:id/scan     verify a scanned QR      [session in url]
  *   POST /api/distribution/:id/collect  mark handed over         [session in url]
+ *   GET  /api/live                      catalogue pings (WebSocket)            [public]
+ *   GET  /api/admin/live                changed order rows (WebSocket) [token, 1st msg]
  */
 
 import {
@@ -187,11 +189,14 @@ export default {
 			if (method === 'POST' && adminReview)
 				return await adminReviewOrder(env, req, decodeURIComponent(adminReview[1]), cors, ctx);
 
-			// ---- live catalogue updates ----
-			// Unauthenticated on purpose: the payload is only "something changed", never
-			// data. Clients then re-fetch through whatever auth they already hold, so a
-			// listener learns nothing a plain GET /api/merch would not already tell them.
-			if (pathname === '/api/live') {
+			// ---- live updates ----
+			// /api/live is unauthenticated on purpose: the payload is only "something
+			// changed", never data, so a listener learns nothing a plain GET /api/merch
+			// would not already tell them.
+			// /api/admin/live carries whole order rows. It upgrades without a header check
+			// — a browser cannot set one on a WebSocket — and the hub admits the socket
+			// only after its first message proves an admin session (hub.ts).
+			if (pathname === '/api/live' || pathname === '/api/admin/live') {
 				if (req.headers.get('Upgrade') !== 'websocket')
 					throw bad('expected_websocket', 'This endpoint speaks WebSocket');
 				const hub = env.HUB.get(env.HUB.idFromName('catalogue'));

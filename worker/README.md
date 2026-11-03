@@ -108,6 +108,7 @@ silently without it.
 | `GET` | `/api/admin/orders` | Bearer | Every order, joined with the buyer's name/mail/phone |
 | `DELETE` | `/api/admin/orders/:order_id` | Bearer | Remove an order and its payment row |
 | `GET` | `/api/live` | — | WebSocket. Pushes `{type:"catalogue"}` whenever the catalogue changes |
+| `GET` | `/api/admin/live` | token, 1st msg | WebSocket. Admin only: each changed order row, whole (`{type:"order",op:"upsert"\|"delete"}`) |
 
 ---
 
@@ -499,3 +500,38 @@ open tabs — exactly as a click would. A raw `wrangler d1 execute ... UPDATE` w
 none of those. It prompts for the panel password (hidden); who you are comes from
 `ANVESHA_ADMIN_NAME` / `_ROLL` / `_EMAIL` in the environment or `.dev.vars`, or is
 prompted. `ANVESHA_API` retargets it (default: the deployed Worker).
+
+### Live updates: two channels
+
+One hub (`src/hub.ts`), two kinds of socket, kept apart by tag:
+
+- **`/api/live`** — public, every storefront tab. Gets `catalogue` and `spot` pings and
+  nothing about orders: an order id is the collection capability, and anyone can open
+  this socket.
+- **`/api/admin/live`** — the merch panel. Its first message must be
+  `{"type":"auth","token":"<admin session token>"}`; the hub checks it exactly like a
+  Bearer header (`adminByToken`, kill switch and roster included), answers `ready`, and
+  only then sends. A bad token closes with 4401. Sending stops at the session's expiry.
+
+Every write that changes an order calls `broadcastOrder` (`src/orderfeed.ts`), which
+reads that one row fresh — the same shape `GET /api/admin/orders` lists — and sends it
+on the admin channel. The panel swaps that one `<tr>`; it does a full reload only on
+`ready` (connect/reconnect) and on tab focus, so a message missed while a laptop slept
+cannot leave the table wrong.
+
+### The counter's hot path: one round trip per action
+
+Each volunteer action costs one trip to D1:
+
+- **scan / lookup** — the session check and the read go in one `batch`
+  (`gated()` in `src/routes.ts`; the gate is built by `sessionGate()` in
+  `src/distribution.ts`).
+- **collect** — one `UPDATE … RETURNING` that marks the chosen lines inside SQLite
+  (`json_each` / `json_set`), works out pending/partial/collected, and checks the
+  session and payment in its `WHERE`. Two volunteers ticking different lines of one
+  order at once both succeed. Only a refusal (ended link, unpaid, already collected,
+  bad index) spends extra reads, to say exactly why.
+
+Ending a session still kills the link on the very next request — the check is in every
+round trip, never cached. `test/collect.test.ts` runs this SQL against a real SQLite
+(`test/sqlite-d1.ts`) loaded with the real schema.

@@ -42,7 +42,10 @@ export interface Env {
  */
 export async function broadcastChange(
 	env: Env,
-	type: 'catalogue' | 'orders' | 'spot',
+	// No 'orders': order traffic carries order ids, which are collection capabilities,
+	// and this channel reaches every storefront visitor. Orders go through
+	// broadcastOrder (orderfeed.ts) to the signed-in admin channel instead.
+	type: 'catalogue' | 'spot',
 	reason: string,
 ): Promise<void> {
 	try {

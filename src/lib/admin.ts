@@ -105,29 +105,22 @@ export async function adminBlob(path: string, base: string = API): Promise<Blob>
 }
 
 /**
- * Subscribes to live catalogue changes. Calls `onChange` whenever anyone edits or adds
- * an item, anywhere.
+ * One self-healing WebSocket: reconnects with backoff, because a dropped socket is
+ * normal — laptops sleep, wifi changes, Cloudflare recycles — and nudges a dead one
+ * the moment the tab is looked at again. Shared by the public catalogue feed and the
+ * admin order feed so there is one reconnect loop, not two drifting copies.
  *
- * Reconnects with backoff, because a dropped socket is normal — laptops sleep, wifi
- * changes, Cloudflare recycles. It also refetches on tab focus: if the socket died
- * while the tab was hidden, the first thing the viewer does is look at stale data, and
- * this closes that window without waiting for the reconnect.
- *
- * Returns a teardown function.
+ * `onOpen` runs on every (re)connect, `onMessage` on every parsed frame, and `onWake`
+ * when the tab becomes visible. Returns a teardown function.
  */
-export function onCatalogueChange(
-	onChange: (reason: string) => void,
-	types: readonly string[] = ['catalogue'],
-	base: string = API,
+function liveSocket(
+	url: string,
+	handlers: { onOpen?: (ws: WebSocket) => void; onMessage: (msg: any) => void; onWake?: () => void },
 ): () => void {
 	let socket: WebSocket | null = null;
 	let retry = 0;
 	let timer: number | undefined;
 	let stopped = false;
-
-	// `base` so the events Worker — a separate deployment with its own hub — can use the
-	// same reconnect-with-backoff client instead of a second copy of it.
-	const url = base.replace(/^http/, 'ws') + '/api/live';
 
 	function connect() {
 		if (stopped) return;
@@ -136,19 +129,22 @@ export function onCatalogueChange(
 		} catch {
 			return schedule();
 		}
-
-		socket.addEventListener('open', () => { retry = 0; });
-		socket.addEventListener('message', (e) => {
+		const ws = socket;
+		ws.addEventListener('open', () => { retry = 0; handlers.onOpen?.(ws); });
+		ws.addEventListener('message', (e) => {
 			try {
-				const msg = JSON.parse(String(e.data));
-				// A storefront has no reason to re-fetch because an order was deleted.
-				if (types.includes(String(msg?.type))) onChange(String(msg.reason ?? 'changed'));
+				handlers.onMessage(JSON.parse(String(e.data)));
 			} catch {
 				// A frame we cannot parse is not worth tearing the connection down for.
 			}
 		});
 		// 'close' covers the error case too — an errored socket always closes after.
-		socket.addEventListener('close', schedule);
+		ws.addEventListener('close', (e) => {
+			// 4401: the hub refused the token. Reconnecting would only be refused again;
+			// the next authenticated request sends this tab to the login page.
+			if (e.code === 4401) return;
+			schedule();
+		});
 	}
 
 	function schedule() {
@@ -159,22 +155,71 @@ export function onCatalogueChange(
 		timer = setTimeout(connect, wait) as unknown as number;
 	}
 
-	const onFocus = () => {
+	const onVisible = () => {
 		if (document.visibilityState !== 'visible') return;
-		onChange('focus');
+		handlers.onWake?.();
 		// Nudge a dead socket rather than waiting out the backoff.
 		if (socket?.readyState === WebSocket.CLOSED) { retry = 0; connect(); }
 	};
-	document.addEventListener('visibilitychange', onFocus);
+	document.addEventListener('visibilitychange', onVisible);
 
 	connect();
 
 	return () => {
 		stopped = true;
 		clearTimeout(timer);
-		document.removeEventListener('visibilitychange', onFocus);
+		document.removeEventListener('visibilitychange', onVisible);
 		socket?.close();
 	};
+}
+
+/**
+ * Subscribes to live catalogue changes. Calls `onChange` whenever anyone edits or adds
+ * an item, anywhere — and on tab focus, because if the socket died while the tab was
+ * hidden the first thing the viewer does is look at stale data.
+ *
+ * `base` so the events Worker — a separate deployment with its own hub — can use the
+ * same client. Returns a teardown function.
+ */
+export function onCatalogueChange(
+	onChange: (reason: string) => void,
+	types: readonly string[] = ['catalogue'],
+	base: string = API,
+): () => void {
+	return liveSocket(base.replace(/^http/, 'ws') + '/api/live', {
+		// A storefront has no reason to re-fetch because something it does not show moved.
+		onMessage: (msg) => { if (types.includes(String(msg?.type))) onChange(String(msg.reason ?? 'changed')); },
+		onWake: () => onChange('focus'),
+	});
+}
+
+/** One message on the admin order feed — see worker/src/orderfeed.ts. */
+export type OrderEvent =
+	| { type: 'order'; op: 'upsert'; order: any }
+	| { type: 'order'; op: 'delete'; order_id: string };
+
+/**
+ * The merch panel's order feed: each changed order row, whole, the moment it changes.
+ * The panel swaps that one row instead of reloading the table.
+ *
+ * Signs in with the first message (a browser cannot put an Authorization header on a
+ * WebSocket); the hub answers `ready`, and only then starts sending. `onResync` fires
+ * on every `ready` and on tab focus — anything that changed while this socket was not
+ * listening is caught by one full reload there, so a missed message can never leave
+ * the table quietly wrong.
+ */
+export function onOrderEvents(onEvent: (e: OrderEvent) => void, onResync: () => void): () => void {
+	return liveSocket(API.replace(/^http/, 'ws') + '/api/admin/live', {
+		onOpen: (ws) => {
+			const session = getSession();
+			if (session) ws.send(JSON.stringify({ type: 'auth', token: session.token }));
+		},
+		onMessage: (msg) => {
+			if (msg?.type === 'ready') onResync();
+			else if (msg?.type === 'order') onEvent(msg as OrderEvent);
+		},
+		onWake: onResync,
+	});
 }
 
 /** Paise -> a rupee string for an input box. */

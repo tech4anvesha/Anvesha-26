@@ -14,7 +14,8 @@
 
 import { SIZES, type PricedLine } from './cart.ts';
 import { type MailResult, mailBlock, sendOrderEmail, sendRejectionEmail } from './email.ts';
-import { type CollectionStatus, collectItems, scanOrder } from './routes.ts';
+import { collectItems, scanOrder } from './routes.ts';
+import { broadcastOrder, orderRows } from './orderfeed.ts';
 import { PASS_MINUTES, type SpotPass, looksLikeSpotPass, noSuchSpotPass } from './spot.ts';
 import { type StockMap, linesOf, readStock, returnStock } from './stock.ts';
 import {
@@ -84,6 +85,18 @@ export interface AdminSession {
 export async function requireAdmin(env: Env, req: Request): Promise<AdminSession> {
 	const header = req.headers.get('Authorization') ?? '';
 	const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+	const { expires_at: _, ...session } = await adminByToken(env, token);
+	return session;
+}
+
+/**
+ * The session check itself, by bare token. requireAdmin reads the token off a header;
+ * the hub reads it off the first message an admin socket sends (a browser cannot put
+ * headers on a WebSocket). One definition, so a socket is admitted on exactly the
+ * terms a request is. `expires_at` is when the session ages out, in UTC — the hub stops
+ * sending to a socket past it.
+ */
+export async function adminByToken(env: Env, token: string): Promise<AdminSession & { expires_at: string }> {
 	if (!token) throw unauthorized('Not signed in');
 
 	// One round trip, not two: this runs on every authenticated request, and the session
@@ -95,7 +108,8 @@ export async function requireAdmin(env: Env, req: Request): Promise<AdminSession
 	// Expiry lives in the WHERE clause: a session that has aged out simply stops
 	// matching, so there is no separate sweep job to forget to run.
 	const row = await env.DB.prepare(
-		`SELECT a.id, a.name, a.roll_number, a.collegemail, v.active, r.active AS rostered
+		`SELECT a.id, a.name, a.roll_number, a.collegemail, v.active, r.active AS rostered,
+		        datetime(a.login_time, ?) AS expires_at
 		   FROM admin_login a, login_validation v
 		   LEFT JOIN admin_roster r ON r.roll_number = a.roll_number
 		  WHERE a.session_token = ?
@@ -103,8 +117,8 @@ export async function requireAdmin(env: Env, req: Request): Promise<AdminSession
 		    AND a.login_time > datetime('now', ?)
 		    AND v.id = 1`,
 	)
-		.bind(token, `-${SESSION_HOURS} hours`)
-		.first<AdminSession & { active: number; rostered: number | null }>();
+		.bind(`+${SESSION_HOURS} hours`, token, `-${SESSION_HOURS} hours`)
+		.first<AdminSession & { active: number; rostered: number | null; expires_at: string }>();
 
 	// A missing row is either a bad/expired token or an unconfigured gate; both mean
 	// "not signed in" and neither should say which, so the caller learns nothing about
@@ -117,7 +131,10 @@ export async function requireAdmin(env: Env, req: Request): Promise<AdminSession
 	if (row.rostered !== 1)
 		throw new ApiError(403, 'not_rostered', 'This roll number is no longer allowed into the panel');
 
-	return { id: row.id, name: row.name, roll_number: row.roll_number, collegemail: row.collegemail };
+	return {
+		id: row.id, name: row.name, roll_number: row.roll_number, collegemail: row.collegemail,
+		expires_at: row.expires_at,
+	};
 }
 
 // ============================================================
@@ -406,116 +423,17 @@ export async function adminUpdateMerch(
 export async function adminListOrders(env: Env, req: Request, cors: Cors): Promise<Response> {
 	await requireAdmin(env, req);
 
-	const { results } = await env.DB.prepare(
-		`SELECT o.order_id, o.order_info, o.total_price_paise, o.payment_status,
-		        o.collection_status, o.roll_number, o.collected_at, o.created_at,
-		        o.customer_info, o.review_status, o.payment_ref, o.payment_proof_path,
-		        o.payment_submitted_at, o.reviewed_by_name, o.reviewed_at, o.review_note,
-		        o.spot_pass, o.stock_taken,
-		        p.razorpay_transaction_id, p.transaction_info
-		   FROM orders o
-		   LEFT JOIN payments p ON p.order_id = o.order_id
-		  ORDER BY o.created_at DESC, o.order_id DESC`,
-	).all<{
-		order_id: string;
-		order_info: string;
-		spot_pass: string | null;
-		stock_taken: number;
-		total_price_paise: number;
-		payment_status: string;
-		collection_status: CollectionStatus;
-		roll_number: string | null;
-		collected_at: string | null;
-		created_at: string;
-		customer_info: string | null;
-		review_status: string | null;
-		payment_ref: string | null;
-		payment_proof_path: string | null;
-		payment_submitted_at: string | null;
-		reviewed_by_name: string | null;
-		reviewed_at: string | null;
-		review_note: string | null;
-		razorpay_transaction_id: string | null;
-		transaction_info: string | null;
-	}>();
-
-	return json(
-		{
-			// Whether sending has stopped, so the panel knows on load rather than finding
-			// out when someone clicks a tick.
-			mail_block: await mailBlock(env)
-				.then((b) => ({ blocked: b.blocked, resets_at: b.resetsAt }))
-				.catch(() => null),
-			orders: results.map((o) => {
-				// Counter payments store name/contact/email; a Razorpay entity carries
-				// email and contact but no name. Both are read the same way, and a
-				// malformed blob costs one row's details rather than the whole page.
-				let name = '';
-				let email = '';
-				let phone = '';
-				try {
-					const t = o.transaction_info ? (JSON.parse(o.transaction_info) as Record<string, unknown>) : null;
-					if (t) {
-						name = String(t.name ?? '');
-						email = String(t.email ?? '');
-						phone = String(t.contact ?? '');
-					}
-				} catch {
-					console.warn('orders: unreadable transaction_info on', o.order_id);
-				}
-
-				// The payments row is only written when an admin confirms, so an order
-				// waiting in the review queue has none — and the panel would show the
-				// person whose screenshot you are about to judge as a row of blanks.
-				// customer_info is written before payment and fills exactly that gap.
-				if (!name || !email || !phone) {
-					try {
-						const c = o.customer_info ? (JSON.parse(o.customer_info) as Record<string, unknown>) : null;
-						if (c) {
-							name = name || String(c.name ?? '');
-							email = email || String(c.email ?? '');
-							phone = phone || String(c.phone ?? '');
-						}
-					} catch {
-						console.warn('orders: unreadable customer_info on', o.order_id);
-					}
-				}
-
-				return {
-					order_id: o.order_id,
-					name,
-					email,
-					phone,
-					roll_number: o.roll_number,
-					items: JSON.parse(o.order_info) as PricedLine[],
-					// Before confirmation the only reference we have is the one the student
-					// typed in; after it, the payments row carries the same value.
-					transaction_id: o.razorpay_transaction_id ?? o.payment_ref,
-					total_price_paise: o.total_price_paise,
-					payment_status: o.payment_status,
-					review_status: o.review_status ?? 'none',
-					payment_ref: o.payment_ref,
-					// The key itself never leaves the worker — the panel asks for the bytes
-					// by order id, so a leaked list of rows is not a list of object paths.
-					has_proof: Boolean(o.payment_proof_path),
-					payment_submitted_at: o.payment_submitted_at,
-					reviewed_by_name: o.reviewed_by_name,
-					reviewed_at: o.reviewed_at,
-					review_note: o.review_note,
-					// Sold at the stall, and whether it got what it ordered off the shelf.
-					// stock_taken = 0 on a pending order means it was filed against stock
-					// that had run out — the panel says so, because only a person can fix it.
-					at_stall: Boolean(o.spot_pass),
-					stock_taken: o.stock_taken === 1,
-					collection_status: o.collection_status,
-					collected_at: o.collected_at,
-					created_at: o.created_at,
-				};
-			}),
-		},
-		{},
-		cors,
-	);
+	// The row shape lives in orderfeed.ts, shared with the live feed that pushes a
+	// single changed row to every open panel.
+	const [orders, mail_block] = await Promise.all([
+		orderRows(env),
+		// Whether sending has stopped, so the panel knows on load rather than finding
+		// out when someone clicks a tick.
+		mailBlock(env)
+			.then((b) => ({ blocked: b.blocked, resets_at: b.resetsAt }))
+			.catch(() => null),
+	]);
+	return json({ mail_block, orders }, {}, cors);
 }
 
 // ============================================================
@@ -550,7 +468,7 @@ export async function adminCollect(
 	const res = await collectItems(env, orderId, lines, cors);
 
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) collected from ${String(orderId)}`);
-	const live = broadcastChange(env, 'orders', `collected ${String(orderId)}`);
+	const live = broadcastOrder(env, String(orderId), 'upsert');
 	if (ctx) ctx.waitUntil(live);
 
 	return res;
@@ -602,7 +520,7 @@ export async function adminDeleteOrder(
 	// Money left the student's hands; this log is the only trace left of the record.
 	console.log(`admin: ${session.collegemail} (${session.roll_number}) DELETED ORDER ${orderId}`);
 
-	const live = broadcastChange(env, 'orders', `deleted ${orderId}`);
+	const live = broadcastOrder(env, orderId, 'delete');
 	if (ctx) ctx.waitUntil(live);
 
 	return json({ ok: true, order_id: orderId }, {}, cors);
@@ -1137,7 +1055,7 @@ export async function adminReviewOrder(
 				})
 			: { sent: false, reason: 'error', detail: 'no email on file' };
 
-		const live = broadcastChange(env, 'orders', `rejected ${orderId}`);
+		const live = broadcastOrder(env, orderId, 'upsert');
 		if (ctx) ctx.waitUntil(live);
 		else await live;
 
@@ -1204,7 +1122,7 @@ export async function adminReviewOrder(
 		});
 	}
 
-	const live = broadcastChange(env, 'orders', `confirmed ${orderId}`);
+	const live = broadcastOrder(env, orderId, 'upsert');
 	if (ctx) ctx.waitUntil(live);
 
 	return json(

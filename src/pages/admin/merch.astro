@@ -621,7 +621,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 </AdminLayout>
 
 <script>
-	import { API, SITE, adminBlob, adminFetch, onCatalogueChange, toPaise, toRupees } from '../../lib/admin';
+	import { API, SITE, adminBlob, adminFetch, onCatalogueChange, onOrderEvents, type OrderEvent, toPaise, toRupees } from '../../lib/admin';
 	// The same renderer the storefront draws its collection ticket with, so a stall code
 	// and a collection pass are the same black-on-white, whole-pixel QR.
 	import { drawQR } from '../../lib/ticket';
@@ -1007,7 +1007,8 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			if (res.duplicate_reference)
 				alert(`Confirmed — but reference ${o.payment_ref} is already recorded against another order. Check both before handing anything over.`);
 			reportMail(res.email, 'Order confirmed');
-			await loadOrders();
+			// No reload: the server pushes the confirmed row to every open panel,
+			// this one included, and applyOrderEvent swaps it.
 		} catch (e) {
 			$('ordErr').textContent = (e as Error).message;
 			$('ordErr').hidden = false;
@@ -1040,7 +1041,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			openModal('rejModal', false);
 			reportMail(res.email, 'Order rejected');
 			pendingReject = null;
-			await loadOrders();
+			// The rejected row arrives over the order feed — see confirmPayment.
 		} catch (e) {
 			$('rejErr').textContent = (e as Error).message;
 			$('rejErr').hidden = false;
@@ -1062,60 +1063,116 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	 */
 	const isDraft = (o: Order) => o.payment_status === 'unpaid' && o.review_status === 'none';
 
-	function renderOrders() {
-		const body = $('ordBody');
-		body.innerHTML = '';
+	/** One table row, wired. Keyed by order id so a live update can find and swap it. */
+	function rowFor(o: Order): HTMLTableRowElement {
+		const tr = document.createElement('tr');
+		tr.dataset.orderId = o.order_id;
+		const paid = o.payment_status === 'paid';
 
+		tr.innerHTML =
+			`<td class="mono">${escape(o.order_id)}</td>` +
+			`<td>${escape(o.name) || '<span class="ord-none">—</span>'}</td>` +
+			// Null on orders placed before roll numbers were collected — a dash, not a
+			// blank, so the column reads as "not recorded" rather than a rendering slip.
+			`<td class="mono">${escape(o.roll_number ?? '') || '<span class="ord-none">—</span>'}</td>` +
+			`<td class="mono">${escape(o.email) || '<span class="ord-none">—</span>'}</td>` +
+			`<td class="mono">${escape(o.phone) || '<span class="ord-none">—</span>'}</td>` +
+			`<td><button type="button" class="ord-info" data-info>${escape(summarise(o))}</button></td>` +
+			`<td class="mono">${escape(o.transaction_id ?? '') || '<span class="ord-none">—</span>'}</td>` +
+			`<td class="num">₹${toRupees(o.total_price_paise)}` +
+			(paid ? '' : `<span class="ord-tag">${escape(o.payment_status)}</span>`) +
+			`</td>` +
+			`<td class="mono">${escape(stamp(o.created_at))}</td>` +
+			// An icon, not the picture. has_proof already says one exists, and a 40px
+			// box could never show a transaction id anyway — so rendering it cost a
+			// full-size download per row and told the reader nothing. Click to view.
+			`<td>${
+				o.has_proof
+					? `<button type="button" class="btn ord-shot" data-shot title="View payment screenshot" aria-label="View payment screenshot">${iShot}</button>`
+					: `<span class="ord-none">—</span>`
+			}</td>` +
+			`<td>${reviewCell(o)}</td>` +
+			`<td>${
+				o.collection_status === 'collected'
+					? `<span class="ord-pill on">COLLECTED</span>`
+					: o.collection_status === 'partial'
+						? `<span class="ord-pill partial">PARTIAL</span>`
+						: `<span class="ord-pill">PENDING</span>`
+			}</td>` +
+			`<td><button type="button" class="btn ord-del" data-del aria-label="Delete order">` +
+			`${iTrash}</button></td>`;
+
+		tr.querySelector('[data-info]')!.addEventListener('click', () => openSlip(o));
+		tr.querySelector('[data-del]')!.addEventListener('click', () => openDelete(o));
+		tr.querySelector('[data-ok]')?.addEventListener('click', () => confirmPayment(o));
+		tr.querySelector('[data-no]')?.addEventListener('click', () => openReject(o));
+		tr.querySelector('[data-shot]')?.addEventListener('click', () => openShot(o));
+		return tr;
+	}
+
+	function paintOrderCount() {
+		const shown = orders.filter((o) => !isDraft(o)).length;
+		$('ordCount').textContent = String(shown);
+		$('ordEmpty').hidden = shown > 0;
+	}
+
+	function renderOrders() {
 		// Drafts never reach the table. They are rows the database needs and the
 		// counter does not.
-		const shown = orders.filter((o) => !isDraft(o));
-		$('ordCount').textContent = String(shown.length);
-		$('ordEmpty').hidden = shown.length > 0;
+		$('ordBody').replaceChildren(...orders.filter((o) => !isDraft(o)).map(rowFor));
+		paintOrderCount();
+	}
 
-		for (const o of shown) {
-			const tr = document.createElement('tr');
-			const paid = o.payment_status === 'paid';
+	/** Newest first, ties broken by id — the same order the server lists them in. */
+	const newerFirst = (a: Order, b: Order) =>
+		a.created_at === b.created_at ? (a.order_id < b.order_id ? 1 : -1) : a.created_at < b.created_at ? 1 : -1;
 
-			tr.innerHTML =
-				`<td class="mono">${escape(o.order_id)}</td>` +
-				`<td>${escape(o.name) || '<span class="ord-none">—</span>'}</td>` +
-				// Null on orders placed before roll numbers were collected — a dash, not a
-				// blank, so the column reads as "not recorded" rather than a rendering slip.
-				`<td class="mono">${escape(o.roll_number ?? '') || '<span class="ord-none">—</span>'}</td>` +
-				`<td class="mono">${escape(o.email) || '<span class="ord-none">—</span>'}</td>` +
-				`<td class="mono">${escape(o.phone) || '<span class="ord-none">—</span>'}</td>` +
-				`<td><button type="button" class="ord-info" data-info>${escape(summarise(o))}</button></td>` +
-				`<td class="mono">${escape(o.transaction_id ?? '') || '<span class="ord-none">—</span>'}</td>` +
-				`<td class="num">₹${toRupees(o.total_price_paise)}` +
-				(paid ? '' : `<span class="ord-tag">${escape(o.payment_status)}</span>`) +
-				`</td>` +
-				`<td class="mono">${escape(stamp(o.created_at))}</td>` +
-				// An icon, not the picture. has_proof already says one exists, and a 40px
-				// box could never show a transaction id anyway — so rendering it cost a
-				// full-size download per row and told the reader nothing. Click to view.
-				`<td>${
-					o.has_proof
-						? `<button type="button" class="btn ord-shot" data-shot title="View payment screenshot" aria-label="View payment screenshot">${iShot}</button>`
-						: `<span class="ord-none">—</span>`
-				}</td>` +
-				`<td>${reviewCell(o)}</td>` +
-				`<td>${
-					o.collection_status === 'collected'
-						? `<span class="ord-pill on">COLLECTED</span>`
-						: o.collection_status === 'partial'
-							? `<span class="ord-pill partial">PARTIAL</span>`
-							: `<span class="ord-pill">PENDING</span>`
-				}</td>` +
-				`<td><button type="button" class="btn ord-del" data-del aria-label="Delete order">` +
-				`${iTrash}</button></td>`;
+	/**
+	 * Applies one live order event: swaps, inserts or removes exactly that row and leaves
+	 * the rest of the table alone. This is what replaced reloading every order on every
+	 * tick at the counter — the server sends the changed row whole (worker/src/orderfeed.ts).
+	 *
+	 * Before the first full load there is no table to patch; the load will include it.
+	 */
+	let ordersLoaded = false;
+	function applyOrderEvent(e: OrderEvent) {
+		if (!ordersLoaded) return;
+		const id = e.op === 'delete' ? e.order_id : (e.order as Order).order_id;
+		const i = orders.findIndex((o) => o.order_id === id);
+		const tr = $('ordBody').querySelector<HTMLTableRowElement>(`tr[data-order-id="${CSS.escape(id)}"]`);
 
-			tr.querySelector('[data-info]')!.addEventListener('click', () => openSlip(o));
-			tr.querySelector('[data-del]')!.addEventListener('click', () => openDelete(o));
-			tr.querySelector('[data-ok]')?.addEventListener('click', () => confirmPayment(o));
-			tr.querySelector('[data-no]')?.addEventListener('click', () => openReject(o));
-			tr.querySelector('[data-shot]')?.addEventListener('click', () => openShot(o));
-			body.appendChild(tr);
+		if (e.op === 'delete') {
+			if (i >= 0) orders.splice(i, 1);
+			tr?.remove();
+			paintOrderCount();
+			return;
 		}
+
+		const o = e.order as Order;
+		if (i >= 0) orders[i] = o;
+		else {
+			const at = orders.findIndex((x) => newerFirst(o, x) < 0);
+			orders.splice(at < 0 ? orders.length : at, 0, o);
+		}
+
+		if (isDraft(o)) {
+			tr?.remove();
+		} else {
+			const fresh = rowFor(o);
+			fresh.classList.add('ord-live');
+			if (tr) {
+				tr.replaceWith(fresh);
+			} else {
+				// A row that was not on screen — a draft that just became a payment to
+				// review. Placed before the next row that is, so the sort holds.
+				const next = orders.slice(orders.indexOf(o) + 1).find((x) => !isDraft(x));
+				const before = next && $('ordBody').querySelector(`tr[data-order-id="${CSS.escape(next.order_id)}"]`);
+				$('ordBody').insertBefore(fresh, before ?? null);
+			}
+		}
+		paintOrderCount();
+		// An open slip for this order redraws in place rather than going stale.
+		if (slipOrderId === id && !$('ordModal').hidden) openSlip(o);
 	}
 
 	async function loadOrders() {
@@ -1126,6 +1183,7 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 				mail_block?: { blocked: boolean; resets_at: string | null } | null;
 			}>('/api/admin/orders');
 			orders = data.orders;
+			ordersLoaded = true;
 			// Read on every load, so a tab opened after sending stopped knows immediately.
 			paintMailBlock(data.mail_block ?? null);
 			renderOrders();
@@ -1143,7 +1201,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 	}
 
 	/** A till receipt, not a data table: monospace, dashed rules, values right-aligned. */
+	let slipOrderId = '';
 	function openSlip(o: Order) {
+		slipOrderId = o.order_id;
 		$('ovTitle').textContent = 'ORDER SLIP';
 
 		const row = (k: string, v: string) =>
@@ -1525,7 +1585,8 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 			await adminFetch('/api/admin/distribution', { method: 'DELETE' });
 			session = null;
 			paintDistribution();
-			// Volunteers have been marking orders collected all session; the table behind is stale.
+			// The order feed kept the table current all session. One reload as it ends is a
+			// cheap check that nothing was missed while a socket was down.
 			if (task === 'orders') loadOrders();
 		} catch (e) {
 			distError(e);
@@ -1702,8 +1763,9 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		try {
 			await adminFetch(`/api/admin/orders/${pendingDelete.order_id}`, { method: 'DELETE' });
 			openModal('delModal', false);
+			// Gone from this table at once; the feed tells every other panel.
+			applyOrderEvent({ type: 'order', op: 'delete', order_id: pendingDelete.order_id });
 			pendingDelete = null;
-			await loadOrders();
 		} catch (e) {
 			$('delErr').textContent = (e as Error).message;
 			$('delErr').hidden = false;
@@ -2508,15 +2570,15 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		// ---- live ----
 		// Another admin's change lands here without a refresh. The selection is kept so
 		// this cannot yank the editor away from whoever is mid-edit.
+		// Two feeds. The public one says "the catalogue moved" and the catalogue is
+		// refetched. The admin one carries each changed order row, whole, and only that
+		// row is redrawn — a tick at the counter no longer reloads every order and the
+		// catalogue in every open panel. On (re)connect and tab focus the order feed asks
+		// for one full reload, so a message missed while asleep cannot leave rows stale.
 		stopLive?.();
-		stopLive = onCatalogueChange(
-			() => {
-				load(true);
-				// Only refresh the table if it is what is on screen.
-				if (task === 'orders') loadOrders();
-			},
-			['catalogue', 'orders'],
-		);
+		const stopCatalogue = onCatalogueChange(() => load(true), ['catalogue']);
+		const stopOrders = onOrderEvents(applyOrderEvent, () => { if (task === 'orders') loadOrders(); });
+		stopLive = () => { stopCatalogue(); stopOrders(); };
 	}
 
 	let stopLive: (() => void) | null = null;
@@ -2654,6 +2716,16 @@ import iRupee from 'lucide-static/icons/badge-indian-rupee.svg?raw';
 		border-bottom: var(--stroke) solid var(--secondary);
 	}
 	.ord tbody tr:hover { background: var(--sink); }
+	/* A row the order feed just replaced: one accent wash, fading out, so a counter
+	   tick is visible on the panel without anything else on the table moving. */
+	.ord tbody tr.ord-live { animation: ord-live 1.6s ease-out; }
+	@keyframes ord-live {
+		from { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+		to { background: transparent; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ord tbody tr.ord-live { animation: none; }
+	}
 	.ord tbody tr:last-child td { border-bottom: 0; }
 	.ord .num { text-align: right; }
 	.ord .mono { font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; }

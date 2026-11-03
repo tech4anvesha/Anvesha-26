@@ -82,9 +82,46 @@ import '../styles/admin-controls.css';
 
 <script>
 	import { API } from '../lib/api';
-	// BarcodeDetector is still missing from Safari and Firefox, which is most of the
-	// phones a volunteer will actually be holding. A real decoder is the working choice.
-	import jsQR from 'jsqr';
+
+	// ---- the QR reader ----
+	// Two decoders, best first. Chrome on Android — most volunteer phones — has a native
+	// BarcodeDetector: it reads straight off the <video>, off the main thread's JS, with
+	// no pixel copy at all. Safari and Firefox still lack it, so they get jsQR, loaded
+	// only then (an Android phone never downloads it) and fed a frame shrunk to 640px in
+	// a canvas made once — decoding a full-resolution frame into a new canvas ten times a
+	// second is what made the phones run hot over a long counter shift.
+	type Detector = { detect(src: CanvasImageSource): Promise<{ rawValue: string }[]> };
+	type Decode = (video: HTMLVideoElement) => Promise<string | null>;
+
+	/** Longest side of the frame jsQR sees. A ticket held at the counter is still ~150px
+	 *  across at this size — plenty for a QR of one 30-character id. */
+	const SCAN_EDGE = 640;
+
+	let decoder: Promise<Decode> | null = null;
+	function getDecoder(): Promise<Decode> {
+		decoder ??= (async (): Promise<Decode> => {
+			const BD = (globalThis as unknown as {
+				BarcodeDetector?: { new (o: { formats: string[] }): Detector; getSupportedFormats(): Promise<string[]> };
+			}).BarcodeDetector;
+			if (BD && (await BD.getSupportedFormats().catch(() => [])).includes('qr_code')) {
+				const native = new BD({ formats: ['qr_code'] });
+				return async (video) => (await native.detect(video).catch(() => []))[0]?.rawValue ?? null;
+			}
+			const jsQR = (await import('jsqr')).default;
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+			return async (video) => {
+				const scale = Math.min(1, SCAN_EDGE / Math.max(video.videoWidth, video.videoHeight));
+				const w = Math.round(video.videoWidth * scale);
+				const h = Math.round(video.videoHeight * scale);
+				if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+				ctx.drawImage(video, 0, 0, w, h);
+				const px = ctx.getImageData(0, 0, w, h);
+				return jsQR(px.data, w, h, { inversionAttempts: 'dontInvert' })?.data ?? null;
+			};
+		})();
+		return decoder;
+	}
 
 	const $ = <T extends HTMLElement = HTMLInputElement>(id: string) => document.getElementById(id) as T;
 
@@ -170,10 +207,13 @@ import '../styles/admin-controls.css';
 		try {
 			// facingMode 'environment' asks for the rear camera on a phone; on a laptop
 			// there is only one and the constraint is ignored rather than failing.
+			// ~720p, not the sensor's maximum: a QR at arm's length needs no more, and a
+			// 4K stream costs the phone to capture even before anything decodes it.
 			stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode: 'environment' },
+				video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
 				audio: false,
 			});
+			getDecoder(); // start picking/loading the decoder while the camera warms up
 			video.srcObject = stream;
 			await video.play();
 			state.hidden = true;
@@ -196,18 +236,14 @@ import '../styles/admin-controls.css';
 		const video = $<HTMLVideoElement>('distVideo');
 
 		if (video.readyState === video.HAVE_ENOUGH_DATA) {
-			const canvas = document.createElement('canvas');
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-			const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
-			const found = jsQR(px.data, px.width, px.height, { inversionAttempts: 'dontInvert' });
+			const found = (await (await getDecoder())(video))?.trim();
+			// The camera may have been stopped while that frame was being read.
+			if (!scanning) return;
 			// Anything but the code we already rejected: the lens stays live so pointing it
 			// at the next ticket just works, but the verdict on screen holds still.
-			if (found?.data && found.data.trim() !== rejected) {
+			if (found && found !== rejected) {
 				scanning = false;
-				await lookup(found.data.trim());
+				await lookup(found);
 				return;
 			}
 		}
@@ -398,23 +434,35 @@ import '../styles/admin-controls.css';
 
 	/** `lines` omitted collects everything still outstanding — what MARK ALL sends. */
 	async function collect(lines: number[] | undefined) {
-		if (!scanned) return;
+		// Held for the whole request: SCAN ANOTHER can clear `scanned` while this is in
+		// flight, and the answer must not be drawn over whatever is on screen by then.
+		const current = scanned;
+		if (!current) return;
 		const doneBtn = $<HTMLButtonElement>('distDone');
 		const allBtn = $<HTMLButtonElement>('distAll');
 		doneBtn.disabled = true;
 		allBtn.disabled = true;
 		try {
-			const body: Record<string, unknown> = { order_id: scanned.order.order_id };
+			const body: Record<string, unknown> = { order_id: current.order.order_id };
 			if (lines) body.lines = lines;
-			await api('/collect', { method: 'POST', body: JSON.stringify(body) });
-			// Re-scan for the canonical row — payment info, the exact collected_at,
-			// everything — rather than hand-patching the local copy after a partial write.
-			const res = await api<Scan>('/scan', {
-				method: 'POST',
-				body: JSON.stringify({ order_id: scanned.order.order_id }),
-			});
-			scanned = res;
-			showResult(res);
+			// The collect answers with the order's new items, status and collected_at —
+			// everything a hand-over changes — so the checklist redraws from that rather
+			// than a second /scan round trip. Buyer and payment cannot change here, so
+			// they are kept from the scan that opened this order.
+			const res = await api<{
+				items: OrderLine[]; collection_status: Scan['order']['collection_status']; collected_at: string | null;
+			}>('/collect', { method: 'POST', body: JSON.stringify(body) });
+			if (scanned !== current) return; // the volunteer has moved on
+			scanned = {
+				...current,
+				order: {
+					...current.order,
+					items: res.items,
+					collection_status: res.collection_status,
+					collected_at: res.collected_at ?? current.order.collected_at,
+				},
+			};
+			showResult(scanned);
 		} catch (e) {
 			if (isDead(e)) return;
 			$('distResult').insertAdjacentHTML(

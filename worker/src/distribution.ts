@@ -15,8 +15,9 @@
  */
 
 import { requireAdmin } from './admin.ts';
-import { collectItems, lookupByRoll, scanOrder } from './routes.ts';
-import { ApiError, type Env, broadcastChange, json, randomId, readJson, requireBudget } from './util.ts';
+import { type Gate, collectItems, lookupByRoll, scanOrder } from './routes.ts';
+import { broadcastOrder } from './orderfeed.ts';
+import { ApiError, type Env, json, randomId, readJson, requireBudget } from './util.ts';
 
 /** Its own code, not the generic `notFound()` — a scan inside a dead session and a
  *  scan of an order that just doesn't exist are both 404s, and the counter page has to
@@ -58,9 +59,31 @@ export async function requireOpenSession(env: Env, sessionId: unknown): Promise<
 		.bind(sessionId)
 		.first<OpenSession>();
 
+	checkOpen(row);
+	return row!;
+}
+
+/** The verdict both the up-front check and the gate share: open, ended (410) or unknown (404). */
+function checkOpen(row: { end_time: string | null } | null): void {
 	if (!row) throw noSuchSession();
 	if (row.end_time) throw new ApiError(410, 'session_ended', `This distribution ended at ${row.end_time}`);
-	return row;
+}
+
+/**
+ * The same check, handed to scanOrder / lookupByRoll / collectItems to run INSIDE their
+ * own round trip to D1 instead of before it (see Gate in routes.ts). Still re-checked on
+ * every request — ending a session kills the link at once, exactly as before — but the
+ * volunteer waits on one trip, not two or three.
+ *
+ * The shape check runs here, before any database work, as it always has.
+ */
+export function sessionGate(env: Env, sessionId: unknown): Gate {
+	if (!looksLikeSessionId(sessionId)) throw noSuchSession();
+	return {
+		sessionId,
+		stmt: env.DB.prepare(`SELECT end_time FROM distributions WHERE session_id = ?`).bind(sessionId),
+		check: checkOpen,
+	};
 }
 
 // ============================================================
@@ -139,9 +162,9 @@ export async function sessionScan(env: Env, sessionId: string, req: Request, cor
 	// unauthenticated write path into the orders table — the URL is the whole credential
 	// — so a leaked link should cost an attacker a budget, not unlimited D1 reads.
 	await requireBudget(env, req, 'dist-scan');
-	await requireOpenSession(env, sessionId);
+	const gate = sessionGate(env, sessionId);
 	const { order_id: orderId } = await readJson<{ order_id?: string }>(req);
-	return scanOrder(env, orderId, cors);
+	return scanOrder(env, orderId, cors, gate);
 }
 
 // ============================================================
@@ -149,9 +172,9 @@ export async function sessionScan(env: Env, sessionId: string, req: Request, cor
 // ============================================================
 export async function sessionLookup(env: Env, sessionId: string, req: Request, cors: Cors): Promise<Response> {
 	await requireBudget(env, req, 'dist-lookup');
-	await requireOpenSession(env, sessionId);
+	const gate = sessionGate(env, sessionId);
 	const { roll_number: roll } = await readJson<{ roll_number?: string }>(req);
-	return lookupByRoll(env, roll, cors);
+	return lookupByRoll(env, roll, cors, gate);
 }
 
 // ============================================================
@@ -165,15 +188,15 @@ export async function sessionCollect(
 	ctx?: ExecutionContext,
 ): Promise<Response> {
 	await requireBudget(env, req, 'dist-collect');
-	await requireOpenSession(env, sessionId);
+	const gate = sessionGate(env, sessionId);
 	const { order_id: orderId, lines } = await readJson<{ order_id?: string; lines?: unknown }>(req);
 
 	// collectItems throws on anything but a clean write, so reaching the next line
-	// means the row really did change.
-	const res = await collectItems(env, orderId, lines, cors);
+	// means the row really did change. The session is checked inside its UPDATE.
+	const res = await collectItems(env, orderId, lines, cors, gate);
 
 	console.log(`distribution ${sessionId}: collected ${String(orderId)}`);
-	const live = broadcastChange(env, 'orders', `collected ${String(orderId)}`);
+	const live = broadcastOrder(env, String(orderId), 'upsert');
 	if (ctx) ctx.waitUntil(live);
 
 	return res;
